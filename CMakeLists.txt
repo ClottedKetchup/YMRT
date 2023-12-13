@@ -37,7 +37,7 @@ target_include_directories(${EXE_NAME} PRIVATE "${PROJECT_SOURCE_DIR}/external/g
 target_include_directories(${EXE_NAME} PRIVATE "${PROJECT_SOURCE_DIR}/external/assimp-5.1.0/include")
 target_include_directories(${EXE_NAME} PRIVATE "${PROJECT_SOURCE_DIR}/external/imgui")
 
-set(ASSIMP_BUILD_TESTS OFF)
+set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 
 add_subdirectory(external/glad)
 add_subdirectory(external/glfw)
