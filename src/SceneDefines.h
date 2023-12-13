@@ -1,0 +1,73 @@
+#pragma once
+
+#include "MathCommon.h"
+
+namespace YumeRT
+{
+	struct Camera;
+
+	struct GeometryData;
+
+	struct PrimitiveInstance;
+
+	struct Triangle;
+
+	struct BottomNode;
+
+	struct TopNode;
+
+	struct Material;
+
+	struct DistantLight;
+	
+	// TODO: turn this into void pointer!
+	struct Scene
+	{
+		Camera *camera = nullptr;
+
+		uint32_t *vidxs = nullptr;
+		glm::vec3 *positions = nullptr;
+
+		uint32_t *nidxs = nullptr;
+		glm::vec3 *normals = nullptr;
+
+		uint32_t *uvidxs = nullptr;
+		glm::vec2 *texcoords = nullptr;
+
+		Triangle *triangles = nullptr;
+
+		uint32_t geometry_count = 0;
+		GeometryData *geometries = nullptr;
+
+		uint32_t prim_instance_count = 0;
+		PrimitiveInstance *prim_instances = nullptr;
+
+		uint32_t bottom_node_count = 0;
+		BottomNode *bottom_nodes = nullptr;
+
+		uint32_t top_node_count = 0;
+		TopNode *top_nodes = nullptr;
+
+		uint32_t transform_count = 0;
+		glm::mat4 *transforms = nullptr;
+		glm::mat4 *i_transforms = nullptr;
+
+		uint32_t material_count = 0;
+		Material *materials = nullptr;
+
+		uint32_t distant_light_count = 0;
+		DistantLight *distant_lights = nullptr;
+	};
+
+	struct RenderSetting
+	{
+		int ssp;
+		int ray_depth;
+		float gamma;
+		float exposure;
+		int max_frame_count;
+		int padding[3];
+
+		__device__ __host__ RenderSetting(): ssp(1), ray_depth(4), gamma(2.2f), exposure(1.0f), max_frame_count(-1) {}
+	};
+};
