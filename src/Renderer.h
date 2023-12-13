@@ -25,7 +25,7 @@ namespace YumeRT
 													int frame_count, 
 													float *render_time);
 
-	extern "C" void AccumulateImage(const glm::vec4 *beauty, glm::vec4 *accumulate, uint32_t width, uint32_t height, float frame_count, const RenderSetting &render_setting);
+	extern "C" void AccumulateImage(const glm::vec4 *beauty, glm::vec4 *accumulate, uint32_t width, uint32_t height, int frame_count, const RenderSetting &render_setting);
 
 	extern "C" void PostProcessing(glm::vec4 *postprocess_image, uint32_t *prim_idx_buffer, const RenderSetting &render_setting, uint32_t width, uint32_t height, uint32_t select_prim_idx, bool disable_object_highlight);
 
@@ -116,25 +116,26 @@ namespace YumeRT
 		// scene should be accompanied with some scene flag
 		inline void Render(const Scene &scene, bool is_scene_change)
 		{
-			frame_count = (is_scene_change || render_setting_change) ? 1.0f : 
-				(render_setting.max_frame_count > 0 && (int)frame_count >= render_setting.max_frame_count ? frame_count : (frame_count + 1.0f));
+			frame_count = (is_scene_change || render_setting_change) ? 1 : (frame_count + 1);
 
 			hash_frame_count = (is_scene_change || render_setting_change) ? 1 : (hash_frame_count + 1);
 
-			glm::vec4 *beauty_ptr = GetImageResource("Beauty").GetDevicePtr();
-			glm::vec4 *accumulate_ptr = GetImageResource("Accumulate").GetDevicePtr();
+			glm::vec4 *beauty_image = GetImageResource("Beauty").GetDevicePtr();
+			glm::vec4 *accumulate_image = GetImageResource("Accumulate").GetDevicePtr();
 
 			RenderScene(scene, 
 								  render_setting,
-								  beauty_ptr, 
+								  beauty_image, 
 								  prim_idx_buffer,
 								  image_width, 
 								  image_height, 
 								 (int)hash_frame_count,
 							   &rendering_time);
 
-			AccumulateImage(beauty_ptr,
-										  accumulate_ptr,
+			if (is_scene_change || render_setting_change) { CUDA_CHECK(cudaMemset(accumulate_image, 0, sizeof(glm::vec4) * image_width * image_height)); }
+
+			AccumulateImage(beauty_image,
+										  accumulate_image,
 										  image_width, 
 										  image_height, 
 										  frame_count,
@@ -227,7 +228,7 @@ namespace YumeRT
 
 		inline bool& GetObjectHighlightFlag() { return disable_object_highlight; }
 
-		inline uint32_t GetFrameCount()const { return (uint32_t)frame_count; }
+		inline int GetFrameCount()const { return frame_count; }
 
 	private:
 		std::vector<ImageResource> image_resources;
@@ -235,7 +236,7 @@ namespace YumeRT
 		std::unordered_map<std::string, uint32_t> resource_map;
 
 		uint32_t hash_frame_count = 0;
-		float frame_count = 1.0;
+		int frame_count = 1;
 		float rendering_time;
 		uint32_t image_width = 0, image_height = 0;
 

@@ -294,22 +294,21 @@ namespace YumeRT
 		glm::vec4 *accumulate, 
 		uint32_t width, 
 		uint32_t height, 
-		float frame_count)
+		int frame_count)
 	{
 		uint32_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 		uint32_t idy = blockIdx.y * blockDim.y + threadIdx.y;
 		if (idx < width && idy < height)
 		{
 			uint32_t pixel_idx = idy * width + idx;
-			accumulate[pixel_idx] = (accumulate[pixel_idx] * glm::max(frame_count - 1.0f, 0.0f) + beauty[pixel_idx]) / frame_count;
+			accumulate[pixel_idx] = (accumulate[pixel_idx] * float(glm::max(frame_count - 1, 0)) + beauty[pixel_idx]) / float(frame_count);
 		}
 	}
 
-	extern "C" void AccumulateImage(const glm::vec4 *beauty, glm::vec4 *accumulate, uint32_t width, uint32_t height, float frame_count, const RenderSetting &render_setting)
+	extern "C" void AccumulateImage(const glm::vec4 *beauty, glm::vec4 *accumulate, uint32_t width, uint32_t height, int frame_count, const RenderSetting &render_setting)
 	{
 		assert(beauty != nullptr && accumulate != nullptr);
-		if ((int)frame_count <= 1) { CUDA_CHECK(cudaMemset(accumulate, 0, sizeof(glm::vec4) * width * height)); }
-		if (render_setting.max_frame_count > 0 && (int)frame_count >= render_setting.max_frame_count && (int)frame_count != 1) { return; }
+		if (render_setting.max_frame_count > 0 && frame_count > render_setting.max_frame_count) { return; }
 
 		dim3 block_dim(32, 32, 1);
 		dim3 grid_dim(Round_Block_Count(width, block_dim.x), Round_Block_Count(height, block_dim.y), 1);
