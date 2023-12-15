@@ -37,8 +37,9 @@ namespace YumeRT
 
 	__device__ __host__ glm::vec3 Background(const glm::vec3 &direction)
 	{
-		return glm::mix(glm::vec3(1.0f), glm::vec3(0.05f, 0.2f, 0.65f), direction.y * 0.5f + 0.5f);
-		// return glm::vec3(0.f);
+		// return glm::mix(glm::vec3(1.0f), glm::vec3(0.05f, 0.2f, 0.65f), direction.y * 0.5f + 0.5f);
+		// return glm::mix(glm::vec3(1.0f), glm::vec3(0.05f, 0.2f, 0.85f), direction.y * 0.5f + 0.5f);
+		return glm::vec3(0.f);
 	}
 
 	__device__ glm::vec3 EvalDirectLighting(const Scene &scene, 
@@ -190,18 +191,19 @@ namespace YumeRT
 					UberBSDF uber_bsdf;
 					uber_bsdf.InitShadingSpace(hit_record.hit_back? -hit_shading_normal : hit_shading_normal,
 																  hit_record.hit_back? -hit_dpdu: hit_dpdu);
-					uber_bsdf.InitBSDFSettings(mtl, ray.direction, hit_record.hit_back, prim.external_ior);
+					// instance's internal ior is implicitly specified by its material
+					uber_bsdf.InitBSDFSettings(mtl, ray, hit_record.hit_back, prim.external_ior);
 					
 					// TODO: direct lighting
 					L += throughput * EvalDirectLighting(scene, 
-						uber_bsdf, 
-						ray.direction, 
-						hit_position, 
-						hit_shading_normal, 
-						hit_geometry_normal, 
-						px, 
-						py, 
-						pixel_randoms[pixel_idx]);
+																				uber_bsdf, 
+																				ray.direction, 
+																				hit_position, 
+																				hit_shading_normal, 
+																				hit_geometry_normal, 
+																				px, 
+																				py, 
+																				pixel_randoms[pixel_idx]);
 
 					
 					// current a bunch noise are from indirect light!
@@ -224,9 +226,10 @@ namespace YumeRT
 					}
 
 					glm::vec3 new_direction = uber_bsdf.ShadingToWorld(wi);
-					glm::vec3 new_origin = OffsetRayOrigin(hit_position, glm::dot(hit_geometry_normal, new_direction) > 0.0f? hit_geometry_normal : -hit_geometry_normal);
+					bool front_side_bounce = glm::dot(hit_geometry_normal, new_direction) > 0.0f;
+					glm::vec3 new_origin = OffsetRayOrigin(hit_position, front_side_bounce? hit_geometry_normal : -hit_geometry_normal);
 					
-					ray = Ray(new_origin, new_direction);
+					ray = Ray(new_origin, new_direction, front_side_bounce? prim.external_ior : mtl.surface_material.ior_n);
 					++depth;
 				}
 				else

@@ -23,6 +23,8 @@ namespace YumeRT
 				float alpha_x = 0.2f;
 				glm::vec3 specular_albedo = glm::vec3(1.0f);
 				float	alpha_y = 0.2f;
+				// TODO: specular weight
+				float specular_weight = 1.0f;
 				float	ior_n = 1.3f;
 				float metalness = 0.0f;
 				float transmission_weight = 0.0f;

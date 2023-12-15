@@ -64,7 +64,8 @@ namespace YumeRT
 		MATERIAL_ADD= (1 << 8),
 		MATERIAL_ATTRIBUTE_CHANGE = (1 << 9),
 		MATERIAL_REMOVE= (1 << 10),
-		MATERIAL_ASSIGN_TO_A_INSTANCE = (1 << 11)
+		MATERIAL_ASSIGN_TO_A_INSTANCE = (1 << 11),
+		INSTANCE_EX_IOR_CHANGE
 	};
 
 	class SceneManager
@@ -113,6 +114,7 @@ namespace YumeRT
 																 float roughness_y = 0.2f,
 																 float ior_n = 1.3f, 
 																 float metalness = 0.0f,
+																 float specular_weight = 1.0f,
 																 float transmission_weight = 0.0f);
 
 		inline uint32_t AddLightMaterial(const std::string &name, const glm::vec3 &light_color = glm::vec3(0.5f),  float intensity = 1.0f);
@@ -121,6 +123,8 @@ namespace YumeRT
 
 		// you should use it when only the material change...
 		inline void AssignMaterialToPrim(uint32_t prim_idx, uint32_t material_idx);
+
+		inline void ChangePrimExIOR(uint32_t prim_idx, float external_ior);
 
 		inline uint32_t RemoveMaterial(uint32_t material_idx);
 
@@ -176,7 +180,8 @@ namespace YumeRT
 					   (scene_change_flag & SCENECHANGE_FLAG::INSTANCE_REMOVE) ||
 					   (scene_change_flag & SCENECHANGE_FLAG::INSTANCE_MOVE) ||
 					   (scene_change_flag & SCENECHANGE_FLAG::INSTANCE_MATERIAL_CHANGE) ||
-					   (scene_change_flag & SCENECHANGE_FLAG::MATERIAL_ASSIGN_TO_A_INSTANCE);
+					   (scene_change_flag & SCENECHANGE_FLAG::MATERIAL_ASSIGN_TO_A_INSTANCE) ||
+					   (scene_change_flag & SCENECHANGE_FLAG::INSTANCE_EX_IOR_CHANGE);
 		}
 
 		inline float GetTopBVHTime() const 
@@ -301,9 +306,9 @@ namespace YumeRT
 									AddTransform(glm::vec3(-1.5f, 0.0f, -4.0f)), 
 									AddSurfaceMaterial("blue", glm::vec3(0.0f, 0.0f, 0.5f)));
 
-		/*AddPrimInstance(cube_idx,
+		AddPrimInstance(cube_idx,
 									AddTransform(glm::vec3(0.0f, 4.0f, -3.5f), glm::vec3(3.0f, 0.1f, 3.0f)),
-									AddLightMaterial("Light", glm::vec3(1.0f), 3.0f));*/
+									AddLightMaterial("Light", glm::vec3(1.0f), 3.0f));
 		
 		AddPrimInstance(cube_idx, /* floor */
 									AddTransform(glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(10000.0f, 0.1f, 10000.0f)),
@@ -993,6 +998,7 @@ namespace YumeRT
 																		   float roughness_y,
 																		   float ior_n, 
 																		   float metalness,
+																		   float specular_weight,
 																		   float transmission_weight)
 	{
 		Material mtl;
@@ -1003,6 +1009,7 @@ namespace YumeRT
 		mtl.surface_material.alpha_y = roughness_y;
 		mtl.surface_material.ior_n = ior_n;
 		mtl.surface_material.metalness = metalness;
+		mtl.surface_material.specular_weight = specular_weight;
 		mtl.surface_material.transmission_weight = transmission_weight;
 		
 		material_names.push_back(name);
@@ -1061,6 +1068,18 @@ namespace YumeRT
 		CUDA_CHECK(cudaDeviceSynchronize());
 
 		AddSceneFlag(SCENECHANGE_FLAG::MATERIAL_ASSIGN_TO_A_INSTANCE);
+	}
+
+	inline void SceneManager::ChangePrimExIOR(uint32_t prim_idx, float external_ior)
+	{
+		if (prim_instances.empty() || prim_idx < 0 || prim_idx >(uint32_t)prim_instances.size() - 1) { return; }
+		
+		prim_instances[prim_idx].external_ior = external_ior;
+		assert(scene.prim_instances != nullptr);
+		CUDA_CHECK(cudaMemcpy(scene.prim_instances + prim_idx, &prim_instances[prim_idx], sizeof(PrimitiveInstance), cudaMemcpyHostToDevice));
+		CUDA_CHECK(cudaDeviceSynchronize());
+
+		AddSceneFlag(SCENECHANGE_FLAG::INSTANCE_EX_IOR_CHANGE);
 	}
 
 	inline uint32_t SceneManager::RemoveMaterial(uint32_t material_idx)

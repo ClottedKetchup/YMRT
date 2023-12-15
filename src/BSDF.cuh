@@ -231,7 +231,7 @@ namespace YumeRT
 			float D_term = D(wh, alpha_x, alpha_y);
 			float G1_term = G1(wo, alpha_x, alpha_y);
 			float G2_term = G2(wo, wi, alpha_x, alpha_y);
-			glm::vec3 fr = is_metal ? FresnelDieletricConductor(nt / ni, kt / ni, glm::dot(wo, wh)) : glm::vec3(FresnelDielectricDielectric((nt / ni).x, glm::dot(wo, wh)));
+			glm::vec3 fr = is_metal ? FresnelDieletricConductor(nt / ni, kt / ni, glm::dot(wo, wh)) : glm::vec3(1.0f);
 			*pdf = D_term * G1_term * 0.25f / glm::max(wo.z, 1E-8f);
 			return specular_albedo * D_term * G2_term * 0.25f * fr / glm::max(wo.z, 1E-8f);
 		}
@@ -250,7 +250,7 @@ namespace YumeRT
 			float D_term = D(wh, alpha_x, alpha_y);
 			float G1_term = G1(wo, alpha_x, alpha_y);
 			float G2_term = G2(wo, *wi, alpha_x, alpha_y);
-			glm::vec3 fr = is_metal ? FresnelDieletricConductor(nt / ni, kt / ni, glm::dot(wo, wh)) : glm::vec3(FresnelDielectricDielectric((nt / ni).x, glm::dot(wo, wh)));
+			glm::vec3 fr = is_metal ? FresnelDieletricConductor(nt / ni, kt / ni, glm::dot(wo, wh)) : glm::vec3(1.0f);
 			*pdf = D_term * G1_term * 0.25f / glm::max(wo.z, 1E-8f);
 			*weight = specular_albedo * G2_term * fr / G1_term;
 			return true;
@@ -309,9 +309,9 @@ namespace YumeRT
 			float G1_term = G1(wo, alpha_x, alpha_y);
 			float G2_term = G2(wo, wi, alpha_x, alpha_y);
 			float dwhdwi = Sqr(nt) * glm::abs(glm::dot(wi, wh)) / glm::max(Sqr(ni * glm::dot(wo, wh) + nt * glm::dot(wi, wh)), 1E-12f);
-			float fr = FresnelDielectricDielectric(nt / ni, glm::dot(wo, wh));
+
 			*pdf = D_term * G1_term * glm::abs(glm::dot(wo, wh)) * dwhdwi / glm::max(glm::abs(wo.z), 1E-8f);
-			return transmission_albedo * (1.0f - fr) * glm::abs(glm::dot(wo, wh) / glm::max(glm::abs(wo.z), 1E-8f)) * G2_term * D_term * dwhdwi * Sqr(ni / nt);
+			return transmission_albedo * glm::abs(glm::dot(wo, wh) / glm::max(glm::abs(wo.z), 1E-8f)) * G2_term * D_term * dwhdwi * Sqr(ni / nt);
 		}
 
 		__device__ __host__ inline bool Sample(float u0, float u1, const glm::vec3 &wo, glm::vec3 *weight, glm::vec3 *wi, float *pdf)
@@ -336,9 +336,9 @@ namespace YumeRT
 			float G1_term = G1(wo, alpha_x, alpha_y);
 			float G2_term = G2(*wi, wo, alpha_x, alpha_y);
 			float dwhdwi = Sqr(nt) * glm::abs(glm::dot(*wi, wh)) / glm::max(Sqr(ni * glm::dot(wo, wh) + nt * glm::dot(*wi, wh)), 1E-12f);
-			float fr = FresnelDielectricDielectric(nt / ni, glm::dot(wo, wh));
+
 			*pdf = D_term * G1_term * glm::abs(glm::dot(wo, wh)) * dwhdwi / glm::max(glm::abs(wo.z), 1E-8f);
-			*weight = transmission_albedo * (1.0f - fr) * Sqr(ni / nt) * G2_term / G1_term;
+			*weight = transmission_albedo * Sqr(ni / nt) * G2_term / G1_term;
 			return true;
 		}
 	};
@@ -429,8 +429,8 @@ namespace YumeRT
 		int back_side;
 
 		float metalness;
-		float external_ior;
-		float internal_ior;
+		float in_IOR;
+		float out_IOR;
 		float transmission_weight;
 
 		float alpha_x;
@@ -447,28 +447,31 @@ namespace YumeRT
 			bitangent = glm::cross(normal, tangent);
 		}
 
-		__device__ __host__ inline void InitBSDFSettings(const Material &mtl, const glm::vec3 &ray_direction, int hit_back, float outer_ior)
+		__device__ __host__ inline void InitBSDFSettings(const Material &mtl, const Ray &ray_in, int hit_back, float prim_outer_ior)
 		{
 			metalness = mtl.surface_material.metalness;
 
-			external_ior = glm::max(outer_ior, 0.001f);
-
-			internal_ior = glm::max(mtl.surface_material.ior_n, 0.001f);
+			in_IOR = glm::max(ray_in.ray_ior, 0.001f);
+			out_IOR = glm::max(hit_back? prim_outer_ior : mtl.surface_material.ior_n, 0.001f);
 
 			back_side = hit_back;
 
 			transmission_weight = mtl.surface_material.transmission_weight;
 
 			alpha_x = Sqr(glm::clamp(mtl.surface_material.alpha_x, 0.001f, 0.98f));
-
 			alpha_y = Sqr(glm::clamp(mtl.surface_material.alpha_y, 0.001f, 0.98f));
 
-			float eta = back_side ? (external_ior / internal_ior) : (internal_ior / external_ior);
-			float fr = FresnelDielectricDielectric(eta, glm::max(glm::dot(normal, -ray_direction), 0.0f));
+			float eta = out_IOR / in_IOR;
+			float fr = FresnelDielectricDielectric(eta, glm::max(glm::dot(normal, -ray_in.direction), 0.0f));
+			
+			fr *= mtl.surface_material.specular_weight;
+			// TO verify: is this right?
 			weights[0] = metalness;
 			weights[1] = (1.0f - metalness) * fr;
 			weights[2] = (1.0f - metalness) * (1.0 - fr) * transmission_weight;
 			weights[3] = (1.0f - metalness) * (1.0 - fr) * (1.0f - transmission_weight);
+
+			// F(wz) can be seen as the average of F(wh), so this could be a reasonable approximation
 
 			if (weights[0] > 0.0f)
 			{
@@ -481,7 +484,7 @@ namespace YumeRT
 				bsdfs[bsdf_count].microfacet_reflect.alpha_y = alpha_y;
 				bsdfs[bsdf_count].microfacet_reflect.nt = metal_n;
 				bsdfs[bsdf_count].microfacet_reflect.kt = metal_k;
-				bsdfs[bsdf_count].microfacet_reflect.ni = back_side ? internal_ior : external_ior;
+				bsdfs[bsdf_count].microfacet_reflect.ni = in_IOR;
 				bsdfs[bsdf_count].microfacet_reflect.is_metal = (int)true;
 				++bsdf_count;
 			}
@@ -492,9 +495,9 @@ namespace YumeRT
 				bsdfs[bsdf_count].microfacet_reflect.specular_albedo = mtl.surface_material.specular_albedo;
 				bsdfs[bsdf_count].microfacet_reflect.alpha_x = alpha_x;
 				bsdfs[bsdf_count].microfacet_reflect.alpha_y = alpha_y;
-				bsdfs[bsdf_count].microfacet_reflect.nt = glm::vec3(back_side? external_ior : internal_ior);
+				bsdfs[bsdf_count].microfacet_reflect.nt = glm::vec3(out_IOR);
 				bsdfs[bsdf_count].microfacet_reflect.kt = glm::vec3(0.0f);
-				bsdfs[bsdf_count].microfacet_reflect.ni = back_side ? internal_ior: external_ior;
+				bsdfs[bsdf_count].microfacet_reflect.ni = in_IOR;
 				bsdfs[bsdf_count].microfacet_reflect.is_metal = (int)false;
 				++bsdf_count;
 			}
@@ -506,8 +509,8 @@ namespace YumeRT
 				bsdfs[bsdf_count].microfacet_transmit.transmission_albedo = mtl.surface_material.specular_albedo;
 				bsdfs[bsdf_count].microfacet_transmit.alpha_x = alpha_x;
 				bsdfs[bsdf_count].microfacet_transmit.alpha_y = alpha_y;
-				bsdfs[bsdf_count].microfacet_transmit.ni = back_side ? internal_ior : external_ior;
-				bsdfs[bsdf_count].microfacet_transmit.nt = back_side ? external_ior : internal_ior;
+				bsdfs[bsdf_count].microfacet_transmit.ni = in_IOR;
+				bsdfs[bsdf_count].microfacet_transmit.nt = out_IOR;
 				++bsdf_count;
 			}
 
@@ -663,8 +666,6 @@ namespace YumeRT
 			float deno = 1.0f / (bsdf_wi_pdf * bsdf_select_weight);
 
 			float mix_pdf = 1.0f;
-			/*if (bsdf_ptrs[2] == sampled_bsdf_ptr)
-				printf("mix pdf: %.3f\n", mix_pdf);*/
 			for (int i = 0; i < 4; ++i)
 			{
 				if (bsdf_ptrs[i] != nullptr && bsdf_ptrs[i] != sampled_bsdf_ptr)
@@ -672,8 +673,6 @@ namespace YumeRT
 					BSDF &bsdf = *bsdf_ptrs[i];
 					float pdf = bsdf.PDF(wo, *wi);
 					mix_pdf += weights[i] * pdf * deno;
-					/*if (bsdf_ptrs[2] == sampled_bsdf_ptr)
-						printf("bsdf %d pdf: %.3f\n", i, pdf);*/
 				}
 			}
 			if (glm::abs(mix_pdf) == 0.0f) { return false; }

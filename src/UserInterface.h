@@ -21,7 +21,7 @@ namespace YumeRT
 		int mouse_button = -1;
 		float prev_pos_x = -1.0f;
 		float prev_pos_y = -1.0f;
-		float move_speed = 0.25f;
+		float move_speed = 0.1f;
 		float rotate_speed = 0.5f;
 		bool start_tracking = false;
 		Camera camera;
@@ -126,7 +126,7 @@ namespace YumeRT
 			trackball.camera.SetDir(from - look);
 		}
 
-		inline const Camera& GetCamera() { return trackball.camera; }
+		inline Camera& GetCamera() { return trackball.camera; }
 
 		inline uint32_t GetWidth() { return m_width; }
 
@@ -156,6 +156,7 @@ namespace YumeRT
 		static bool m_show_geometry_list;
 		static bool m_show_material_list;
 		static bool m_show_render_menu;
+		static bool m_show_camera_menu;
 
 		UserInterface() {}
 
@@ -166,6 +167,8 @@ namespace YumeRT
 		inline void RenderOverlay();
 
 		inline void RenderRTMenu();
+
+		inline void RenderCameraMenu();
 
 		inline void RenderGeometryList();
 
@@ -193,7 +196,7 @@ namespace YumeRT
 	bool UserInterface::m_show_geometry_list = false;
 	bool UserInterface::m_show_material_list = false;
 	bool UserInterface::m_show_render_menu = false;
-
+	bool UserInterface::m_show_camera_menu = false;
 
 	void FramebufferSizeCallback(GLFWwindow* window, int width, int height)
 	{
@@ -374,8 +377,16 @@ namespace YumeRT
 		assert(rt_renderer != nullptr);
 		RenderSetting &render_setting = rt_renderer->GetRenderSetting();
 		bool &highlight_flag = rt_renderer->GetObjectHighlightFlag();
-		ImGui::Text("Accumulate Frame Count: %d", rt_renderer->GetFrameCount());
-		ImGui::ProgressBar(render_setting.max_frame_count > 0? float(rt_renderer->GetFrameCount()) / float(render_setting.max_frame_count) : 1.0f);
+
+		int accumulate_frame_count = render_setting.max_frame_count > 0 ? glm::min(rt_renderer->GetFrameCount(), render_setting.max_frame_count) : rt_renderer->GetFrameCount();
+		ImGui::Text("Accumulate Frame Count: %d", accumulate_frame_count);
+		ImGui::ProgressBar(render_setting.max_frame_count > 0? float(accumulate_frame_count) / float(render_setting.max_frame_count) : 1.0f);
+		if (render_setting.max_frame_count > 0 && accumulate_frame_count / render_setting.max_frame_count == 1)
+		{
+			ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(250, 4, 4, 255));
+			ImGui::Text("Render Finish!");
+			ImGui::PopStyleColor();
+		}
 		ImGui::Checkbox("Disable Selected Effect", &highlight_flag);
 
 		ImGui::Separator();
@@ -402,6 +413,22 @@ namespace YumeRT
 		{
 			render_setting.gamma = glm::max(0.0f, render_setting.gamma);
 			rt_renderer->SetRenderSettingChange(true);
+		}
+		ImGui::End();
+	}
+
+	inline void UserInterface::RenderCameraMenu()
+	{
+		if (!m_show_camera_menu) { return; }
+		ImGui::Begin("Camera Setting");
+		if (ImGui::InputFloat("Move Speed", &UserInterface::trackball.move_speed))
+		{}
+		if (ImGui::InputFloat("Rotate Speed", &UserInterface::trackball.rotate_speed))
+		{}
+		static float camera_ior = 1.0f;
+		if (ImGui::InputFloat("External IOR", &camera_ior))
+		{
+			UserInterface::GetCamera().SetIOR(camera_ior);
 		}
 		ImGui::End();
 	}
@@ -519,6 +546,9 @@ namespace YumeRT
 		const std::vector<uint32_t> &material_counters = scene_manager->GetMaterialCounters();
 		const std::vector<std::string> &material_names = scene_manager->GetMaterialNames();
 
+		const PrimitiveInstance *prim_ptr = scene_manager->GetPrimitiveInstance(m_click_prim_idx);
+		const uint32_t selected_prim_material_idx = prim_ptr != nullptr ? (*prim_ptr).material_idx : INVALID_UINT_32;
+
 		ImGui::Text("Total Material Count: %d", (uint32_t)materials.size());
 		ImGui::Text("Materials:");
 
@@ -531,10 +561,26 @@ namespace YumeRT
 			for (uint32_t mtl_idx = 0; mtl_idx < (uint32_t)materials.size(); ++mtl_idx)
 			{
 				bool button_press = false;
-				if (mtl_idx == highlight_material_idx)
+				if (mtl_idx == highlight_material_idx && mtl_idx == selected_prim_material_idx)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(215, 92, 92, 151));
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(250, 127, 127, 250));
+					button_press = ImGui::Button(material_names[mtl_idx].c_str(), button_size);
+					ImGui::PopStyleColor();
+					ImGui::PopStyleColor();
+				}
+				else if (mtl_idx == highlight_material_idx)
 				{
 					ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(250, 4, 4, 122));
 					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(250, 4, 4, 255));
+					button_press = ImGui::Button(material_names[mtl_idx].c_str(), button_size);
+					ImGui::PopStyleColor();
+					ImGui::PopStyleColor();
+				}
+				else if (mtl_idx == selected_prim_material_idx)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(180, 180, 180, 180));
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(250, 250, 250, 250));
 					button_press = ImGui::Button(material_names[mtl_idx].c_str(), button_size);
 					ImGui::PopStyleColor();
 					ImGui::PopStyleColor();
@@ -611,6 +657,10 @@ namespace YumeRT
 				}
 
 				ImGui::Separator();
+				if (ImGui::SliderFloat("Specular Weight", &highlight_material.surface_material.specular_weight, 0.0f, 1.0f))
+				{
+					scene_manager->UpdateMaterial(highlight_material_idx);
+				}
 				if (ImGui::ColorEdit3("Specular Albedo", (float*)(&highlight_material.surface_material.specular_albedo), ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR))
 				{
 					scene_manager->UpdateMaterial(highlight_material_idx);
@@ -664,10 +714,15 @@ namespace YumeRT
 		ImGui::Text("Total Primitive Instance Count: %d", (uint32_t)scene_manager->GetPrimInstances().size());
 		ImGui::Text("Highlighted Instance ID: %d", m_click_prim_idx == INVALID_UINT_32 ? (int)(-1) : (uint32_t)m_click_prim_idx);
 
-		const PrimitiveInstance *prim_ptr = scene_manager->GetPrimitiveInstance(m_click_prim_idx);
+		PrimitiveInstance *prim_ptr = scene_manager->GetPrimitiveInstance(m_click_prim_idx);
 		if (prim_ptr != nullptr)
 		{
-			const PrimitiveInstance &prim_inst = (*prim_ptr);
+			PrimitiveInstance &prim_inst = (*prim_ptr);
+			static float prim_external_ior = 1.0f;
+			if (ImGui::InputFloat("External IOR", &prim_external_ior))
+			{
+				scene_manager->ChangePrimExIOR(m_click_prim_idx, glm::max(0.001f, prim_external_ior));
+			}
 			ImGui::Text("Instance Geometry: %s", scene_manager->GetGeometryNames()[prim_inst.geometry_idx].c_str());
 			ImGui::Text("Instance Material: %s", scene_manager->GetMaterialNames()[prim_inst.material_idx].c_str());
 		}
@@ -873,6 +928,11 @@ namespace YumeRT
 			ImGui::Checkbox("Show Render Setting", &UserInterface::m_show_render_menu);
 		}
 
+		if (ImGui::CollapsingHeader("Camera Setting"))
+		{
+			ImGui::Checkbox("Show Camera Setting", &UserInterface::m_show_camera_menu);
+		}
+
 		if (ImGui::CollapsingHeader("Geometries"))
 		{
 			ImGui::Checkbox("Show Geometry List", &UserInterface::m_show_geometry_list);
@@ -909,6 +969,7 @@ namespace YumeRT
 		RenderOverlay();
 		RenderMainMenu();
 		RenderRTMenu();
+		RenderCameraMenu();
 		RenderInstanceMenu();
 		RenderGeometryList();
 		RenderMaterialList();
