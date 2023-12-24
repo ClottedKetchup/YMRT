@@ -29,4 +29,13 @@ namespace YumeRT
 		float phi = u1 * 2.0f * ONE_PI;
 		return glm::vec3(glm::cos(phi) * sin_theta, glm::sin(phi) * sin_theta, cos_theta);
 	}
+
+	__device__ __host__ inline glm::vec3 SampleTriangle(float u0, float u1)
+	{
+		// get the barycentric coordinate, the pdf is always one
+		float sqrt_u0 = glm::sqrt(glm::max(0.0f, u0));
+		float u = 1.0f - sqrt_u0;
+		float v = u1 * sqrt_u0;
+		return glm::vec3(u, v, 1.0f - u - v);
+	}
 };

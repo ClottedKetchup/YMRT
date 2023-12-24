@@ -23,10 +23,7 @@ namespace YumeRT
 		glm::vec3 S;
 		glm::vec3 R; // should turn into radians
 
-		TransformState() 
-		{
-			SetInvalid();
-		}
+		TransformState() { SetInvalid(); }
 
 		inline glm::mat4 GetTransformMatrix(const glm::vec3 &prim_center)
 		{
@@ -38,16 +35,17 @@ namespace YumeRT
 						Matrix_S(S) *
 						Matrix_T(-prim_center);
 		}
-
-		inline void SetInvalid()
+		inline glm::mat4 GetTransformMatrix()
 		{
-			S = glm::vec3(YumeRT_FLOAT_MAX);
+			return  Matrix_T(T) *
+						Matrix_R(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(R.z)) *
+						Matrix_R(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(R.y)) *
+						Matrix_R(glm::vec3(1.0f, 0.0f, 0.0f), glm::radians(R.x)) *
+						Matrix_S(S);
 		}
 
-		inline bool Invalid()
-		{
-			return S == glm::vec3(YumeRT_FLOAT_MAX);
-		}
+		inline void SetInvalid() { S = glm::vec3(YumeRT_FLOAT_MAX); }
+		inline bool Invalid() { return S == glm::vec3(YumeRT_FLOAT_MAX); }
 	};
 
 	enum SCENECHANGE_FLAG
@@ -65,7 +63,9 @@ namespace YumeRT
 		MATERIAL_ATTRIBUTE_CHANGE = (1 << 9),
 		MATERIAL_REMOVE= (1 << 10),
 		MATERIAL_ASSIGN_TO_A_INSTANCE = (1 << 11),
-		INSTANCE_EX_IOR_CHANGE
+		INSTANCE_EX_IOR_CHANGE = (1 << 12),
+		DISTANT_LIGHT_CHANGE = (1 << 13), 
+		SHAPE_LIGHT_CHANGE = (1 << 14)
 	};
 
 	class SceneManager
@@ -81,32 +81,32 @@ namespace YumeRT
 		{
 			// the clear work is handled by MainSystem!
 		}
-
-		void Init();
+		
+		// ?
+		void TestScene(); 
+		void CornellBox();
 
 		void DestroyResources();
 
+		void InitScene();
 		void UpdateScene(const Camera &cam, uint32_t *highlight_prim_idx);
 
-		void ClearInvaildTransform();
-
 		inline uint32_t AddQube(const std::string &name);
-
 		inline uint32_t AddSphere(const std::string &name, float radius);
-
 		inline uint32_t RemoveGeometry(uint32_t geometry_idx);
 
 		// this function only record the transform state: T, S, R
 		inline uint32_t AddTransform(const glm::vec3 &T = glm::vec3(0.0f), const glm::vec3 &S = glm::vec3(1.0f), const glm::vec3 &R = glm::vec3(0.0f));
-
 		inline void UpdatePrimTransform(uint32_t selected_prim_idx);
+		void ClearInvaildTransform();
 		 
 		// here actually generate the transform matrix, because I need the geometry info
 		inline uint32_t AddPrimInstance(uint32_t geometry_idx, uint32_t transform_idx, uint32_t material_idx, float external_ior = 1.0f);
-
 		inline uint32_t RemovePrimInstance(uint32_t selected_prim_idx);
+		inline void ChangePrimExIOR(uint32_t prim_idx, float external_ior);
 
 		// material
+		inline uint32_t AddLightMaterial(const std::string &name, const glm::vec3 &light_color = glm::vec3(0.5f), float intensity = 1.0f);
 		inline uint32_t AddSurfaceMaterial(const std::string &name,
 																 const glm::vec3 &diffuse_albedo = glm::vec3(0.5f),
 																 const glm::vec3 &specular_albedo = glm::vec3(1.0f),
@@ -116,131 +116,101 @@ namespace YumeRT
 																 float metalness = 0.0f,
 																 float specular_weight = 1.0f,
 																 float transmission_weight = 0.0f);
-
-		inline uint32_t AddLightMaterial(const std::string &name, const glm::vec3 &light_color = glm::vec3(0.5f),  float intensity = 1.0f);
-
-		inline void UpdateMaterial(uint32_t material_idx);
-
-		// you should use it when only the material change...
-		inline void AssignMaterialToPrim(uint32_t prim_idx, uint32_t material_idx);
-
-		inline void ChangePrimExIOR(uint32_t prim_idx, float external_ior);
-
 		inline uint32_t RemoveMaterial(uint32_t material_idx);
+		inline void UpdateMaterial(uint32_t material_idx);
+		inline void AssignMaterialToPrim(uint32_t prim_idx, uint32_t material_idx); // you should use it when only the material change...
 
-		inline uint32_t AddDistantLight(const std::string &name, const glm::vec3 &direction = glm::vec3(0.0f, -1.0f, 0.0f), const glm::vec3 &light_color = glm::vec3(1.0f), float intensity = 1.0f, float theta_max = 5.0f);
-
+		// distant light
+		inline uint32_t AddDistantLight(const std::string &name, 
+														   uint32_t transform_idx, 
+														   const glm::vec3 &light_color = glm::vec3(1.0f), 
+														   float intensity = 1.0f, 
+														   float theta_max = 5.0f);
 		inline uint32_t RemoveDistantLight(uint32_t light_idx);
+		inline void UpdateDistantLight(uint32_t distant_light_idx);
+		inline void UpdateDistantLightTransform(uint32_t selected_light_idx);
 
-		inline const Scene& GetScene() 
-		{ 
-			return scene;
-		}
+		// shape light
+		inline void LoadShapeLights();
 
-		inline const std::vector<PrimitiveInstance>& GetPrimInstances()
+		// a bunch of short function
+		inline const Scene& GetScene() const { return scene; }
+		inline const std::vector<PrimitiveInstance>& GetPrimInstances() const { return prim_instances; }
+		inline const std::vector<GeometryData>& GetGeometries() const { return geometries; }
+		inline const std::vector<uint32_t>& GetGeometryCounters() const { return geometry_reference_counters; }
+		inline const std::vector<std::string>& GetGeometryNames() const { return geometry_names; }
+		inline const std::vector<Material>& GetMaterials() const { return materials; }
+		inline const std::vector<uint32_t>& GetMaterialCounters() const { return material_reference_counters; }
+		inline const std::vector<std::string>& GetMaterialNames() const { return material_names; }
+		inline const std::vector<DistantLight>& GetDistantLights() const { return distant_lights; }
+		inline const std::vector<std::string>& GetDistantLightNames() const { return distant_light_names; }
+
+		inline float GetTopBVHTime() const { return top_BVH_time; }
+		inline float GetBottomBVHTime() const { return bottom_BVH_time; }
+
+		inline TransformState* GetTransformState(uint32_t transform_idx)
 		{
-			return prim_instances;
+			if (transform_states.empty()) { return nullptr; }
+			if (transform_idx >(uint32_t)transform_states.size() - 1) { return nullptr; }
+			if (transform_states[transform_idx].Invalid()) { return nullptr; }
+			return &transform_states[transform_idx];
 		}
-
-		inline const std::vector<GeometryData>& GetGeometries() 
-		{ 
-			return geometries; 
-		}
-
-		inline const std::vector<uint32_t>& GetGeometryCounters() 
-		{
-			return geometry_reference_counters; 
-		}
-
-		inline const std::vector<std::string>& GetGeometryNames()
-		{
-			return geometry_names;
-		}
-
-		inline const std::vector<Material>& GetMaterials()
-		{
-			return materials;
-		}
-
-		inline const std::vector<uint32_t>& GetMaterialCounters()
-		{
-			return material_reference_counters;
-		}
-
-		inline const std::vector<std::string>& GetMaterialNames()
-		{
-			return material_names;
-		}
-
-		// get per-frame scene flag
-		inline bool IsSceneChange() 
-		{
-			return (scene_camera_change) ||
-					   (scene_change_flag & SCENECHANGE_FLAG::INSTANCE_ADD) ||
-					   (scene_change_flag & SCENECHANGE_FLAG::INSTANCE_REMOVE) ||
-					   (scene_change_flag & SCENECHANGE_FLAG::INSTANCE_MOVE) ||
-					   (scene_change_flag & SCENECHANGE_FLAG::INSTANCE_MATERIAL_CHANGE) ||
-					   (scene_change_flag & SCENECHANGE_FLAG::MATERIAL_ASSIGN_TO_A_INSTANCE) ||
-					   (scene_change_flag & SCENECHANGE_FLAG::INSTANCE_EX_IOR_CHANGE);
-		}
-
-		inline float GetTopBVHTime() const 
-		{ 
-			return top_BVH_time;
-		}
-
-		inline float GetBottomBVHTime() const 
-		{ 
-			return bottom_BVH_time;
-		}
-
-		inline glm::vec3* GetTransformStateT(uint32_t selected_prim_idx)
+		inline glm::vec3* GetPrimTransformStateT(uint32_t prim_idx)
 		{
 			if (prim_instances.empty()) { return nullptr; }
-			if (selected_prim_idx < 0 || selected_prim_idx >(uint32_t)prim_instances.size() - 1) { return nullptr; }
-			uint32_t transform_idx = prim_instances[selected_prim_idx].transform_idx;
+			if (prim_idx >(uint32_t)prim_instances.size() - 1) { return nullptr; }
+			uint32_t transform_idx = prim_instances[prim_idx].transform_idx;
 			return &transform_states[transform_idx].T;
 		}
-
-		inline glm::vec3* GetTransformStateS(uint32_t selected_prim_idx)
+		inline glm::vec3* GetPrimTransformStateS(uint32_t prim_idx)
 		{
 			if (prim_instances.empty()) { return nullptr; }
-			if (selected_prim_idx < 0 || selected_prim_idx >(uint32_t)prim_instances.size() - 1) { return nullptr; }
-			uint32_t transform_idx = prim_instances[selected_prim_idx].transform_idx;
+			if (prim_idx >(uint32_t)prim_instances.size() - 1) { return nullptr; }
+			uint32_t transform_idx = prim_instances[prim_idx].transform_idx;
 			return &transform_states[transform_idx].S;
 		}
-
-		inline glm::vec3* GetTransformStateR(uint32_t selected_prim_idx)
+		inline glm::vec3* GetPrimTransformStateR(uint32_t prim_idx)
 		{
 			if (prim_instances.empty()) { return nullptr; }
-			if (selected_prim_idx < 0 || selected_prim_idx >(uint32_t)prim_instances.size() - 1) { return nullptr; }
-			uint32_t transform_idx = prim_instances[selected_prim_idx].transform_idx;
+			if (prim_idx >(uint32_t)prim_instances.size() - 1) { return nullptr; }
+			uint32_t transform_idx = prim_instances[prim_idx].transform_idx;
 			return &transform_states[transform_idx].R;
 		}
 
 		inline PrimitiveInstance* GetPrimitiveInstance(uint32_t idx)
 		{
 			if (prim_instances.empty()) { return nullptr; }
-			if (idx < 0 || idx >(uint32_t)prim_instances.size() - 1) { return nullptr; }
+			if (idx >(uint32_t)prim_instances.size() - 1) { return nullptr; }
 			return &prim_instances[idx];
 		}
-
 		inline Material* GetMaterial(uint32_t material_idx)
 		{
 			if (materials.empty()) { return nullptr; }
-			if (material_idx < 0 || material_idx >(uint32_t)materials.size() - 1) { return nullptr; }
+			if (material_idx >(uint32_t)materials.size() - 1) { return nullptr; }
 			return &materials[material_idx];
 		}
-
-		inline void AddSceneFlag(SCENECHANGE_FLAG flag)
+		inline DistantLight* GetDistantLight(uint32_t distant_light_idx)
 		{
-			scene_change_flag |= flag;
+			if (distant_lights.empty()) { return nullptr; }
+			if (distant_light_idx >(uint32_t)distant_lights.size() - 1) { return nullptr; }
+			return &distant_lights[distant_light_idx];
 		}
 
-		inline void ResetSceneFlag()
+		// get per-frame scene flag
+		inline bool IsSceneChange()
 		{
-			scene_change_flag = 0;
+			return (scene_camera_change) ||
+				(scene_change_flag & SCENECHANGE_FLAG::INSTANCE_ADD) ||
+				(scene_change_flag & SCENECHANGE_FLAG::INSTANCE_REMOVE) ||
+				(scene_change_flag & SCENECHANGE_FLAG::INSTANCE_MOVE) ||
+				(scene_change_flag & SCENECHANGE_FLAG::INSTANCE_MATERIAL_CHANGE) ||
+				(scene_change_flag & SCENECHANGE_FLAG::MATERIAL_ASSIGN_TO_A_INSTANCE) ||
+				(scene_change_flag & SCENECHANGE_FLAG::INSTANCE_EX_IOR_CHANGE) ||
+				(scene_change_flag & SCENECHANGE_FLAG::DISTANT_LIGHT_CHANGE) ||
+				(scene_change_flag & SCENECHANGE_FLAG::SHAPE_LIGHT_CHANGE);
 		}
+		inline void AddSceneFlag(SCENECHANGE_FLAG flag) { scene_change_flag |= flag; }
+		inline void ResetSceneFlag() { scene_change_flag = 0; }
 
 	private:
 		bool scene_camera_change = false;
@@ -279,53 +249,75 @@ namespace YumeRT
 		std::vector<DistantLight> distant_lights;
 		std::vector<std::string> distant_light_names;
 
+		std::vector<ShapeLight> shape_lights;
+		std::vector<float> shape_light_sample_table;
+
 		SceneManager() {}
 		
 	};
 
-	void SceneManager::Init()
+	void SceneManager::DestroyResources()
 	{
-		AddSurfaceMaterial("default material", glm::vec3(0.0f));
+		FREE_GPU_RESOURCE(scene.camera);
 
-		uint32_t cube_idx = AddQube("Cube");
-		uint32_t sphere_idx = AddSphere("Sphere", 1.0f);
-		
-		AddPrimInstance(cube_idx, 
-									AddTransform(glm::vec3(0.0f, 0.0f, -4.0f)), 
-									AddSurfaceMaterial("green", glm::vec3(0.0f, 0.5f, 0.0f)));
+		// mesh data
+		FREE_GPU_RESOURCE(scene.vidxs);
+		FREE_GPU_RESOURCE(scene.positions);
+		FREE_GPU_RESOURCE(scene.nidxs);
+		FREE_GPU_RESOURCE(scene.normals);
+		FREE_GPU_RESOURCE(scene.uvidxs);
+		FREE_GPU_RESOURCE(scene.texcoords);
+		FREE_GPU_RESOURCE(scene.triangles);
 
-		AddPrimInstance(cube_idx, 
-									AddTransform(glm::vec3(0.0f, 1.5f, -4.0f)), 
-									AddSurfaceMaterial("red", glm::vec3(0.5f, 0.0f, 0.0f)));
+		scene.geometry_count = 0;
+		FREE_GPU_RESOURCE(scene.geometries);
 
-		AddPrimInstance(cube_idx, 
-									AddTransform(glm::vec3(1.5f, 0.0f, -4.0f)), 
-									AddSurfaceMaterial("purple", glm::vec3(0.5f, 0.0f, 0.5f)));
+		scene.bottom_node_count = 0;
+		FREE_GPU_RESOURCE(scene.bottom_nodes);
 
-		AddPrimInstance(cube_idx, 
-									AddTransform(glm::vec3(-1.5f, 0.0f, -4.0f)), 
-									AddSurfaceMaterial("blue", glm::vec3(0.0f, 0.0f, 0.5f)));
+		scene.prim_instance_count = 0;
+		FREE_GPU_RESOURCE(scene.prim_instances);
 
-		AddPrimInstance(cube_idx,
-									AddTransform(glm::vec3(0.0f, 4.0f, -3.5f), glm::vec3(3.0f, 0.1f, 3.0f)),
-									AddLightMaterial("Light", glm::vec3(1.0f), 3.0f));
-		
-		AddPrimInstance(cube_idx, /* floor */
-									AddTransform(glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(10000.0f, 0.1f, 10000.0f)),
-									AddSurfaceMaterial("Floor", glm::vec3(0.5f, 0.5f, 0.5f)));
+		scene.top_node_count = 0;
+		FREE_GPU_RESOURCE(scene.top_nodes);
 
-		AddPrimInstance(sphere_idx, 
-									AddTransform(glm::vec3(0.0f, 0.0f, -1.0f)),
-									AddSurfaceMaterial("Sphere Mtl", glm::vec3(1.0f, 1.0f, 1.0f), glm::vec3(1.0f, 0.0f, 0.0f)));
+		scene.transform_count = 0;
+		FREE_GPU_RESOURCE(scene.transforms);
+		FREE_GPU_RESOURCE(scene.i_transforms);
 
-		ACBVHBuilder SceneBuilder(prim_instances.data(),
-													(uint32_t)prim_instances.size(),
-													transforms.data(),
-													geometries.data(),
-													bottom_nodes.data());
-		SceneBuilder.BuildSceneBVH(top_nodes, &top_BVH_time);
+		scene.material_count = 0;
+		FREE_GPU_RESOURCE(scene.materials);
 
-		AddDistantLight("Distant Light", glm::vec3(-1.0f, -1.0f, 0.0f), glm::vec3(1.0f), 2.0f, 8.0f);
+		scene.distant_light_count = 0;
+		FREE_GPU_RESOURCE(scene.distant_lights);
+
+		scene.shape_light_count = 0;
+		FREE_GPU_RESOURCE(scene.shape_lights);
+		FREE_GPU_RESOURCE(scene.shape_light_sample_table);
+
+		assert(scene.camera == nullptr);
+		assert(scene.vidxs == nullptr);
+		assert(scene.positions == nullptr);
+		assert(scene.nidxs == nullptr);
+		assert(scene.normals == nullptr);
+		assert(scene.uvidxs == nullptr);
+		assert(scene.texcoords == nullptr);
+		assert(scene.triangles == nullptr);
+		assert(scene.geometries == nullptr);
+		assert(scene.prim_instances == nullptr);
+		assert(scene.bottom_nodes == nullptr);
+		assert(scene.top_nodes == nullptr);
+		assert(scene.transforms == nullptr);
+		assert(scene.i_transforms == nullptr);
+		assert(scene.materials == nullptr);
+		assert(scene.distant_lights == nullptr);
+		assert(scene.shape_lights == nullptr);
+		assert(scene.shape_light_sample_table == nullptr);
+	}
+
+	void SceneManager::InitScene()
+	{
+		CornellBox();
 
 		UPLOAD_TO_GPU(scene.camera, &camera, sizeof(Camera));
 
@@ -335,7 +327,6 @@ namespace YumeRT
 		UPLOAD_TO_GPU(scene.normals, normals.data(), sizeof(glm::vec3) * normals.size());
 		UPLOAD_TO_GPU(scene.uvidxs, uvidxs.data(), sizeof(uint32_t) * uvidxs.size());
 		UPLOAD_TO_GPU(scene.texcoords, texcoords.data(), sizeof(glm::vec2) * texcoords.size());
-
 		UPLOAD_TO_GPU(scene.triangles, triangles.data(), sizeof(Triangle) * triangles.size());
 
 		scene.geometry_count = (uint32_t)geometries.size();
@@ -360,101 +351,12 @@ namespace YumeRT
 		scene.distant_light_count = (uint32_t)distant_lights.size();
 		UPLOAD_TO_GPU(scene.distant_lights, distant_lights.data(), sizeof(DistantLight) * distant_lights.size());
 
+		scene.shape_light_count = (uint32_t)shape_lights.size();
+		UPLOAD_TO_GPU(scene.shape_lights, shape_lights.data(), sizeof(ShapeLight) * shape_lights.size());
+		UPLOAD_TO_GPU(scene.shape_light_sample_table, shape_light_sample_table.data(), sizeof(float) * shape_light_sample_table.size());
+
 		ResetSceneFlag();
 	}
-
-	void SceneManager::DestroyResources()
-	{
-		FREE_GPU_RESOURCE(scene.camera);
-
-		FREE_GPU_RESOURCE(scene.vidxs);
-		FREE_GPU_RESOURCE(scene.positions);
-		FREE_GPU_RESOURCE(scene.nidxs);
-		FREE_GPU_RESOURCE(scene.normals);
-		FREE_GPU_RESOURCE(scene.uvidxs);
-		FREE_GPU_RESOURCE(scene.texcoords);
-
-		FREE_GPU_RESOURCE(scene.triangles);
-
-		scene.geometry_count = 0;
-		FREE_GPU_RESOURCE(scene.geometries);
-
-		scene.bottom_node_count = 0;
-		FREE_GPU_RESOURCE(scene.bottom_nodes);
-
-		scene.prim_instance_count = 0;
-		FREE_GPU_RESOURCE(scene.prim_instances);
-
-		scene.top_node_count = 0;
-		FREE_GPU_RESOURCE(scene.top_nodes);
-
-		scene.transform_count = 0;
-		FREE_GPU_RESOURCE(scene.transforms);
-		FREE_GPU_RESOURCE(scene.i_transforms);
-
-		scene.material_count = 0;
-		FREE_GPU_RESOURCE(scene.materials);
-
-		scene.distant_light_count = 0;
-		FREE_GPU_RESOURCE(scene.distant_lights);
-	}
-
-	void SceneManager::ClearInvaildTransform()
-	{
-		// batch update...
-		if (prim_instances.size() >= transform_states.size() / 2) { return; }
-
-		// compute their locations...
-		uint32_t valid_transform_count = 0;
-		std::vector<uint32_t> locations(transform_states.size());
-		for (uint32_t i = 0; i < (uint32_t)locations.size(); ++i)
-		{
-			locations[i] = valid_transform_count;
-			valid_transform_count += transform_states[i].Invalid() ? 0 : 1;
-		}
-
-		// we have to handle all the instance, cause their transform_idx should be changed...
-		std::vector<PrimitiveInstance> &prims = prim_instances;
-		concurrency::parallel_for(0u, (uint32_t)prim_instances.size(), [&](uint32_t i)
-		{
-			prims[i].transform_idx = locations[prims[i].transform_idx];
-		});
-
-		AddSceneFlag(SCENECHANGE_FLAG::INSTANCE_MOVE);
-
-		// compact the transform data...
-		std::vector<TransformState> &src_transform_states = transform_states;
-		std::vector<TransformState> temp_transform_states(src_transform_states.size());
-
-		std::vector<glm::mat4> &src_transforms = transforms;
-		std::vector<glm::mat4> temp_transforms(src_transforms.size());
-
-		std::vector<glm::mat4> &src_i_transforms = i_transforms;
-		std::vector<glm::mat4> temp_i_transforms(src_i_transforms.size());
-
-		concurrency::parallel_for(0u, (uint32_t)src_transform_states.size(), [&](uint32_t i)
-		{
-				// put the valid transform to new array
-				if (!src_transform_states[i].Invalid()) 
-				{
-					temp_transform_states[locations[i]] = src_transform_states[i];
-					temp_transforms[locations[i]] = src_transforms[i];
-					temp_i_transforms[locations[i]] = src_i_transforms[i];
-				}
-		});
-
-		// triger move to save time 
-		std::swap(src_transform_states, temp_transform_states);
-		std::swap(src_transforms, temp_transforms);
-		std::swap(src_i_transforms, temp_i_transforms);
-
-		src_transform_states.resize(valid_transform_count);
-		src_transforms.resize(valid_transform_count);
-		src_i_transforms.resize(valid_transform_count);
-
-		AddSceneFlag(SCENECHANGE_FLAG::TRANSFORM_REMOVE);
-	}
-
 	void SceneManager::UpdateScene(const Camera &cam, uint32_t *highlight_prim_idx)
 	{
 		// reset scene flag
@@ -509,10 +411,10 @@ namespace YumeRT
 			(scene_change_flag & INSTANCE_REMOVE))
 		{
 			ACBVHBuilder SceneBuilder(prim_instances.data(),
-														(uint32_t)prim_instances.size(),
-														transforms.data(),
-														geometries.data(),
-														bottom_nodes.data());
+				(uint32_t)prim_instances.size(),
+				transforms.data(),
+				geometries.data(),
+				bottom_nodes.data());
 			top_nodes.clear();
 			SceneBuilder.BuildSceneBVH(top_nodes, &top_BVH_time, highlight_prim_idx);
 
@@ -527,14 +429,6 @@ namespace YumeRT
 			UPLOAD_TO_GPU(scene.top_nodes, top_nodes.data(), sizeof(TopNode) * top_nodes.size());
 
 			instances_has_rebuild = true;
-		}
-
-		if ((scene_change_flag & INSTANCE_MATERIAL_CHANGE) && !instances_has_rebuild)
-		{
-			FREE_GPU_RESOURCE(scene.prim_instances);
-			assert(scene.prim_instances == nullptr);
-			scene.prim_instance_count = (uint32_t)prim_instances.size();
-			UPLOAD_TO_GPU(scene.prim_instances, prim_instances.data(), sizeof(PrimitiveInstance) * prim_instances.size());
 		}
 
 		if ((scene_change_flag & TRANSFORM_ADD) ||
@@ -559,12 +453,28 @@ namespace YumeRT
 			UPLOAD_TO_GPU(scene.materials, materials.data(), sizeof(Material) * materials.size());
 		}
 
+		if ((scene_change_flag & SHAPE_LIGHT_CHANGE) || instances_has_rebuild)
+		{
+			FREE_GPU_RESOURCE(scene.shape_lights);
+			assert(scene.shape_lights == nullptr);
+			FREE_GPU_RESOURCE(scene.shape_light_sample_table);
+			assert(scene.shape_light_sample_table == nullptr);
+
+			shape_lights.clear();
+			shape_light_sample_table.clear();
+
+			LoadShapeLights();
+
+			scene.shape_light_count = (uint32_t)shape_lights.size();
+			UPLOAD_TO_GPU(scene.shape_lights, shape_lights.data(), sizeof(ShapeLight) * shape_lights.size());
+			UPLOAD_TO_GPU(scene.shape_light_sample_table, shape_light_sample_table.data(), sizeof(float) * shape_light_sample_table.size());
+		}
+
 		CUDA_CHECK(cudaDeviceSynchronize());
 
-		// reset scene flag to zero
 		ResetSceneFlag();
 	}
-
+	
 	inline uint32_t SceneManager::AddQube(const std::string &name)
 	{
 		GeometryData cube;
@@ -623,7 +533,7 @@ namespace YumeRT
 		0.5f,  0.5f, -0.5f,
 		-0.5f, -0.5f, -0.5f,
 		-0.5f,  0.5f, -0.5f,
-		
+
 		-0.5f, -0.5f,  0.5f,
 		0.5f, -0.5f,  0.5f,
 		0.5f,  0.5f,  0.5f,
@@ -644,7 +554,7 @@ namespace YumeRT
 		0.5f, -0.5f, -0.5f,
 		0.5f,  0.5f,  0.5f,
 		0.5f, -0.5f,  0.5f,
-		
+
 		-0.5f, -0.5f, -0.5f,
 		0.5f, -0.5f, -0.5f,
 		0.5f, -0.5f,  0.5f,
@@ -709,7 +619,7 @@ namespace YumeRT
 		1.0f,  1.0f,
 		0.0f,  0.0f,
 		0.0f,  1.0f,
-		
+
 		0.0f,  0.0f,
 		1.0f,  0.0f,
 		1.0f,  1.0f,
@@ -730,7 +640,7 @@ namespace YumeRT
 		0.0f,  1.0f,
 		1.0f,  0.0f,
 		0.0f,  0.0f,
-		
+
 		0.0f,  1.0f,
 		1.0f,  1.0f,
 		1.0f,  0.0f,
@@ -772,16 +682,15 @@ namespace YumeRT
 
 		GeometryData &cube_data = geometries[geometries.size() - 1];
 		BottomBVHBuilder MeshBuilder(&cube_data,
-															triangles.data() + cube_data.tri_mesh.triangle_offset,
-															cube_data.tri_mesh.triangle_count,
-															positions.data() + cube_data.tri_mesh.position_offset,
-															vidxs.data() + cube_data.tri_mesh.vidx_offset);
+			triangles.data() + cube_data.tri_mesh.triangle_offset,
+			cube_data.tri_mesh.triangle_count,
+			positions.data() + cube_data.tri_mesh.position_offset,
+			vidxs.data() + cube_data.tri_mesh.vidx_offset);
 		MeshBuilder.BuildMeshBVH(bottom_nodes, &bottom_BVH_time);
 
 		AddSceneFlag(SCENECHANGE_FLAG::GEOMETRY_ADD);
 		return (uint32_t)geometries.size() - 1;
 	}
-
 	inline uint32_t SceneManager::AddSphere(const std::string &name, float radius)
 	{
 		GeometryData sphere;
@@ -798,19 +707,18 @@ namespace YumeRT
 		AddSceneFlag(SCENECHANGE_FLAG::GEOMETRY_ADD);
 		return (uint32_t)geometries.size() - 1;
 	}
-
 	inline uint32_t SceneManager::RemoveGeometry(uint32_t geometry_idx)
 	{
 		if (geometries.empty()) { return INVALID_UINT_32; }
-		if (geometry_idx < 0 || geometry_idx >(uint32_t)geometries.size() - 1) { return INVALID_UINT_32; }
+		if (geometry_idx >(uint32_t)geometries.size() - 1) { return INVALID_UINT_32; }
 
 		// first clear all the instance
 		bool instances_are_change = false;
 		uint32_t head = 0, tail = (uint32_t)prim_instances.size() - 1;
 		for (; head <= tail && tail != INVALID_UINT_32; )
 		{
-			if (prim_instances[head].geometry_idx < geometry_idx) 
-			{ 
+			if (prim_instances[head].geometry_idx < geometry_idx)
+			{
 				++head;
 			}
 			else if (prim_instances[head].geometry_idx > geometry_idx)
@@ -819,7 +727,7 @@ namespace YumeRT
 				prim_instances[head].geometry_idx -= 1;
 				++head;
 			}
-			else 
+			else
 			{
 				instances_are_change = true;
 				std::swap(prim_instances[head], prim_instances[tail--]);
@@ -827,8 +735,8 @@ namespace YumeRT
 		}
 		prim_instances.resize(head);
 
-		if (instances_are_change)
-		{
+		if (instances_are_change) 
+		{ 
 			AddSceneFlag(SCENECHANGE_FLAG::INSTANCE_REMOVE);
 		}
 
@@ -899,7 +807,7 @@ namespace YumeRT
 		AddSceneFlag(SCENECHANGE_FLAG::GEOMETRY_REMOVE);
 
 		if (geometries.empty()) { return INVALID_UINT_32; }
-		
+
 		// give the first element back
 		return 0;
 	}
@@ -918,14 +826,13 @@ namespace YumeRT
 		AddSceneFlag(SCENECHANGE_FLAG::TRANSFORM_ADD);
 		return (uint32_t)transform_states.size() - 1;
 	}
-
-	inline void SceneManager::UpdatePrimTransform(uint32_t selected_prim_idx)
+	inline void SceneManager::UpdatePrimTransform(uint32_t prim_idx)
 	{
 		if (prim_instances.empty() || transform_states.empty()) { return; }
-		if (selected_prim_idx < 0 || selected_prim_idx >(uint32_t)prim_instances.size() - 1) { return; }
+		if (prim_idx >(uint32_t)prim_instances.size() - 1) { return; }
 
-		uint32_t transform_idx = prim_instances[selected_prim_idx].transform_idx;
-		uint32_t geometry_idx = prim_instances[selected_prim_idx].geometry_idx;
+		uint32_t transform_idx = prim_instances[prim_idx].transform_idx;
+		uint32_t geometry_idx = prim_instances[prim_idx].geometry_idx;
 
 		const BBox3 object_bbox = GetGeometryBound(geometries[geometry_idx], bottom_nodes.data());
 		const glm::vec3 bbox_center = BBox3Center(object_bbox);
@@ -939,6 +846,72 @@ namespace YumeRT
 		CUDA_CHECK(cudaDeviceSynchronize());
 
 		AddSceneFlag(SCENECHANGE_FLAG::INSTANCE_MOVE);
+	}
+	void SceneManager::ClearInvaildTransform()
+	{
+		// batch update...
+		// TODO: handle distantlight's clear
+		if (prim_instances.size() >= transform_states.size() / 2) { return; }
+
+		// compute their locations...
+		// TODO: parallel prefix sum
+		uint32_t valid_transform_count = 0;
+		std::vector<uint32_t> locations(transform_states.size());
+		for (uint32_t i = 0; i < (uint32_t)locations.size(); ++i)
+		{
+			locations[i] = valid_transform_count;
+			valid_transform_count += transform_states[i].Invalid() ? 0 : 1;
+		}
+
+		// have to handle all the instance, cause their transform_idx should be changed...
+		std::vector<PrimitiveInstance> &prims = prim_instances;
+		concurrency::parallel_for(0u, (uint32_t)prim_instances.size(), [&](uint32_t i)
+		{
+			prims[i].transform_idx = locations[prims[i].transform_idx];
+		});
+
+		AddSceneFlag(SCENECHANGE_FLAG::INSTANCE_MOVE);
+
+		// compact the transform data...
+		std::vector<TransformState> &src_transform_states = transform_states;
+		std::vector<TransformState> temp_transform_states(src_transform_states.size());
+
+		std::vector<glm::mat4> &src_transforms = transforms;
+		std::vector<glm::mat4> temp_transforms(src_transforms.size());
+
+		std::vector<glm::mat4> &src_i_transforms = i_transforms;
+		std::vector<glm::mat4> temp_i_transforms(src_i_transforms.size());
+
+		concurrency::parallel_for(0u, (uint32_t)src_transform_states.size(), [&](uint32_t i)
+		{
+			// put the valid transform to new array
+			if (!src_transform_states[i].Invalid()) 
+			{
+				temp_transform_states[locations[i]] = src_transform_states[i];
+				temp_transforms[locations[i]] = src_transforms[i];
+				temp_i_transforms[locations[i]] = src_i_transforms[i];
+			}
+		});
+
+		// triger move to save time 
+		std::swap(src_transform_states, temp_transform_states);
+		std::swap(src_transforms, temp_transforms);
+		std::swap(src_i_transforms, temp_i_transforms);
+
+		src_transform_states.resize(valid_transform_count);
+		src_transforms.resize(valid_transform_count);
+		src_i_transforms.resize(valid_transform_count);
+
+		for (uint32_t light_idx = 0; light_idx < (uint32_t)distant_lights.size(); ++light_idx)
+		{
+			if (distant_lights[light_idx].transform_idx != locations[distant_lights[light_idx].transform_idx]) 
+			{
+				distant_lights[light_idx].transform_idx = locations[distant_lights[light_idx].transform_idx];
+				UpdateDistantLightTransform(light_idx);
+			}
+		}
+
+		AddSceneFlag(SCENECHANGE_FLAG::TRANSFORM_REMOVE);
 	}
 
 	inline uint32_t SceneManager::AddPrimInstance(uint32_t geometry_idx, uint32_t transform_idx, uint32_t material_idx, float external_ior)
@@ -959,11 +932,10 @@ namespace YumeRT
 		AddSceneFlag(SCENECHANGE_FLAG::INSTANCE_ADD);
 		return (uint32_t)prim_instances.size() - 1;
 	}
-
 	inline uint32_t SceneManager::RemovePrimInstance(uint32_t selected_prim_idx)
 	{
 		if (prim_instances.empty()) { return INVALID_UINT_32; }
-		if (selected_prim_idx < 0 || selected_prim_idx >(uint32_t)prim_instances.size() - 1) { return INVALID_UINT_32; }
+		if (selected_prim_idx >(uint32_t)prim_instances.size() - 1) { return INVALID_UINT_32; }
 
 		const uint32_t transform_idx = prim_instances[selected_prim_idx].transform_idx;
 		const uint32_t geometry_idx = prim_instances[selected_prim_idx].geometry_idx;
@@ -989,17 +961,42 @@ namespace YumeRT
 		// give the first element back
 		return 0;
 	}
+	inline void SceneManager::ChangePrimExIOR(uint32_t prim_idx, float external_ior)
+	{
+		if (prim_instances.empty() || prim_idx >(uint32_t)prim_instances.size() - 1) { return; }
+
+		prim_instances[prim_idx].external_ior = external_ior;
+		assert(scene.prim_instances != nullptr);
+		CUDA_CHECK(cudaMemcpy(scene.prim_instances + prim_idx, &prim_instances[prim_idx], sizeof(PrimitiveInstance), cudaMemcpyHostToDevice));
+		CUDA_CHECK(cudaDeviceSynchronize());
+
+		AddSceneFlag(SCENECHANGE_FLAG::INSTANCE_EX_IOR_CHANGE);
+	}
 
 	// TODO: Material add, remove ,edit...
+	inline uint32_t SceneManager::AddLightMaterial(const std::string &name, const glm::vec3 &light_color, float intensity)
+	{
+		Material mtl;
+		mtl.material_type = LIGHT_MTL;
+		mtl.light_material.light_color = light_color;
+		mtl.light_material.intensity = intensity;
+
+		material_names.push_back(name);
+		material_reference_counters.push_back(0);
+		materials.push_back(mtl);
+
+		AddSceneFlag(SCENECHANGE_FLAG::MATERIAL_ADD);
+		return (uint32_t)materials.size() - 1;
+	}
 	inline uint32_t SceneManager::AddSurfaceMaterial(const std::string &name,
-																		   const glm::vec3 &diffuse_albedo,
-																		   const glm::vec3 &specular_albedo,
-																		   float roughness_x,
-																		   float roughness_y,
-																		   float ior_n, 
-																		   float metalness,
-																		   float specular_weight,
-																		   float transmission_weight)
+																				   const glm::vec3 &diffuse_albedo,
+																				   const glm::vec3 &specular_albedo,
+																				   float roughness_x,
+																				   float roughness_y,
+																				   float ior_n, 
+																				   float metalness,
+																				   float specular_weight,
+																				   float transmission_weight)
 	{
 		Material mtl;
 		mtl.material_type = SURFACE_MTL;
@@ -1019,69 +1016,6 @@ namespace YumeRT
 		AddSceneFlag(SCENECHANGE_FLAG::MATERIAL_ADD);
 		return (uint32_t)materials.size() - 1;
 	}
-
-	inline uint32_t SceneManager::AddLightMaterial(const std::string &name, const glm::vec3 &light_color , float intensity)
-	{
-		Material mtl;
-		mtl.material_type = LIGHT_MTL;
-		mtl.light_material.light_color = light_color;
-		mtl.light_material.intensity = intensity;
-
-		material_names.push_back(name);
-		material_reference_counters.push_back(0);
-		materials.push_back(mtl);
-
-		AddSceneFlag(SCENECHANGE_FLAG::MATERIAL_ADD);
-		return (uint32_t)materials.size() - 1;
-	}
-
-	inline void SceneManager::UpdateMaterial(uint32_t material_idx)
-	{
-		if (materials.empty()) { return; }
-		if (material_idx < 0 || material_idx >(uint32_t)materials.size() - 1) { return; }
-
-		assert(scene.materials != nullptr);
-		CUDA_CHECK(cudaMemcpy(scene.materials + material_idx, &materials[material_idx], sizeof(Material), cudaMemcpyHostToDevice));
-		CUDA_CHECK(cudaDeviceSynchronize());
-
-		if (material_reference_counters[material_idx] > 0)
-		{
-			AddSceneFlag(SCENECHANGE_FLAG::INSTANCE_MATERIAL_CHANGE);
-		}
-	}
-
-	inline void SceneManager::AssignMaterialToPrim(uint32_t prim_idx, uint32_t material_idx)
-	{
-		if (materials.empty() || prim_instances.empty()) { return; }
-		if (prim_idx < 0 || prim_idx >(uint32_t)prim_instances.size() - 1) { return; }
-		if (material_idx < 0 || material_idx >(uint32_t)materials.size() - 1) { return; }
-		if (prim_instances[prim_idx].material_idx == material_idx) { return; }
-
-		uint32_t previous_mtl_idx = prim_instances[prim_idx].material_idx;
-		material_reference_counters[previous_mtl_idx] -= 1;
-
-		prim_instances[prim_idx].material_idx = material_idx;
-		material_reference_counters[material_idx] += 1;
-
-		assert(scene.prim_instances != nullptr);
-		CUDA_CHECK(cudaMemcpy(scene.prim_instances + prim_idx, &prim_instances[prim_idx], sizeof(PrimitiveInstance), cudaMemcpyHostToDevice));
-		CUDA_CHECK(cudaDeviceSynchronize());
-
-		AddSceneFlag(SCENECHANGE_FLAG::MATERIAL_ASSIGN_TO_A_INSTANCE);
-	}
-
-	inline void SceneManager::ChangePrimExIOR(uint32_t prim_idx, float external_ior)
-	{
-		if (prim_instances.empty() || prim_idx < 0 || prim_idx >(uint32_t)prim_instances.size() - 1) { return; }
-		
-		prim_instances[prim_idx].external_ior = external_ior;
-		assert(scene.prim_instances != nullptr);
-		CUDA_CHECK(cudaMemcpy(scene.prim_instances + prim_idx, &prim_instances[prim_idx], sizeof(PrimitiveInstance), cudaMemcpyHostToDevice));
-		CUDA_CHECK(cudaDeviceSynchronize());
-
-		AddSceneFlag(SCENECHANGE_FLAG::INSTANCE_EX_IOR_CHANGE);
-	}
-
 	inline uint32_t SceneManager::RemoveMaterial(uint32_t material_idx)
 	{
 		if (materials.empty()) { return INVALID_UINT_32; }
@@ -1093,24 +1027,33 @@ namespace YumeRT
 		std::atomic<uint32_t> material_change_instance_count(0);
 		std::atomic<uint32_t> null_material_instance_count(0);
 		std::vector<PrimitiveInstance> &prims = prim_instances;
-		concurrency::parallel_for(0u, (uint32_t)prims.size(), [&](uint32_t i) 
+		concurrency::parallel_for(0u, (uint32_t)prims.size(), [&](uint32_t prim_idx)
 		{
-			if (prims[i].material_idx == material_idx)
+			if (prims[prim_idx].material_idx == material_idx)
 			{
-				prims[i].material_idx = 0;
 				null_material_instance_count.fetch_add(1);
+				
+				prims[prim_idx].material_idx = 0;
+				CUDA_CHECK(cudaMemcpy(scene.prim_instances + prim_idx, &prim_instances[prim_idx], sizeof(PrimitiveInstance), cudaMemcpyHostToDevice));
 			}
-			else if (prims[i].material_idx > material_idx)
+			else if (prims[prim_idx].material_idx > material_idx)
 			{
-				prims[i].material_idx -= 1;
 				material_change_instance_count.fetch_add(1);
+				
+				prims[prim_idx].material_idx -= 1;
+				CUDA_CHECK(cudaMemcpy(scene.prim_instances + prim_idx, &prim_instances[prim_idx], sizeof(PrimitiveInstance), cudaMemcpyHostToDevice));
 			}
 		});
-		
+
+		// TODO : just update instance at here
 		material_reference_counters[0] += null_material_instance_count;
 		if (material_change_instance_count > 0 || null_material_instance_count > 0)
 		{
 			AddSceneFlag(SCENECHANGE_FLAG::INSTANCE_MATERIAL_CHANGE);
+			if (materials[material_idx].material_type == LIGHT_MTL)
+			{
+				AddSceneFlag(SCENECHANGE_FLAG::SHAPE_LIGHT_CHANGE);
+			}
 		}
 
 		materials.erase(materials.begin() + material_idx);
@@ -1125,10 +1068,54 @@ namespace YumeRT
 			return INVALID_UINT_32;
 		}
 
+		CUDA_CHECK(cudaDeviceSynchronize());
+
 		return 0;
 	}
+	inline void SceneManager::UpdateMaterial(uint32_t material_idx)
+	{
+		if (materials.empty()) { return; }
+		if (material_idx >(uint32_t)materials.size() - 1) { return; }
 
-	inline uint32_t SceneManager::AddDistantLight(const std::string &name, const glm::vec3 &direction, const glm::vec3 &light_color, float intensity, float theta_max)
+		assert(scene.materials != nullptr);
+		CUDA_CHECK(cudaMemcpy(scene.materials + material_idx, &materials[material_idx], sizeof(Material), cudaMemcpyHostToDevice));
+		CUDA_CHECK(cudaDeviceSynchronize());
+
+		// TODO: don't update material at updateScene
+		if (material_reference_counters[material_idx] > 0)
+		{
+			AddSceneFlag(SCENECHANGE_FLAG::INSTANCE_MATERIAL_CHANGE);
+			if (materials[material_idx].material_type == LIGHT_MTL)
+			{
+				AddSceneFlag(SCENECHANGE_FLAG::SHAPE_LIGHT_CHANGE);
+			}
+		}
+	}
+	inline void SceneManager::AssignMaterialToPrim(uint32_t prim_idx, uint32_t material_idx)
+	{
+		if (materials.empty() || prim_instances.empty()) { return; }
+		if (prim_idx >(uint32_t)prim_instances.size() - 1) { return; }
+		if (material_idx >(uint32_t)materials.size() - 1) { return; }
+		if (prim_instances[prim_idx].material_idx == material_idx) { return; }
+
+		uint32_t previous_mtl_idx = prim_instances[prim_idx].material_idx;
+		material_reference_counters[previous_mtl_idx] -= 1;
+
+		prim_instances[prim_idx].material_idx = material_idx;
+		material_reference_counters[material_idx] += 1;
+
+		assert(scene.prim_instances != nullptr);
+		CUDA_CHECK(cudaMemcpy(scene.prim_instances + prim_idx, &prim_instances[prim_idx], sizeof(PrimitiveInstance), cudaMemcpyHostToDevice));
+		CUDA_CHECK(cudaDeviceSynchronize());
+
+		AddSceneFlag(SCENECHANGE_FLAG::MATERIAL_ASSIGN_TO_A_INSTANCE);
+		if (materials[material_idx].material_type == LIGHT_MTL)
+		{
+			AddSceneFlag(SCENECHANGE_FLAG::SHAPE_LIGHT_CHANGE);
+		}
+	}
+
+	inline uint32_t SceneManager::AddDistantLight(const std::string &name, uint32_t transform_idx, const glm::vec3 &light_color , float intensity, float theta_max)
 	{
 		DistantLight light;
 		light.light_color = light_color;
@@ -1136,13 +1123,229 @@ namespace YumeRT
 		light.theta_max = theta_max;
 		light.cos_theta_max = glm::cos(glm::radians(theta_max));
 
-		light.light_w = direction;
-		OrthogonalBasis(light.light_w, light.light_u, light.light_v);
+		light.transform_idx = transform_idx;
 
 		distant_lights.push_back(light);
 		distant_light_names.push_back(name);
 
+		transforms[transform_idx] = transform_states[transform_idx].GetTransformMatrix(glm::vec3(0.0f));
+		i_transforms[transform_idx] = glm::inverse(transforms[transform_idx]);
+
 		// AddSceneFlag...
 		return (uint32_t)distant_lights.size() - 1;
+	}
+	inline void SceneManager::UpdateDistantLight(uint32_t distant_light_idx)
+	{
+		if (distant_lights.empty()) { return; }
+		if (distant_light_idx >(uint32_t)distant_lights.size() - 1) { return; }
+
+		assert(scene.distant_lights != nullptr);
+		CUDA_CHECK(cudaMemcpy(scene.distant_lights + distant_light_idx, &distant_lights[distant_light_idx], sizeof(DistantLight), cudaMemcpyHostToDevice));
+		CUDA_CHECK(cudaDeviceSynchronize());
+
+		AddSceneFlag(SCENECHANGE_FLAG::DISTANT_LIGHT_CHANGE);
+	}
+	inline void SceneManager::UpdateDistantLightTransform(uint32_t selected_light_idx)
+	{
+		if (distant_lights.empty() || transform_states.empty()) { return; }
+		if (selected_light_idx >(uint32_t)distant_lights.size() - 1) { return; }
+
+		uint32_t transform_idx = distant_lights[selected_light_idx].transform_idx;
+
+		transforms[transform_idx] = transform_states[transform_idx].GetTransformMatrix();
+		i_transforms[transform_idx] = glm::inverse(transforms[transform_idx]);
+
+		assert(scene.transforms != nullptr && scene.i_transforms != nullptr);
+		CUDA_CHECK(cudaMemcpy(scene.transforms + transform_idx, &transforms[transform_idx], sizeof(glm::mat4), cudaMemcpyHostToDevice));
+		CUDA_CHECK(cudaMemcpy(scene.i_transforms + transform_idx, &i_transforms[transform_idx], sizeof(glm::mat4), cudaMemcpyHostToDevice));
+		CUDA_CHECK(cudaDeviceSynchronize());
+
+		AddSceneFlag(SCENECHANGE_FLAG::DISTANT_LIGHT_CHANGE);
+	}
+
+	inline void SceneManager::LoadShapeLights()
+	{
+		// delete last info
+		shape_lights.clear();
+
+		// Init shape lights
+		for (uint32_t prim_idx = 0; prim_idx < (uint32_t)prim_instances.size(); ++prim_idx)
+		{
+			const PrimitiveInstance &prim = prim_instances[prim_idx];
+			const Material &mtl = materials[prim.material_idx];
+			if (mtl.material_type != LIGHT_MTL) { continue; }
+
+			const glm::mat4& otw = transforms[prim.transform_idx];
+			const TransformState &transform_state = transform_states[prim.transform_idx];
+			const GeometryData &geometry = geometries[prim.geometry_idx];
+
+			// compute irradiance
+			float irradiance = (mtl.light_material.light_color.x + mtl.light_material.light_color.y + mtl.light_material.light_color.z) * mtl.light_material.intensity * ONE_PI;
+
+			if (geometry.geometry_type == TRIANGLE_MESH)
+			{
+				const uint32_t *mesh_vidxs = vidxs.data() + geometry.tri_mesh.vidx_offset;
+				const glm::vec3 *mesh_positions = positions.data() + geometry.tri_mesh.position_offset;
+				const Triangle *mesh_triangles = triangles.data() + geometry.tri_mesh.triangle_offset;
+
+				for (uint32_t triangle_idx = 0; triangle_idx < geometry.tri_mesh.triangle_count; ++triangle_idx)
+				{
+					const Triangle &triangle = mesh_triangles[triangle_idx];
+
+					const uint32_t vid0 = mesh_vidxs[triangle.id0];
+					const uint32_t vid1 = mesh_vidxs[triangle.id1];
+					const uint32_t vid2 = mesh_vidxs[triangle.id2];
+
+					const glm::vec3  p0 = glm::vec3(otw * glm::vec4(mesh_positions[vid0], 1.0f));
+					const glm::vec3  p1 = glm::vec3(otw * glm::vec4(mesh_positions[vid1], 1.0f));
+					const glm::vec3  p2 = glm::vec3(otw * glm::vec4(mesh_positions[vid2], 1.0f));
+
+					const float area = glm::length(glm::cross(p1 - p0, p2 - p0));
+
+					ShapeLight shape_light;
+					shape_light.instance_idx = prim_idx;
+					shape_light.triangle_idx = triangle_idx;
+					shape_light.power = irradiance * area;
+					shape_light.area = area;
+
+					shape_lights.push_back(shape_light);
+				}
+			}
+			else if (geometry.geometry_type == SPHERE)
+			{
+				const float radius = geometry.sphere.radius;
+				const float a = radius * transform_state.S.x;
+				const float b = radius * transform_state.S.y;
+				const float c = radius * transform_state.S.z;
+				const float area = (4.0f / 3.0f) * ONE_PI * (a * b + b * c + c * a);
+
+				ShapeLight shape_light;
+				shape_light.instance_idx = prim_idx;
+				shape_light.triangle_idx = INVALID_UINT_32;
+				shape_light.power = irradiance * area;
+				shape_light.area = area;
+
+				shape_lights.push_back(shape_light);
+			}
+			else
+			{
+
+			}
+		}
+
+		shape_light_sample_table.resize(shape_lights.size());
+
+		float total_power = 0.0f;
+		for (uint32_t i = 0; i < (uint32_t)shape_lights.size(); ++i)
+		{
+			total_power += shape_lights[i].power;
+			shape_light_sample_table[i] = total_power;
+		}
+
+		for (uint32_t i = 0; i < (uint32_t)shape_light_sample_table.size(); ++i)
+		{
+			shape_light_sample_table[i] = total_power == 0.0f ? 0.0f : (shape_light_sample_table[i] / total_power);
+		}
+	}
+
+	void SceneManager::TestScene() 
+	{
+		AddSurfaceMaterial("default material", glm::vec3(0.0f));
+
+		uint32_t cube_idx = AddQube("Cube"), sphere_idx = AddSphere("Sphere", 1.0f);
+
+		AddPrimInstance(cube_idx,
+			AddTransform(glm::vec3(0.0f, 0.0f, -4.0f)),
+			AddSurfaceMaterial("green", glm::vec3(0.0f, 0.5f, 0.0f)));
+
+		AddPrimInstance(cube_idx,
+			AddTransform(glm::vec3(0.0f, 1.5f, -4.0f)),
+			AddSurfaceMaterial("red", glm::vec3(0.5f, 0.0f, 0.0f)));
+
+		AddPrimInstance(cube_idx,
+			AddTransform(glm::vec3(1.5f, 0.0f, -4.0f)),
+			AddSurfaceMaterial("purple", glm::vec3(0.5f, 0.0f, 0.5f)));
+
+		AddPrimInstance(cube_idx,
+			AddTransform(glm::vec3(-1.5f, 0.0f, -4.0f)),
+			AddSurfaceMaterial("blue", glm::vec3(0.0f, 0.0f, 0.5f)));
+
+		AddPrimInstance(cube_idx,
+			AddTransform(glm::vec3(0.0f, 4.0f, -3.5f), glm::vec3(0.6f, 0.05f, 0.6f)),
+			AddLightMaterial("Light", glm::vec3(1.0f), 3.0f));
+
+		AddPrimInstance(cube_idx,
+			AddTransform(glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(10000.0f, 0.1f, 10000.0f)),
+			AddSurfaceMaterial("Floor", glm::vec3(0.5f, 0.5f, 0.5f)));
+
+		AddPrimInstance(sphere_idx,
+			AddTransform(glm::vec3(0.0f, 0.05f, -1.0f)),
+			AddSurfaceMaterial("Sphere Mtl", glm::vec3(1.0f, 1.0f, 1.0f), glm::vec3(1.0f, 0.0f, 0.0f)));
+
+		ACBVHBuilder SceneBuilder(prim_instances.data(),
+			(uint32_t)prim_instances.size(),
+			transforms.data(),
+			geometries.data(),
+			bottom_nodes.data());
+		SceneBuilder.BuildSceneBVH(top_nodes, &top_BVH_time);
+
+		AddDistantLight("Distant Light", AddTransform(glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)), glm::vec3(1.0f), 2.0f, 8.0f);
+
+		LoadShapeLights();
+	}
+	void SceneManager::CornellBox()
+	{
+		AddSurfaceMaterial("default material", glm::vec3(0.0f));
+
+		uint32_t cube_idx = AddQube("Cube"), sphere_idx = AddSphere("Sphere", 1.0f);
+
+		// left
+		AddPrimInstance(cube_idx,
+			AddTransform(glm::vec3(-5.025f, 0.0f, -5.0f), glm::vec3(0.05f, 10.0f, 10.0f)),
+			AddSurfaceMaterial("left wall", glm::vec3(0.65f, 0.05f, 0.05f)));
+		
+		// right
+		AddPrimInstance(cube_idx,
+			AddTransform(glm::vec3(5.025f, 0.0f, -5.0f), glm::vec3(0.05f, 10.0f, 10.0f)),
+			AddSurfaceMaterial("right wall", glm::vec3(0.15f, 0.55f, 0.15f)));
+
+		// bottom
+		AddPrimInstance(cube_idx,
+			AddTransform(glm::vec3(0.0f, -5.025f, -5.0f), glm::vec3(10.0f, 0.05f, 10.0f)),
+			AddSurfaceMaterial("bottom wall", glm::vec3(0.75f, 0.75f, 0.75f)));
+
+		AddPrimInstance(cube_idx,
+			AddTransform(glm::vec3(0.0f, 5.025f, -5.0f), glm::vec3(10.0f, 0.05f, 10.0f)),
+			AddSurfaceMaterial("top wall", glm::vec3(0.75f, 0.75f, 0.75f)));
+
+		// back
+		AddPrimInstance(cube_idx,
+			AddTransform(glm::vec3(0.0f, 0.0f, -10.025f), glm::vec3(10.0f, 10.0f, 0.05f)),
+			AddSurfaceMaterial("back wall", glm::vec3(0.75f, 0.75f, 0.75f)));
+
+		// light
+		AddPrimInstance(cube_idx,
+			AddTransform(glm::vec3(-3.0f, 5.65f, -5.0f), glm::vec3(2.0f, 0.3f, 2.0f)),
+			AddLightMaterial("ceil light", glm::vec3(1.0f), 5.0f));
+
+		AddPrimInstance(sphere_idx,
+			AddTransform(glm::vec3(3.0f, 5.85f, -5.0f), glm::vec3(0.3f, 0.3f, 0.3f)),
+			AddLightMaterial("sphere light", glm::vec3(1.0f), 6.0f));
+
+		// ground
+		AddPrimInstance(cube_idx,
+			AddTransform(glm::vec3(0.0f, -5.55f, 0.0f), glm::vec3(10000.0, 1.0f, 10000.0f)),
+			AddSurfaceMaterial("ground", glm::vec3(0.55f, 0.55f, 0.55f), glm::vec3(0.0f), 0.2, 0.2, 1.3, 0.0f, 0.0f, 0.0f));
+
+		ACBVHBuilder SceneBuilder(prim_instances.data(),
+			(uint32_t)prim_instances.size(),
+			transforms.data(),
+			geometries.data(),
+			bottom_nodes.data());
+		SceneBuilder.BuildSceneBVH(top_nodes, &top_BVH_time);
+
+		AddDistantLight("Distant Light", AddTransform(glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)), glm::vec3(1.0f), 2.0f, 8.0f);
+
+		LoadShapeLights();
 	}
 };

@@ -17,8 +17,8 @@ int main(int argc, char *argv[])
 		ptr->Init(vert_path,
 			frag_path,
 			model_path,
-			1280,
-			980);
+			800,
+			600);
 		ptr->Run();
 	}
 	catch (const std::exception& err)

@@ -52,28 +52,28 @@ namespace YumeRT
 	}
 
 	template<typename T>
-	__host__ inline  bool EvalSAH(T *types, uint32_t count, const BBox3 &parent_bbox, const float parent_cost, float *split_pos, int *split_axis)
+	__host__ inline  bool EvalSAH(T *prims, uint32_t count, const BBox3 &center_bbox, const float parent_cost, float *split_pos, int *split_axis)
 	{
 		assert(count > 0);
 
 		int best_axis = 0;
-		float best_pos = types[0].GetCenter()[best_axis];
-		float best_cost = 1E32f;
-		glm::vec3 extent = parent_bbox.p_max - parent_bbox.p_min;
+		float best_pos = prims[0].GetCenter()[best_axis];
+		float best_cost = 1E33f;
+		glm::vec3 extent = center_bbox.p_max - center_bbox.p_min;
 
 		struct Bin { uint32_t count = 0; BBox3 bbox; };
 		const int bin_count = 16;
-		int axis = BBox3LongestAxis(parent_bbox);
+		int axis = BBox3LongestAxis(center_bbox);
 
 		Bin bins[bin_count];
 		const float step = extent[axis] / float(bin_count);
 		const float inv_len = 1.f / extent[axis];
 		for (uint32_t idx = 0; idx < count; ++idx)
 		{
-			float prim_ndc = (types[idx].GetCenter()[axis] - parent_bbox.p_min[axis]) * inv_len;
-			int bin_idx = glm::min((int)(prim_ndc * bin_count), bin_count - 1);
+			float prim_ndc = (prims[idx].GetCenter()[axis] - center_bbox.p_min[axis]) * inv_len;
+			int bin_idx = glm::max(glm::min((int)(prim_ndc * bin_count), bin_count - 1), 0);
 			bins[bin_idx].count++;
-			bins[bin_idx].bbox = BBox3Union(bins[bin_idx].bbox, types[idx].GetBBox());
+			bins[bin_idx].bbox = BBox3Union(bins[bin_idx].bbox, prims[idx].GetBBox());
 		}
 
 		float left_areas[bin_count - 1], right_areas[bin_count - 1];
@@ -102,7 +102,7 @@ namespace YumeRT
 			{
 				best_cost = cost;
 				best_axis = axis;
-				best_pos = parent_bbox.p_min[axis] + float(i + 1) * step;
+				best_pos = center_bbox.p_min[axis] + float(i + 1) * step;
 			}
 		}
 

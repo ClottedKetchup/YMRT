@@ -19,6 +19,8 @@ namespace YumeRT
 	struct Material;
 
 	struct DistantLight;
+
+	struct ShapeLight;
 	
 	// TODO: turn this into void pointer!
 	struct Scene
@@ -57,6 +59,10 @@ namespace YumeRT
 
 		uint32_t distant_light_count = 0;
 		DistantLight *distant_lights = nullptr;
+
+		uint32_t shape_light_count = 0;
+		ShapeLight *shape_lights = nullptr;
+		float *shape_light_sample_table = nullptr;
 	};
 
 	struct RenderSetting
@@ -66,8 +72,11 @@ namespace YumeRT
 		float gamma;
 		float exposure;
 		int max_frame_count;
-		int padding[3];
+		bool stratified;
+		bool enable_distant_light;
+		bool enable_env_light;
 
-		__device__ __host__ RenderSetting(): ssp(1), ray_depth(4), gamma(2.2f), exposure(1.0f), max_frame_count(-1) {}
+		__device__ __host__ RenderSetting(): ssp(1), ray_depth(4), gamma(2.2f), exposure(1.0f), 
+			max_frame_count(-1), stratified(false), enable_distant_light(false), enable_env_light(true) {}
 	};
 };

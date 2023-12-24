@@ -23,24 +23,27 @@ namespace YumeRT
 		BBox3 result_bbox;
 		result_bbox.p_min = glm::vec3(-radius);
 		result_bbox.p_max = glm::vec3(radius);
-		return result_bbox;
+		return BoundFix(result_bbox);
 	}
 
 	__device__ __host__ inline  BBox3 GetGeometryBound(const GeometryData &geometry, const BottomNode *bottom_nodes)
 	{
 		uint32_t geo_type = geometry.geometry_type;
+		BBox3 object_bbox;
 		if (geo_type == GEOMETRY_TYPE::TRIANGLE_MESH)
 		{
-			return GetMeshObjectBound(geometry, bottom_nodes);
+			object_bbox = GetMeshObjectBound(geometry, bottom_nodes);
 		}
 		else if (geo_type == GEOMETRY_TYPE::SPHERE)
 		{
-			return GetSphereObjectBound(geometry, bottom_nodes);
+			object_bbox = GetSphereObjectBound(geometry, bottom_nodes);
 		}
 		else 
 		{
-			return BBox3();
+			object_bbox = BBox3();
 		}
+
+		return object_bbox;
 	}
 
 	__device__ __host__ inline  glm::vec3 GetMeshObjectCenter(const GeometryData &geometry, const BottomNode *bottom_nodes)
@@ -86,10 +89,7 @@ namespace YumeRT
 		bbox = BBox3Extend(bbox, p1);
 		bbox = BBox3Extend(bbox, p2);
 
-		constexpr float bbox_min_extent = 1E-3f;
-		if (bbox.p_max.x <= bbox.p_min.x) { bbox.p_max.x = bbox.p_min.x + bbox_min_extent; }
-		if (bbox.p_max.y <= bbox.p_min.y) { bbox.p_max.y = bbox.p_min.y + bbox_min_extent; }
-		if (bbox.p_max.z <= bbox.p_min.z) { bbox.p_max.z = bbox.p_min.z + bbox_min_extent; }
+		bbox = BoundFix(bbox);
 		return bbox;
 	}
 

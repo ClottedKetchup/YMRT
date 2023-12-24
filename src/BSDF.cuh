@@ -534,7 +534,9 @@ namespace YumeRT
 
 		__device__ __host__ inline BSDF* SampleOneBSDF(float u0, float *pdf)
 		{
-			if (!(bsdf_count > 0)) { return nullptr; }
+			if (!(bsdf_count > 0)) { 
+				*pdf = 0.0f;
+				return nullptr; }
 
 			if (u0 < weights[0])
 			{

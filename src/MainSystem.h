@@ -97,7 +97,7 @@ namespace YumeRT
 		empty_VAO.InitVAO();
 
 		scene_manager = SceneManager::GetInstance();
-		scene_manager->Init();
+		scene_manager->InitScene();
 
 		rt_renderer = Renderer::GetInstance();
 		rt_renderer->Init();

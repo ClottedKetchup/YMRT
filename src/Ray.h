@@ -32,7 +32,7 @@ namespace YumeRT
 	__device__ __host__ inline Ray TransformRay(const Ray &ray, const glm::mat4 &transform)
 	{
 		Ray transformed_ray;
-		transformed_ray.origin = glm::vec3(transform * glm::vec4(ray.origin, 1.0f));;
+		transformed_ray.origin = glm::vec3(transform * glm::vec4(ray.origin, 1.0f));
 		transformed_ray.direction = glm::vec3(transform * glm::vec4(ray.direction, 0.0f));
 		transformed_ray.t = ray.t;
 		transformed_ray.volume_idx = ray.volume_idx;

@@ -31,6 +31,7 @@ namespace YumeRT
 			}surface_material;
 			struct
 			{
+				// TODO: add a angle
 				glm::vec3 light_color = glm::vec3(0.5f);
 				float intensity = 0.2f;
 			}light_material;

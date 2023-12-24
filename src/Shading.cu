@@ -37,22 +37,22 @@ namespace YumeRT
 
 	__device__ __host__ glm::vec3 Background(const glm::vec3 &direction)
 	{
-		// return glm::mix(glm::vec3(1.0f), glm::vec3(0.05f, 0.2f, 0.65f), direction.y * 0.5f + 0.5f);
-		// return glm::mix(glm::vec3(1.0f), glm::vec3(0.05f, 0.2f, 0.85f), direction.y * 0.5f + 0.5f);
-		return glm::vec3(0.f);
+		// return glm::vec3(0.0f);
+		return glm::mix(glm::vec3(1.0f), glm::vec3(0.05f, 0.2f, 0.85f), direction.y * 0.5f + 0.5f);
 	}
 
-	__device__ glm::vec3 EvalDirectLighting(const Scene &scene, 
-																	UberBSDF &uber_bsdf, 
-																	const glm::vec3 &ray_direction, 
-																	const glm::vec3 &hit_position, 
-																	const glm::vec3 &hit_shading_normal, 
-																	const glm::vec3 &hit_geometry_normal,
-																	uint32_t px, 
-																	uint32_t py, 
-																	PixelRandom &pixel_random)
+	__device__ glm::vec3 EvalDistantLight(const Scene &scene, 
+																UberBSDF &uber_bsdf, 
+																const glm::vec3 &ray_direction, 
+																const glm::vec3 &hit_position, 
+																const glm::vec3 &hit_shading_normal, 
+																const glm::vec3 &hit_geometry_normal,
+																uint32_t px, 
+																uint32_t py, 
+																PixelRandom &pixel_random)
 	{
 		assert(scene.distant_lights != nullptr);
+		if (scene.distant_lights == nullptr) {return glm::vec3(0.0f);}
 		auto random = [&]()->float {return pixel_random.Random(px, py); };
 		
 		glm::vec3 direct_lighting(0.0f);
@@ -69,20 +69,20 @@ namespace YumeRT
 		{
 			glm::vec3 light_dir, light_pos;
 			float light_sample_pdf;
-			glm::vec3 Li = scene.distant_lights[0].SampleLi(hit_position, hit_shading_normal, random(), random(), &light_dir, &light_pos, &light_sample_pdf);
+			glm::vec3 Li = scene.distant_lights[0].SampleLi(scene, hit_position, hit_shading_normal, random(), random(), &light_dir, &light_pos, &light_sample_pdf);
 
 			glm::vec3 light_wi = uber_bsdf.WorldToShading(light_dir);
 			float light_wi_pdf = 0.0f;
 			const glm::vec3 bsdf_weight = sampled_bsdf.Eval(wo, light_wi, &light_wi_pdf) * bsdf_select_pdf;
 
-			const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, glm::dot(light_dir, hit_geometry_normal) > 0.0f ? hit_geometry_normal : -hit_geometry_normal);
+			const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, glm::dot(light_dir, hit_geometry_normal) >= 0.0f ? hit_geometry_normal : -hit_geometry_normal);
 			Ray shadow_ray(shadow_ray_origin, light_dir);
 
 			HitRecord shadow_ray_record;
-			if (!BVHTraverse(scene, shadow_ray, &shadow_ray_record, true))
+			if ((bsdf_weight.x + bsdf_weight.y + bsdf_weight.z > 1E-16f) && !BVHTraverse(scene, shadow_ray, &shadow_ray_record, true))
 			{
-				float mis_weight = light_sample_pdf > 1E12f ? 1.0f : (Sqr(light_sample_pdf) / glm::max(Sqr(light_sample_pdf) + Sqr(light_wi_pdf), 1E-12f));
-				direct_lighting +=  mis_weight * bsdf_weight * Li;
+				float mis_weight = 1.0f / (1.0f + Sqr(light_wi_pdf) / glm::min(1E24f, glm::max(Sqr(light_sample_pdf), 1E-16f)));
+				direct_lighting +=  mis_weight * glm::min(bsdf_weight, glm::vec3(1E16f)) * glm::min(Li, glm::vec3(1E16f));
 			}
 		}
 
@@ -97,17 +97,17 @@ namespace YumeRT
 			if (sample_valid)
 			{
 				const glm::vec3 light_dir = uber_bsdf.ShadingToWorld(bsdf_wi);
-				const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, glm::dot(light_dir, hit_geometry_normal) > 0.0f ? hit_geometry_normal : -hit_geometry_normal);
+				const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, glm::dot(light_dir, hit_geometry_normal) >= 0.0f ? hit_geometry_normal : -hit_geometry_normal);
 				Ray shadow_ray(shadow_ray_origin, light_dir);
 
 				float bsdf_wi_pdf = 0.0f;
-				const glm::vec3 Li = scene.distant_lights[0].EvalLi(light_dir, &bsdf_wi_pdf);
+				glm::vec3 Li = scene.distant_lights[0].EvalLi(scene, light_dir, &bsdf_wi_pdf);
 
 				HitRecord shadow_ray_record;
-				if (!BVHTraverse(scene, shadow_ray, &shadow_ray_record, true))
+				if ((Li.x + Li.y + Li.z > 1E-16f) && !BVHTraverse(scene, shadow_ray, &shadow_ray_record, true))
 				{
-					float mis_weight = bsdf_sample_pdf > 1E12f ? 1.0f : (Sqr(bsdf_sample_pdf) / glm::max(Sqr(bsdf_sample_pdf) + Sqr(bsdf_wi_pdf), 1E-12f));
-					direct_lighting += mis_weight *  bsdf_weight * Li;
+					float mis_weight = 1.0f / (1.0f + Sqr(bsdf_wi_pdf) / glm::min(1E24f, glm::max(Sqr(bsdf_sample_pdf), 1E-16f)));
+					direct_lighting += mis_weight * glm::min(bsdf_weight, glm::vec3(1E16f)) * glm::min(Li, glm::vec3(1E16f));
 				}
 			}
 		}
@@ -115,9 +115,98 @@ namespace YumeRT
 		return  bsdf_select_pdf == 0.0f ? glm::vec3(0.0f) : direct_lighting / bsdf_select_pdf;
 	}
 
+	__device__ glm::vec3 EvalShapeLight(const Scene &scene,
+																UberBSDF &uber_bsdf,
+																const glm::vec3 &ray_direction,
+																const glm::vec3 &hit_position,
+																const glm::vec3 &hit_shading_normal,
+																const glm::vec3 &hit_geometry_normal,
+																uint32_t px,
+																uint32_t py,
+																PixelRandom &pixel_random)
+	{
+		if (scene.shape_light_count == 0 || scene.shape_lights == nullptr) { return glm::vec3(0.0f); }
+		auto random = [&]()->float {return pixel_random.Random(px, py); };
+
+		glm::vec3 direct_lighting(0.0f);
+
+		glm::vec3 wo = uber_bsdf.WorldToShading(-ray_direction);
+
+		float bsdf_select_pdf = 0.0f;
+		BSDF *sampled_bsdf_ptr = uber_bsdf.SampleOneBSDF(random(), &bsdf_select_pdf);
+		if (sampled_bsdf_ptr == nullptr || bsdf_select_pdf == 0.0f) { return glm::vec3(0.0f); }
+
+		BSDF &sampled_bsdf = *sampled_bsdf_ptr;
+
+		float light_select_pdf = 0.0f;
+		int light_idx = SampleLightPower(scene, random(), &light_select_pdf);
+
+		const ShapeLight &shape_light = scene.shape_lights[light_idx];
+
+		// sample from light
+		{
+			glm::vec3 light_dir, light_pos, light_geo_normal;
+			float light_sample_pdf;
+			glm::vec3 Li = shape_light.SampleLi(scene, hit_position, hit_shading_normal, random(), random(), &light_dir, &light_pos, &light_geo_normal, &light_sample_pdf);
+
+			glm::vec3 light_wi = uber_bsdf.WorldToShading(light_dir);
+			float light_wi_pdf = 0.0f;
+			const glm::vec3 bsdf_weight = sampled_bsdf.Eval(wo, light_wi, &light_wi_pdf) * bsdf_select_pdf;
+
+			if (bsdf_weight.x + bsdf_weight.y + bsdf_weight.z > 1E-16f)
+			{
+				HitRecord shadow_ray_record;
+				const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, glm::dot(light_dir, hit_geometry_normal) >= 0.0f ? hit_geometry_normal : -hit_geometry_normal);
+				Ray shadow_ray(shadow_ray_origin, light_dir);
+				shadow_ray.t = glm::length(OffsetRayOrigin(light_pos, light_geo_normal) - hit_position) * 0.9996f;
+
+				if (!BVHTraverse(scene, shadow_ray, &shadow_ray_record, true))
+				{
+					float mis_weight = 1.0f / (1.0f + Sqr(light_wi_pdf) / glm::min(1E24f, glm::max(Sqr(light_sample_pdf), 1E-16f)));
+					direct_lighting += mis_weight * glm::min(bsdf_weight, glm::vec3(1E16f)) * glm::min(Li, glm::vec3(1E16f));
+				}
+			}
+		}
+
+		// sample from bsdf
+		{
+			glm::vec3 bsdf_weight, bsdf_wi;
+			float bsdf_sample_pdf = 0.0f;
+			bool sample_valid = sampled_bsdf.Sample(random(), random(), wo, &bsdf_weight, &bsdf_wi, &bsdf_sample_pdf);
+
+			bsdf_weight *= bsdf_select_pdf;
+
+			if (sample_valid)
+			{
+				glm::vec3 light_dir = uber_bsdf.ShadingToWorld(bsdf_wi);
+				glm::vec3 light_pos, light_geo_normal;
+				float bsdf_wi_pdf = 0.0f;
+				glm::vec3 Li = shape_light.EvalLi(scene, hit_position, light_dir, &light_pos, &light_geo_normal, &bsdf_wi_pdf);
+
+				if ((Li.x + Li.y + Li.z > 1E-16f))
+				{
+					HitRecord shadow_ray_record;
+					glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, glm::dot(light_dir, hit_geometry_normal) >= 0.0f ? hit_geometry_normal : -hit_geometry_normal);
+					Ray shadow_ray(shadow_ray_origin, light_dir);
+					shadow_ray.t = glm::length(OffsetRayOrigin(light_pos, light_geo_normal) - hit_position) * 0.9996f;
+
+					if (!BVHTraverse(scene, shadow_ray, &shadow_ray_record, true))
+					{
+						float mis_weight = 1.0f / (1.0f + Sqr(bsdf_wi_pdf) / glm::min(1E24f, glm::max(Sqr(bsdf_sample_pdf), 1E-16f)));
+						direct_lighting += mis_weight * glm::min(bsdf_weight, glm::vec3(1E16f)) * glm::min(Li, glm::vec3(1E16f));
+					}
+				}
+			}
+		}
+		
+		// todo: eval shape light contrib 
+		return   (bsdf_select_pdf * light_select_pdf)  < 1E-10f?  glm::vec3(0.0f) : (direct_lighting / (bsdf_select_pdf * light_select_pdf));
+	}
+
 	__global__ void RenderImage(Scene *scene_ptr,
 													PixelRandom *pixel_randoms,
 													const RenderSetting render_setting,
+													const int frame_count,
 													glm::vec4 *image,
 													uint32_t *prim_idx_buffer,
 													uint32_t width,
@@ -144,11 +233,25 @@ namespace YumeRT
 		Scene &scene = *scene_ptr;
 
 		auto random = [&]() ->float {return pixel_randoms[pixel_idx].Random(px, py); };
-		
+
 		glm::vec3 col(0.0f);
 		for (int sample_idx = 0; sample_idx < render_setting.ssp; ++sample_idx)
 		{
-			Ray ray = scene.camera->generateRay(float(px + random()) / float(width), float(py + random()) / float(height));
+			Ray ray;
+			if (render_setting.stratified) 
+			{
+				int stratified_sample_count = render_setting.max_frame_count;
+				int current_sample_idx = glm::min(frame_count, stratified_sample_count);
+				int stratified_width = (int)glm::ceil(glm::sqrt((float)stratified_sample_count));
+				int stratified_x = current_sample_idx / stratified_width;
+				int stratified_y = current_sample_idx % stratified_width;
+				ray = scene.camera->generateRay(float(px + ((float)stratified_x + random()) / float(stratified_width)) / float(width),
+																		 float(py + ((float)stratified_y + random()) / float(stratified_width)) / float(height));
+			}
+			else 
+			{
+				ray = scene.camera->generateRay(float(px + random()) / float(width), float(py + random()) / float(height));
+			}
 
 			glm::vec3 L(0.0f), throughput(1.0f);
 			for (int depth = 1;;)
@@ -183,7 +286,7 @@ namespace YumeRT
 
 					if (mtl.material_type == LIGHT_MTL)
 					{
-						L += throughput * mtl.light_material.light_color * mtl.light_material.intensity;
+						if (depth == 1) { L += throughput * mtl.light_material.light_color * mtl.light_material.intensity; }
 						break;
 					}
 
@@ -195,17 +298,31 @@ namespace YumeRT
 					uber_bsdf.InitBSDFSettings(mtl, ray, hit_record.hit_back, prim.external_ior);
 					
 					// TODO: direct lighting
-					L += throughput * EvalDirectLighting(scene, 
-																				uber_bsdf, 
-																				ray.direction, 
-																				hit_position, 
-																				hit_shading_normal, 
-																				hit_geometry_normal, 
-																				px, 
-																				py, 
-																				pixel_randoms[pixel_idx]);
+					// TODO: switch to turn off direct light
+					if (render_setting.enable_distant_light) {
+						L += throughput * EvalDistantLight(scene,
+							uber_bsdf,
+							ray.direction,
+							hit_position,
+							hit_shading_normal,
+							hit_geometry_normal,
+							px,
+							py,
+							pixel_randoms[pixel_idx]);
+					}
 
+					// TODO: sample table, light BVH...
+					L += throughput * EvalShapeLight(scene,
+																			uber_bsdf,
+																			ray.direction,
+																			hit_position,
+																			hit_shading_normal,
+																			hit_geometry_normal,
+																			px,
+																			py,
+																			pixel_randoms[pixel_idx]);
 					
+					// break;
 					// current a bunch noise are from indirect light!
 					// indirect lighting
 					glm::vec3 wo = uber_bsdf.WorldToShading(-ray.direction), wi(0.0f), bsdf_weight(0.0f);
@@ -221,12 +338,13 @@ namespace YumeRT
 					float rr = glm::max(throughput.x, glm::max(throughput.y, throughput.z));
 					if (depth + 1 > render_setting.ray_depth)
 					{
-						if (random() < rr) { throughput /= glm::max(rr, 1E-8f); }
+						if (random() < rr) { throughput /= glm::max(rr, 1E-10f); }
 						else { break; }
 					}
 
 					glm::vec3 new_direction = uber_bsdf.ShadingToWorld(wi);
-					bool front_side_bounce = glm::dot(hit_geometry_normal, new_direction) > 0.0f;
+					bool front_side_bounce = glm::dot(hit_geometry_normal, new_direction) >= 0.0f;
+					// this method to avoid self intersection is still not robust, it makes the sphere self-intersection when radius is big
 					glm::vec3 new_origin = OffsetRayOrigin(hit_position, front_side_bounce? hit_geometry_normal : -hit_geometry_normal);
 					
 					ray = Ray(new_origin, new_direction, front_side_bounce? prim.external_ior : mtl.surface_material.ior_n);
@@ -237,7 +355,8 @@ namespace YumeRT
 					if (sample_idx == 0 && depth == 1) {
 						prim_idx_buffer[pixel_idx] = INVALID_UINT_32;
 					}
-					L += throughput * Background(ray.direction);
+					// TODO: switch to turn off env light
+					L += render_setting.enable_env_light? throughput * Background(ray.direction) : glm::vec3(0.0f);
 					break;
 				}
 			} // for depth
@@ -275,7 +394,16 @@ namespace YumeRT
 
 			dim3 block_dim(32, 1, 1);
 			dim3 grid_dim(Round_Block_Count(total_pixel_count, block_dim.x), 1, 1);
-			void *args[] = {&scene_ptr, &pixel_randoms, &rt_settings, &image, &prim_idx_buffer, &width, &height, &tile_count_x, &tile_count_y};
+			void *args[] = {&scene_ptr, 
+									&pixel_randoms, 
+									&rt_settings, 
+									&frame_count,
+									&image, 
+									&prim_idx_buffer, 
+									&width, 
+									&height, 
+									&tile_count_x, 
+									&tile_count_y};
 			CUDA_CHECK(cudaLaunchKernel((void*)RenderImage, grid_dim, block_dim, args, 0, 0));
 			CUDA_CHECK(cudaStreamSynchronize(0));
 

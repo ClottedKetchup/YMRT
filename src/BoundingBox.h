@@ -19,6 +19,25 @@ namespace YumeRT
 			p_min({ glm::min(p1.x, p2.x), glm::min(p1.y, p2.y), glm::min(p1.z, p2.z) }) {}
 	};
 
+	__device__ __host__ inline BBox3 BoundFix(const BBox3& bbox)
+	{
+		const float eps = 0.0005f;
+		BBox3 object_bbox = bbox;
+		for (int i = 0; i < 3; ++i)
+		{
+			if (object_bbox.p_max[i] < object_bbox.p_min[i])
+			{
+				Swap(object_bbox.p_max[i], object_bbox.p_min[i]);
+			}
+			if (fabs(object_bbox.p_max[i] - object_bbox.p_min[i]) < 2.0f * eps)
+			{
+				object_bbox.p_max[i] += eps;
+				object_bbox.p_min[i] -= eps;
+			}
+		}
+		return object_bbox;
+	}
+
 	__device__ __host__ inline BBox3 BBox3Extend(const BBox3 &bbox, const glm::vec3 &p)
 	{
 		BBox3 bbox_res;
@@ -66,11 +85,7 @@ namespace YumeRT
 			result_bbox = BBox3Extend(result_bbox, glm::vec3(transform * glm::vec4(corner, 1.0f)));
 		}
 
-		constexpr float bbox_min_extent = 1E-3f;
-		if (result_bbox.p_max.x <= result_bbox.p_min.x) { result_bbox.p_max.x = result_bbox.p_min.x + bbox_min_extent; }
-		if (result_bbox.p_max.y <= result_bbox.p_min.y) { result_bbox.p_max.y = result_bbox.p_min.y + bbox_min_extent; }
-		if (result_bbox.p_max.z <= result_bbox.p_min.z) { result_bbox.p_max.z = result_bbox.p_min.z + bbox_min_extent; }
-		return result_bbox;
+		return BoundFix(result_bbox);
 	}
 
 	__device__ __host__ inline bool BBox3Overlap(const BBox3 &bbox_1, const BBox3 &bbox_2)
@@ -116,7 +131,7 @@ namespace YumeRT
 		float tz0 = (bbox.p_min.z - ray.origin.z) * inv_dir.z;
 		float tz1 = (bbox.p_max.z - ray.origin.z) * inv_dir.z;
 		if (tz0 > tz1) { Swap(tz0, tz1); }
-		//if (isnan(tz0) || isnan(tz1)) { return false; }
+		// if (isnan(tz0) || isnan(tz1)) { return false; }
 
 		float ti = tx0;
 		if (ty0 > ti) { ti = ty0; }

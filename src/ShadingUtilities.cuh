@@ -29,22 +29,6 @@ namespace YumeRT
 	};
 #pragma pack(pop)
 
-	struct BoundaryStack
-	{
-		// for volume use this: int v_idx[8];
-		
-		int top;
-		int ior[7];
-		
-		__device__ __host__ BoundaryStack() : top(-1) {}
-		
-	};
-
-	__device__ __host__ inline glm::vec3 MakeRedCol()
-	{
-		return glm::vec3(1.0f, 0.0f, 0.0f);
-	}
-
 	// This is for Mesh intersection
 	__device__ __host__  bool IntersectTri(const Triangle &triangle, const glm::vec3 *mesh_positions, const uint32_t *mesh_vidxs, const Ray &ray, HitRecord *hit_record)
 	{
@@ -206,8 +190,9 @@ namespace YumeRT
 			return false;
 		}
 
-		float t1 = (-b - glm::sqrt(discriminator)) / (2.0 * a);
-		float t2 = (-b + glm::sqrt(discriminator)) / (2.0 * a);
+		float sqrt_d = glm::sqrt(discriminator);
+		float t1 = (-b - sqrt_d) / (2.0 * a);
+		float t2 = (-b + sqrt_d) / (2.0 * a);
 
 		if (t1 > ray.t || t2 < TMIN)
 		{
@@ -228,7 +213,7 @@ namespace YumeRT
 
 		glm::vec3 position_object = ray_o + ray_d * t;
 		float distance = length(position_object);
-		position_object = distance > 1E-7f ?
+		position_object = distance > 1E-8f ?
 			position_object * radius / distance : glm::vec3(0.0f);
 
 		hit_record->hit_t = t;

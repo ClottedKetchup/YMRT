@@ -157,6 +157,7 @@ namespace YumeRT
 		static bool m_show_material_list;
 		static bool m_show_render_menu;
 		static bool m_show_camera_menu;
+		static bool m_show_light_menu;
 
 		UserInterface() {}
 
@@ -173,6 +174,8 @@ namespace YumeRT
 		inline void RenderGeometryList();
 
 		inline void RenderMaterialList();
+
+		inline void RenderLightList();
 
 		inline void RenderInstanceMenu();
 
@@ -197,6 +200,7 @@ namespace YumeRT
 	bool UserInterface::m_show_material_list = false;
 	bool UserInterface::m_show_render_menu = false;
 	bool UserInterface::m_show_camera_menu = false;
+	bool UserInterface::m_show_light_menu = false;
 
 	void FramebufferSizeCallback(GLFWwindow* window, int width, int height)
 	{
@@ -387,7 +391,22 @@ namespace YumeRT
 			ImGui::Text("Render Finish!");
 			ImGui::PopStyleColor();
 		}
+
 		ImGui::Checkbox("Disable Selected Effect", &highlight_flag);
+		if (ImGui::Checkbox("Stratified", &render_setting.stratified))
+		{
+			int stratified_width = (int)glm::ceil(glm::sqrt(glm::max(render_setting.max_frame_count, 4)));
+			render_setting.max_frame_count = Sqr(stratified_width);
+			rt_renderer->SetRenderSettingChange(true);
+		}
+		if (ImGui::Checkbox("Distant Light", &render_setting.enable_distant_light))
+		{
+			rt_renderer->SetRenderSettingChange(true);
+		}
+		if (ImGui::Checkbox("Env Light", &render_setting.enable_env_light))
+		{
+			rt_renderer->SetRenderSettingChange(true);
+		}
 
 		ImGui::Separator();
 		if (ImGui::InputInt("Sample Count", &render_setting.ssp))
@@ -397,6 +416,11 @@ namespace YumeRT
 		}
 		if (ImGui::InputInt("Max Accumulate Frame Count", &render_setting.max_frame_count))
 		{
+			if (render_setting.stratified)
+			{
+				int stratified_width = (int)glm::ceil(glm::sqrt(glm::max(render_setting.max_frame_count, 4)));
+				render_setting.max_frame_count = Sqr(stratified_width);
+			}
 			rt_renderer->SetRenderSettingChange(true);
 		}
 		if (ImGui::InputInt("Ray Depth", &render_setting.ray_depth))
@@ -639,7 +663,11 @@ namespace YumeRT
 			{
 				for (uint32_t i = MATERIAL_TYPE::SURFACE_MTL; i <= MATERIAL_TYPE::LIGHT_MTL; ++i)
 				{
-					if (ImGui::Selectable(material_type_names[i])) { highlight_material.material_type = (MATERIAL_TYPE)i; }
+					if (ImGui::Selectable(material_type_names[i])) 
+					{ 
+						highlight_material.material_type = (MATERIAL_TYPE)i;
+						scene_manager->UpdateMaterial(highlight_material_idx);
+					}
 				}
 				ImGui::EndCombo();
 			}
@@ -707,6 +735,86 @@ namespace YumeRT
 		ImGui::End();
 	}
 
+	inline void UserInterface::RenderLightList()
+	{
+		if (!m_show_light_menu) { return; }
+		ImGui::Begin("Light List");
+		const std::vector<DistantLight> &distant_lights = scene_manager->GetDistantLights();
+		const std::vector<std::string> &distant_light_names = scene_manager->GetDistantLightNames();
+		
+		ImGui::Text("Total DistantLight Count: %d", (uint32_t)distant_lights.size());
+		ImGui::Text("DistantLights:");
+
+		static uint32_t highlight_distant_light_idx = INVALID_UINT_32;
+		highlight_distant_light_idx = glm::clamp(highlight_distant_light_idx, 0u, (uint32_t)distant_lights.size() - 1);
+		ImVec2 button_size;
+		if (ImGui::BeginListBox(""))
+		{
+			button_size = ImGui::GetItemRectSize();
+			for (uint32_t distant_light_idx = 0; distant_light_idx < (uint32_t)distant_lights.size(); ++distant_light_idx)
+			{
+				bool button_press = false;
+				if (distant_light_idx == highlight_distant_light_idx)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(250, 4, 4, 122));
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(250, 4, 4, 255));
+					button_press = ImGui::Button(distant_light_names[distant_light_idx].c_str(), button_size);
+					ImGui::PopStyleColor();
+					ImGui::PopStyleColor();
+				}
+				else
+				{
+					button_press = ImGui::Button(distant_light_names[distant_light_idx].c_str(), button_size);
+				}
+
+				if (button_press) { highlight_distant_light_idx = distant_light_idx; }
+			}
+			ImGui::EndListBox();
+		}
+
+		ImGui::Separator();
+		DistantLight *distant_light_ptr = scene_manager->GetDistantLight(highlight_distant_light_idx);
+		if (distant_light_ptr != nullptr)
+		{
+			DistantLight &highlight_distant_light = (*distant_light_ptr);
+			ImGui::Text("Distant Light Attribute");
+			if (ImGui::ColorEdit3("Light Color", (float*)(&highlight_distant_light.light_color), ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR))
+			{
+				scene_manager->UpdateDistantLight(highlight_distant_light_idx);
+			}
+			if (ImGui::InputFloat("Intensity", &highlight_distant_light.intensity))
+			{
+				highlight_distant_light.intensity = glm::max(0.0f, highlight_distant_light.intensity);
+				scene_manager->UpdateDistantLight(highlight_distant_light_idx);
+			}
+			if (ImGui::SliderFloat("Max Scatter Angle", &highlight_distant_light.theta_max, 0.01f, 89.99f))
+			{
+				highlight_distant_light.cos_theta_max = glm::cos(glm::radians(highlight_distant_light.theta_max));
+				scene_manager->UpdateDistantLight(highlight_distant_light_idx);
+			}
+			// TODO : distant_light transform
+			const uint32_t transform_idx = highlight_distant_light.transform_idx;
+			TransformState *transform_state_ptr = scene_manager->GetTransformState(transform_idx);
+			if (transform_state_ptr != nullptr)
+			{
+				TransformState &transform_state = *transform_state_ptr;
+				if (ImGui::SliderFloat("Rotate X", &transform_state.R.x, 0.0f, 360.0f))
+				{
+					scene_manager->UpdateDistantLightTransform(highlight_distant_light_idx);
+				}
+				if (ImGui::SliderFloat("Rotate Y", &transform_state.R.y, 0.0f, 360.0f))
+				{
+					scene_manager->UpdateDistantLightTransform(highlight_distant_light_idx);
+				}
+				if (ImGui::SliderFloat("Rotate Z", &transform_state.R.z, 0.0f, 360.0f))
+				{
+					scene_manager->UpdateDistantLightTransform(highlight_distant_light_idx);
+				}
+			}
+		}
+		ImGui::End();
+	}
+
 	inline void UserInterface::RenderInstanceMenu()
 	{
 		if (!m_show_move_control_menu) { return; }
@@ -728,7 +836,7 @@ namespace YumeRT
 		}
 		
 		static float scale_upper = 10.0f;
-		static float scale_lower = 0.001f;
+		static float scale_lower = 0.005f;
 		if (ImGui::InputFloat("Max Scale", &scale_upper)) 
 		{
 			scale_upper = glm::clamp(scale_upper, 2.0f * scale_lower, 1000.0f);
@@ -747,7 +855,7 @@ namespace YumeRT
 			{
 				if (ImGui::TreeNode("Translate"))
 				{
-					glm::vec3 *translate_ptr = scene_manager->GetTransformStateT(m_click_prim_idx);
+					glm::vec3 *translate_ptr = scene_manager->GetPrimTransformStateT(m_click_prim_idx);
 					assert(translate_ptr != nullptr);
 					
 					if (translate_ptr != nullptr)
@@ -785,7 +893,7 @@ namespace YumeRT
 				}
 				if (ImGui::TreeNode("Scale"))
 				{
-					glm::vec3 *scale_ptr = scene_manager->GetTransformStateS(m_click_prim_idx);
+					glm::vec3 *scale_ptr = scene_manager->GetPrimTransformStateS(m_click_prim_idx);
 					assert(scale_ptr != nullptr);
 					
 					if (scale_ptr != nullptr)
@@ -812,7 +920,7 @@ namespace YumeRT
 				}
 				if (ImGui::TreeNode("Rotate"))
 				{
-					glm::vec3 *rotate_ptr = scene_manager->GetTransformStateR(m_click_prim_idx);
+					glm::vec3 *rotate_ptr = scene_manager->GetPrimTransformStateR(m_click_prim_idx);
 					assert(rotate_ptr != nullptr);
 
 					if (rotate_ptr != nullptr)
@@ -948,6 +1056,11 @@ namespace YumeRT
 			ImGui::Checkbox("Show Control Board", &UserInterface::m_show_move_control_menu);
 		}
 
+		if (ImGui::CollapsingHeader("Light"))
+		{
+			ImGui::Checkbox("Show Light List", &UserInterface::m_show_light_menu);
+		}
+
 		ImGui::End();
 	}
 
@@ -973,6 +1086,7 @@ namespace YumeRT
 		RenderInstanceMenu();
 		RenderGeometryList();
 		RenderMaterialList();
+		RenderLightList();
 
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

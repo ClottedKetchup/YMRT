@@ -65,9 +65,12 @@ namespace YumeRT
 
 				TriangleInfo *node_tris = tri_infos.data() + raw_node.offset;
 				BBox3 node_bbox;
+				BBox3 center_bbox;
+
 				for (uint32_t i = 0; i < raw_node.count; ++i)
 				{
 					node_bbox = BBox3Union(node_bbox, node_tris[i].bbox);
+					center_bbox = BBox3Extend(center_bbox, node_tris[i].center);
 				}
 
 				raw_node.bbox = node_bbox;
@@ -114,7 +117,7 @@ namespace YumeRT
 				const float parent_cost = raw_node.count * BBox3Area(raw_node.bbox);
 				int split_axis;
 				float split_pos;
-				bool continue_split = EvalSAH(node_tris, raw_node.count, raw_node.bbox, parent_cost, &split_pos, &split_axis);
+				bool continue_split = EvalSAH(node_tris, raw_node.count, center_bbox, parent_cost, &split_pos, &split_axis);
 
 				if (!continue_split)
 				{
