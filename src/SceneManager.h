@@ -1206,7 +1206,7 @@ namespace YumeRT
 					shape_light.instance_idx = prim_idx;
 					shape_light.triangle_idx = triangle_idx;
 					shape_light.power = irradiance * area;
-					shape_light.area = area;
+					shape_light.area = 0.5f * area;
 
 					shape_lights.push_back(shape_light);
 				}
@@ -1323,13 +1323,26 @@ namespace YumeRT
 			AddTransform(glm::vec3(0.0f, 0.0f, -10.025f), glm::vec3(10.0f, 10.0f, 0.05f)),
 			AddSurfaceMaterial("back wall", glm::vec3(0.75f, 0.75f, 0.75f)));
 
+		AddPrimInstance(cube_idx,
+			AddTransform(glm::vec3(-3.0f, -3.0f, -5.0f), glm::vec3(2.15f, 4.0f, 2.15f)),
+			AddSurfaceMaterial("cube left", glm::vec3(0.75f, 0.75f, 0.75f)));
+
+		AddPrimInstance(cube_idx,
+			AddTransform(glm::vec3(0.0f, -3.0f, -5.0f), glm::vec3(2.15f, 4.0f, 2.15f)),
+			AddSurfaceMaterial("cube mid", glm::vec3(0.75f, 0.75f, 0.75f)));
+
+		AddPrimInstance(cube_idx,
+			AddTransform(glm::vec3(3.0f, -3.0f, -5.0f), glm::vec3(2.15f, 4.0f, 2.15f)),
+			AddSurfaceMaterial("cube right", glm::vec3(0.75f, 0.75f, 0.75f)));
+
 		// light
 		AddPrimInstance(cube_idx,
-			AddTransform(glm::vec3(-3.0f, 5.65f, -5.0f), glm::vec3(2.0f, 0.3f, 2.0f)),
+			AddTransform(glm::vec3(-3.0f, 4.15f, -5.0f), glm::vec3(2.0f, 0.3f, 2.0f)),
 			AddLightMaterial("ceil light", glm::vec3(1.0f), 5.0f));
 
+		// sphere light
 		AddPrimInstance(sphere_idx,
-			AddTransform(glm::vec3(3.0f, 5.85f, -5.0f), glm::vec3(0.3f, 0.3f, 0.3f)),
+			AddTransform(glm::vec3(3.0f, 4.15f, -5.0f), glm::vec3(0.3f, 0.3f, 0.3f)),
 			AddLightMaterial("sphere light", glm::vec3(1.0f), 6.0f));
 
 		// ground
