@@ -332,7 +332,7 @@ namespace YumeRT
 		float theta = glm::acos(normal_object.y);
 		float phi = glm::atan(normal_object.z, normal_object.x);
 		if (phi < 0.0f) { phi += TWO_PI; }
-		*hit_uv = glm::vec2(phi / TWO_PI, theta / ONE_PI);
+		*hit_uv = glm::vec2(0.5f * phi * INV_PI, theta * INV_PI);
 
 		float sin_theta = 0.0f;
 		if (1.0f - normal_object.y * normal_object.y > 0.0f)

@@ -59,24 +59,99 @@ namespace YumeRT
 		return h32 ^ (h32 >> 16);
 	}
 
+	// https://www.pcg-random.org/
+	__device__ __host__ inline uint32_t pcg(const uint32_t v)
+	{
+		uint32_t state = v * 747796405u + 2891336453u;
+		uint32_t word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+		return (word >> 22u) ^ word;
+	}
+
+	__device__ __host__ inline glm::uvec2 pcg2d(glm::uvec2 v)
+	{
+		v = v * 1664525u + 1013904223u;
+
+		v.x += v.y * 1664525u;
+		v.y += v.x * 1664525u;
+
+		v = v ^ (v >> 16u);
+
+		v.x += v.y * 1664525u;
+		v.y += v.x * 1664525u;
+
+		v = v ^ (v >> 16u);
+
+		return v;
+	}
+
+	// http://www.jcgt.org/published/0009/03/02/
+	__device__ __host__ inline glm::uvec3 pcg3d(glm::uvec3 v)
+	{
+		v = v * 1664525u + 1013904223u;
+
+		v.x += v.y*v.z;
+		v.y += v.z*v.x;
+		v.z += v.x*v.y;
+
+		v ^= v >> 16u;
+
+		v.x += v.y*v.z;
+		v.y += v.z*v.x;
+		v.z += v.x*v.y;
+
+		return v;
+	}
+
+	// http://www.jcgt.org/published/0009/03/02/
+	__device__ __host__ inline glm::uvec4 pcg4d(glm::uvec4 v)
+	{
+		v = v * 1664525u + 1013904223u;
+
+		v.x += v.y*v.w;
+		v.y += v.z*v.x;
+		v.z += v.x*v.y;
+		v.w += v.y*v.z;
+
+		v ^= v >> 16u;
+
+		v.x += v.y*v.w;
+		v.y += v.z*v.x;
+		v.z += v.x*v.y;
+		v.w += v.y*v.z;
+
+		return v;
+	}
+
 	struct PixelRandom
 	{
 	public:
 		__device__ __host__ PixelRandom() : sample_idx(0) {}
 		__device__ __host__ PixelRandom(int frame): sample_idx(0), frame_seed(frame) {}
-		__device__ inline float Random(uint32_t px, uint32_t py)
+		__device__ inline float Random1D(uint32_t px, uint32_t py)
 		{
 			int idx = atomicAdd(&sample_idx, 1);
-			return float(XxHash32(glm::uvec4(px, py, idx, frame_seed))) / float(uint32_t(INVALID_UINT_32));
+			// return float(XxHash32(glm::uvec4(px, py, idx, frame_seed))) / float(uint32_t(INVALID_UINT_32));
+			return float(pcg4d(glm::uvec4(px, py, idx, frame_seed)).x) / float(uint32_t(INVALID_UINT_32));
 		}
-		__device__ inline void MultiRandom(uint32_t px, uint32_t py, float *rands, int count)
+		__device__ inline glm::vec2 Random2D(uint32_t px, uint32_t py)
 		{
-			int idx = atomicAdd(&sample_idx, count);
-			for (int i = 0; i < count; ++i)
-			{
-				rands[i] = float(XxHash32(glm::uvec4(px, py, idx + i, frame_seed))) / float(uint32_t(INVALID_UINT_32));
-			}
+			int idx = atomicAdd(&sample_idx, 1);
+			glm::uvec4 pcg_random = pcg4d(glm::uvec4(px, py, idx, frame_seed));
+			return glm::vec2(pcg_random.x, pcg_random.y) / float(uint32_t(INVALID_UINT_32));
 		}
+		__device__ inline glm::vec3 Random3D(uint32_t px, uint32_t py)
+		{
+			int idx = atomicAdd(&sample_idx, 1);
+			glm::uvec4 pcg_random = pcg4d(glm::uvec4(px, py, idx, frame_seed));
+			return glm::vec3(pcg_random.x, pcg_random.y, pcg_random.z) / float(uint32_t(INVALID_UINT_32));
+		}
+		__device__ inline glm::vec4 Random4D(uint32_t px, uint32_t py)
+		{
+			int idx = atomicAdd(&sample_idx, 1);
+			glm::uvec4 pcg_random = pcg4d(glm::uvec4(px, py, idx, frame_seed));
+			return glm::vec4(pcg_random) / float(uint32_t(INVALID_UINT_32));
+		}
+		
 	private:
 		int sample_idx;
 		int frame_seed;

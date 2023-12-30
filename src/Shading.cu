@@ -53,17 +53,15 @@ namespace YumeRT
 	{
 		assert(scene.distant_lights != nullptr);
 		if (scene.distant_lights == nullptr) {return glm::vec3(0.0f);}
-		auto random = [&]()->float {return pixel_random.Random(px, py); };
+		auto random = [&]()->float {return pixel_random.Random1D(px, py); };
 		
 		glm::vec3 direct_lighting(0.0f);
 
 		glm::vec3 wo = uber_bsdf.WorldToShading(-ray_direction);
 
 		float bsdf_select_pdf = 0.0f;
-		BSDF *sampled_bsdf_ptr = uber_bsdf.SampleOneBSDF(random(), &bsdf_select_pdf);
-		if (sampled_bsdf_ptr == nullptr) { return glm::vec3(0.0f); }
-
-		BSDF &sampled_bsdf = *sampled_bsdf_ptr;
+		int selected_bsdf_idx = uber_bsdf.SelectSingleBSDF(random(), &bsdf_select_pdf);
+		if (selected_bsdf_idx == -1) { return glm::vec3(0.0f); }
 
 		// sample from light
 		{
@@ -73,7 +71,7 @@ namespace YumeRT
 
 			glm::vec3 light_wi = uber_bsdf.WorldToShading(light_dir);
 			float light_wi_pdf = 0.0f;
-			const glm::vec3 bsdf_weight = sampled_bsdf.Eval(wo, light_wi, &light_wi_pdf) * bsdf_select_pdf;
+			const glm::vec3 bsdf_weight = uber_bsdf.EvalSingleBSDF(selected_bsdf_idx, wo, light_wi, &light_wi_pdf) * bsdf_select_pdf;
 
 			const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, glm::dot(light_dir, hit_geometry_normal) >= 0.0f ? hit_geometry_normal : -hit_geometry_normal);
 			Ray shadow_ray(shadow_ray_origin, light_dir);
@@ -90,7 +88,7 @@ namespace YumeRT
 		{
 			glm::vec3 bsdf_weight, bsdf_wi;
 			float bsdf_sample_pdf = 0.0f;
-			bool sample_valid = sampled_bsdf.Sample(random(), random(), wo, &bsdf_weight, &bsdf_wi, &bsdf_sample_pdf);
+			bool sample_valid = uber_bsdf.SampleSingleBSDF(selected_bsdf_idx, random(), random(), wo, &bsdf_weight, &bsdf_wi, &bsdf_sample_pdf);
 
 			bsdf_weight *= bsdf_select_pdf;
 
@@ -126,17 +124,15 @@ namespace YumeRT
 																PixelRandom &pixel_random)
 	{
 		if (scene.shape_light_count == 0 || scene.shape_lights == nullptr) { return glm::vec3(0.0f); }
-		auto random = [&]()->float {return pixel_random.Random(px, py); };
+		auto random = [&]()->float {return pixel_random.Random1D(px, py); };
 
 		glm::vec3 direct_lighting(0.0f);
 
 		glm::vec3 wo = uber_bsdf.WorldToShading(-ray_direction);
 
 		float bsdf_select_pdf = 0.0f;
-		BSDF *sampled_bsdf_ptr = uber_bsdf.SampleOneBSDF(random(), &bsdf_select_pdf);
-		if (sampled_bsdf_ptr == nullptr || bsdf_select_pdf == 0.0f) { return glm::vec3(0.0f); }
-
-		BSDF &sampled_bsdf = *sampled_bsdf_ptr;
+		int selected_bsdf_idx = uber_bsdf.SelectSingleBSDF(random(), &bsdf_select_pdf);
+		if (selected_bsdf_idx == -1 || bsdf_select_pdf == 0.0f) { return glm::vec3(0.0f); }
 
 		float light_select_pdf = 0.0f;
 		int light_idx = SampleLightPower(scene, random(), &light_select_pdf);
@@ -151,7 +147,7 @@ namespace YumeRT
 
 			glm::vec3 light_wi = uber_bsdf.WorldToShading(light_dir);
 			float light_wi_pdf = 0.0f;
-			const glm::vec3 bsdf_weight = sampled_bsdf.Eval(wo, light_wi, &light_wi_pdf) * bsdf_select_pdf;
+			const glm::vec3 bsdf_weight = uber_bsdf.EvalSingleBSDF(selected_bsdf_idx, wo, light_wi, &light_wi_pdf) * bsdf_select_pdf;
 
 			if (bsdf_weight.x + bsdf_weight.y + bsdf_weight.z > 1E-16f)
 			{
@@ -172,7 +168,7 @@ namespace YumeRT
 		{
 			glm::vec3 bsdf_weight, bsdf_wi;
 			float bsdf_sample_pdf = 0.0f;
-			bool sample_valid = sampled_bsdf.Sample(random(), random(), wo, &bsdf_weight, &bsdf_wi, &bsdf_sample_pdf);
+			bool sample_valid = uber_bsdf.SampleSingleBSDF(selected_bsdf_idx, random(), random(), wo, &bsdf_weight, &bsdf_wi, &bsdf_sample_pdf);
 
 			bsdf_weight *= bsdf_select_pdf;
 
@@ -232,7 +228,7 @@ namespace YumeRT
 		uint32_t pixel_idx = py * width + px;
 		Scene &scene = *scene_ptr;
 
-		auto random = [&]() ->float {return pixel_randoms[pixel_idx].Random(px, py); };
+		auto random_1D = [&]() ->float {return pixel_randoms[pixel_idx].Random1D(px, py); };
 
 		glm::vec3 col(0.0f);
 		for (int sample_idx = 0; sample_idx < render_setting.ssp; ++sample_idx)
@@ -245,12 +241,12 @@ namespace YumeRT
 				int stratified_width = (int)glm::ceil(glm::sqrt((float)stratified_sample_count));
 				int stratified_x = current_sample_idx / stratified_width;
 				int stratified_y = current_sample_idx % stratified_width;
-				ray = scene.camera->generateRay(float(px + ((float)stratified_x + random()) / float(stratified_width)) / float(width),
-																		 float(py + ((float)stratified_y + random()) / float(stratified_width)) / float(height));
+				ray = scene.camera->generateRay(float(px + ((float)stratified_x + random_1D()) / float(stratified_width)) / float(width),
+																		 float(py + ((float)stratified_y + random_1D()) / float(stratified_width)) / float(height));
 			}
 			else 
 			{
-				ray = scene.camera->generateRay(float(px + random()) / float(width), float(py + random()) / float(height));
+				ray = scene.camera->generateRay(float(px + random_1D()) / float(width), float(py + random_1D()) / float(height));
 			}
 
 			glm::vec3 L(0.0f), throughput(1.0f);
@@ -329,7 +325,7 @@ namespace YumeRT
 					float pdf = 0.0f;
 					BOUNCE_TYPE bounce_type;
 					
-					bool sample_valid = uber_bsdf.SampleIndirectMix(random(), random(), wo, &bsdf_weight, &wi, &pdf, &bounce_type);
+					bool sample_valid = uber_bsdf.SampleIndirectMix(random_1D(), random_1D(), wo, &bsdf_weight, &wi, &pdf, &bounce_type);
 					assert(!glm::isnan(bsdf_weight.x) && !glm::isnan(bsdf_weight.y) && !glm::isnan(bsdf_weight.z));
 					if (!sample_valid) { break; }
 
@@ -338,7 +334,8 @@ namespace YumeRT
 					float rr = glm::max(throughput.x, glm::max(throughput.y, throughput.z));
 					if (depth + 1 > render_setting.ray_depth)
 					{
-						if (random() < rr) { throughput /= glm::max(rr, 1E-10f); }
+						// break;
+						if (random_1D() < rr) { throughput /= glm::max(rr, 1E-10f); }
 						else { break; }
 					}
 

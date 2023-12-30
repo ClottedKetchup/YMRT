@@ -11,6 +11,7 @@ namespace YumeRT
 #define ONE_PI 3.14159265358f
 #define TWO_PI 6.28318530716f
 #define HALF_PI 1.57079632679f
+#define INV_PI 0.318309886183f
 
 #define WORLD_UP glm::vec3(0.0f, 1.0f, 0.0f)
 

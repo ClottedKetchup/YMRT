@@ -1338,12 +1338,12 @@ namespace YumeRT
 		// light
 		AddPrimInstance(cube_idx,
 			AddTransform(glm::vec3(-3.0f, 4.15f, -5.0f), glm::vec3(2.0f, 0.3f, 2.0f)),
-			AddLightMaterial("ceil light", glm::vec3(1.0f), 5.0f));
+			AddLightMaterial("ceil light", glm::vec3(1.0f), 15.0f));
 
 		// sphere light
 		AddPrimInstance(sphere_idx,
 			AddTransform(glm::vec3(3.0f, 4.15f, -5.0f), glm::vec3(0.3f, 0.3f, 0.3f)),
-			AddLightMaterial("sphere light", glm::vec3(1.0f), 6.0f));
+			AddLightMaterial("sphere light", glm::vec3(1.0f), 36.0f));
 
 		// ground
 		AddPrimInstance(cube_idx,
