@@ -14,6 +14,7 @@
 #include "PrimtiveInstance.h"
 #include "Material.h"
 #include "Light.h"
+#include "Volume.h"
 
 namespace YumeRT
 {
@@ -65,7 +66,8 @@ namespace YumeRT
 		MATERIAL_ASSIGN_TO_A_INSTANCE = (1 << 11),
 		INSTANCE_EX_IOR_CHANGE = (1 << 12),
 		DISTANT_LIGHT_CHANGE = (1 << 13), 
-		SHAPE_LIGHT_CHANGE = (1 << 14)
+		SHAPE_LIGHT_CHANGE = (1 << 14),
+		INSTANCE_VOLUME_CHANGE = (1 << 15)
 	};
 
 	class SceneManager
@@ -82,13 +84,12 @@ namespace YumeRT
 			// the clear work is handled by MainSystem!
 		}
 		
-		// ?
-		void TestScene(); 
-		void CornellBox();
+		void TestScene(int screen_width, int screen_height);
+		void CornellBox(int screen_width, int screen_height);
 
 		void DestroyResources();
 
-		void InitScene();
+		void InitScene(int screen_width, int screen_height);
 		void UpdateScene(const Camera &cam, uint32_t *highlight_prim_idx);
 
 		inline uint32_t AddQube(const std::string &name);
@@ -101,9 +102,9 @@ namespace YumeRT
 		void ClearInvaildTransform();
 		 
 		// here actually generate the transform matrix, because I need the geometry info
-		inline uint32_t AddPrimInstance(uint32_t geometry_idx, uint32_t transform_idx, uint32_t material_idx, float external_ior = 1.0f);
+		inline uint32_t AddPrimInstance(uint32_t geometry_idx, uint32_t transform_idx, uint32_t material_idx, float external_ior = 1.0f, int outer_vol_idx = -1, int inner_vol_idx = -1);
 		inline uint32_t RemovePrimInstance(uint32_t selected_prim_idx);
-		inline void ChangePrimExIOR(uint32_t prim_idx, float external_ior);
+		inline void ChangePrimVolumeAttribute(uint32_t prim_idx, const int *outer_vol_idx, const int *inner_vol_idx, const float *outer_ior);
 
 		// material
 		inline uint32_t AddLightMaterial(const std::string &name, const glm::vec3 &light_color = glm::vec3(0.5f), float intensity = 1.0f);
@@ -133,8 +134,12 @@ namespace YumeRT
 		// shape light
 		inline void LoadShapeLights();
 
+		// volume
+		inline uint32_t AddVolume(const std::string &name, const glm::vec3 &sigma_s, const glm::vec3 &sigma_a);
+
 		// a bunch of short function
 		inline const Scene& GetScene() const { return scene; }
+		inline const Camera& GetCamera()const { return camera; }
 		inline const std::vector<PrimitiveInstance>& GetPrimInstances() const { return prim_instances; }
 		inline const std::vector<GeometryData>& GetGeometries() const { return geometries; }
 		inline const std::vector<uint32_t>& GetGeometryCounters() const { return geometry_reference_counters; }
@@ -144,6 +149,7 @@ namespace YumeRT
 		inline const std::vector<std::string>& GetMaterialNames() const { return material_names; }
 		inline const std::vector<DistantLight>& GetDistantLights() const { return distant_lights; }
 		inline const std::vector<std::string>& GetDistantLightNames() const { return distant_light_names; }
+		inline const std::vector<Volume>& GetVolumes()const { return volumes; }
 
 		inline float GetTopBVHTime() const { return top_BVH_time; }
 		inline float GetBottomBVHTime() const { return bottom_BVH_time; }
@@ -207,7 +213,8 @@ namespace YumeRT
 				(scene_change_flag & SCENECHANGE_FLAG::MATERIAL_ASSIGN_TO_A_INSTANCE) ||
 				(scene_change_flag & SCENECHANGE_FLAG::INSTANCE_EX_IOR_CHANGE) ||
 				(scene_change_flag & SCENECHANGE_FLAG::DISTANT_LIGHT_CHANGE) ||
-				(scene_change_flag & SCENECHANGE_FLAG::SHAPE_LIGHT_CHANGE);
+				(scene_change_flag & SCENECHANGE_FLAG::SHAPE_LIGHT_CHANGE) ||
+				(scene_change_flag & SCENECHANGE_FLAG::INSTANCE_VOLUME_CHANGE);
 		}
 		inline void AddSceneFlag(SCENECHANGE_FLAG flag) { scene_change_flag |= flag; }
 		inline void ResetSceneFlag() { scene_change_flag = 0; }
@@ -252,6 +259,9 @@ namespace YumeRT
 		std::vector<ShapeLight> shape_lights;
 		std::vector<float> shape_light_sample_table;
 
+		std::vector<Volume> volumes;
+		std::vector<std::string> volume_names;
+
 		SceneManager() {}
 		
 	};
@@ -295,6 +305,9 @@ namespace YumeRT
 		FREE_GPU_RESOURCE(scene.shape_lights);
 		FREE_GPU_RESOURCE(scene.shape_light_sample_table);
 
+		scene.volume_count = 0;
+		FREE_GPU_RESOURCE(scene.volumes);
+
 		assert(scene.camera == nullptr);
 		assert(scene.vidxs == nullptr);
 		assert(scene.positions == nullptr);
@@ -313,11 +326,12 @@ namespace YumeRT
 		assert(scene.distant_lights == nullptr);
 		assert(scene.shape_lights == nullptr);
 		assert(scene.shape_light_sample_table == nullptr);
+		assert(scene.volumes == nullptr);
 	}
 
-	void SceneManager::InitScene()
+	void SceneManager::InitScene(int screen_width, int screen_height)
 	{
-		CornellBox();
+		CornellBox(screen_width, screen_height);
 
 		UPLOAD_TO_GPU(scene.camera, &camera, sizeof(Camera));
 
@@ -354,6 +368,9 @@ namespace YumeRT
 		scene.shape_light_count = (uint32_t)shape_lights.size();
 		UPLOAD_TO_GPU(scene.shape_lights, shape_lights.data(), sizeof(ShapeLight) * shape_lights.size());
 		UPLOAD_TO_GPU(scene.shape_light_sample_table, shape_light_sample_table.data(), sizeof(float) * shape_light_sample_table.size());
+
+		scene.volume_count = (uint32_t)volumes.size();
+		UPLOAD_TO_GPU(scene.volumes, volumes.data(), sizeof(Volume) * volumes.size());
 
 		ResetSceneFlag();
 	}
@@ -914,11 +931,11 @@ namespace YumeRT
 		AddSceneFlag(SCENECHANGE_FLAG::TRANSFORM_REMOVE);
 	}
 
-	inline uint32_t SceneManager::AddPrimInstance(uint32_t geometry_idx, uint32_t transform_idx, uint32_t material_idx, float external_ior)
+	inline uint32_t SceneManager::AddPrimInstance(uint32_t geometry_idx, uint32_t transform_idx, uint32_t material_idx, float external_ior, int outer_vol_idx, int inner_vol_idx)
 	{
 		assert(geometry_idx >= 0 && geometry_idx < geometries.size());
 		assert(material_idx >= 0 && material_idx < materials.size());
-		prim_instances.push_back(PrimitiveInstance(geometry_idx, transform_idx, material_idx, external_ior));
+		prim_instances.push_back(PrimitiveInstance(geometry_idx, transform_idx, material_idx, external_ior, outer_vol_idx, inner_vol_idx));
 		
 		geometry_reference_counters[geometry_idx]++;
 		material_reference_counters[material_idx]++;
@@ -961,16 +978,19 @@ namespace YumeRT
 		// give the first element back
 		return 0;
 	}
-	inline void SceneManager::ChangePrimExIOR(uint32_t prim_idx, float external_ior)
+	inline void SceneManager::ChangePrimVolumeAttribute(uint32_t prim_idx, const int *outer_vol_idx, const int *inner_vol_idx, const float *outer_ior)
 	{
-		if (prim_instances.empty() || prim_idx >(uint32_t)prim_instances.size() - 1) { return; }
+		if (prim_instances.empty() || prim_idx > (uint32_t)prim_instances.size() - 1) { return; }
 
-		prim_instances[prim_idx].external_ior = external_ior;
+		if (outer_vol_idx != nullptr) { prim_instances[prim_idx].outer_volume_idx = *outer_vol_idx; }
+		if (inner_vol_idx != nullptr) { prim_instances[prim_idx].inner_volume_idx = *inner_vol_idx; }
+		if (outer_ior != nullptr) { prim_instances[prim_idx].external_ior = *outer_ior; }
+
 		assert(scene.prim_instances != nullptr);
 		CUDA_CHECK(cudaMemcpy(scene.prim_instances + prim_idx, &prim_instances[prim_idx], sizeof(PrimitiveInstance), cudaMemcpyHostToDevice));
 		CUDA_CHECK(cudaDeviceSynchronize());
 
-		AddSceneFlag(SCENECHANGE_FLAG::INSTANCE_EX_IOR_CHANGE);
+		AddSceneFlag(SCENECHANGE_FLAG::INSTANCE_VOLUME_CHANGE);
 	}
 
 	// TODO: Material add, remove ,edit...
@@ -999,7 +1019,7 @@ namespace YumeRT
 																				   float transmission_weight)
 	{
 		Material mtl;
-		mtl.material_type = SURFACE_MTL;
+		mtl.material_type = SURFACE_MTL_DEFAULT;
 		mtl.surface_material.diffuse_albedo = diffuse_albedo;
 		mtl.surface_material.specular_albedo = specular_albedo;
 		mtl.surface_material.alpha_x = roughness_x;
@@ -1115,6 +1135,7 @@ namespace YumeRT
 		}
 	}
 
+	// TODO : distant light gui
 	inline uint32_t SceneManager::AddDistantLight(const std::string &name, uint32_t transform_idx, const glm::vec3 &light_color , float intensity, float theta_max)
 	{
 		DistantLight light;
@@ -1248,7 +1269,19 @@ namespace YumeRT
 		}
 	}
 
-	void SceneManager::TestScene() 
+	// TODO: volume GUI
+	inline uint32_t SceneManager::AddVolume(const std::string &name, const glm::vec3 &sigma_s, const glm::vec3 &sigma_a)
+	{
+		Volume volume;
+		volume.sigma_a = sigma_a;
+		volume.sigma_s = sigma_s;
+
+		volumes.push_back(volume);
+		volume_names.push_back(name);
+		return (uint32_t)volumes.size() - 1;
+	}
+
+	void SceneManager::TestScene(int screen_width, int screen_height)
 	{
 		AddSurfaceMaterial("default material", glm::vec3(0.0f));
 
@@ -1293,62 +1326,97 @@ namespace YumeRT
 
 		LoadShapeLights();
 	}
-	void SceneManager::CornellBox()
+	void SceneManager::CornellBox(int screen_width, int screen_height)
 	{
-		AddSurfaceMaterial("default material", glm::vec3(0.0f));
-
 		uint32_t cube_idx = AddQube("Cube"), sphere_idx = AddSphere("Sphere", 1.0f);
+		uint32_t world_volume_idx = AddVolume("world volume", glm::vec3(0.03f), glm::vec3(0.01f));
+
+		glm::vec3 camera_from = glm::vec3(0.0f, 0.0f, 6.0f);
+		glm::vec3 camera_look = glm::vec3(0.0f, 0.0f, 0.0f);
+		float camera_fov = glm::radians(45.0f);
+		float camera_aspect = float(screen_width) / float(screen_height);
+
+		camera.SetFov(camera_fov);
+		camera.SetAspectRatio(camera_aspect);
+		camera.SetPosition(camera_from);
+		camera.SetDir(camera_from - camera_look);
+		camera.SetIOR(1.0f);
+		camera.SetVolumeIndex(world_volume_idx);
+
+		AddSurfaceMaterial("default material", glm::vec3(0.25f));
 
 		// left
 		AddPrimInstance(cube_idx,
 			AddTransform(glm::vec3(-5.025f, 0.0f, -5.0f), glm::vec3(0.05f, 10.0f, 10.0f)),
-			AddSurfaceMaterial("left wall", glm::vec3(0.65f, 0.05f, 0.05f)));
+			AddSurfaceMaterial("left wall", glm::vec3(0.65f, 0.05f, 0.05f)), 
+			1.0f,
+			world_volume_idx, -1);
 		
 		// right
 		AddPrimInstance(cube_idx,
 			AddTransform(glm::vec3(5.025f, 0.0f, -5.0f), glm::vec3(0.05f, 10.0f, 10.0f)),
-			AddSurfaceMaterial("right wall", glm::vec3(0.15f, 0.55f, 0.15f)));
+			AddSurfaceMaterial("right wall", glm::vec3(0.15f, 0.55f, 0.15f)), 
+			1.0f,
+			world_volume_idx, -1);
 
 		// bottom
 		AddPrimInstance(cube_idx,
 			AddTransform(glm::vec3(0.0f, -5.025f, -5.0f), glm::vec3(10.0f, 0.05f, 10.0f)),
-			AddSurfaceMaterial("bottom wall", glm::vec3(0.75f, 0.75f, 0.75f)));
+			AddSurfaceMaterial("bottom wall", glm::vec3(0.75f, 0.75f, 0.75f)),
+			1.0f,
+			world_volume_idx, -1);
 
 		AddPrimInstance(cube_idx,
 			AddTransform(glm::vec3(0.0f, 5.025f, -5.0f), glm::vec3(10.0f, 0.05f, 10.0f)),
-			AddSurfaceMaterial("top wall", glm::vec3(0.75f, 0.75f, 0.75f)));
+			AddSurfaceMaterial("top wall", glm::vec3(0.75f, 0.75f, 0.75f)),
+			1.0f,
+			world_volume_idx, -1);
 
 		// back
 		AddPrimInstance(cube_idx,
 			AddTransform(glm::vec3(0.0f, 0.0f, -10.025f), glm::vec3(10.0f, 10.0f, 0.05f)),
-			AddSurfaceMaterial("back wall", glm::vec3(0.75f, 0.75f, 0.75f)));
+			AddSurfaceMaterial("back wall", glm::vec3(0.75f, 0.75f, 0.75f)), 
+			1.0f,
+			world_volume_idx, -1);
 
 		AddPrimInstance(cube_idx,
 			AddTransform(glm::vec3(-3.0f, -3.0f, -5.0f), glm::vec3(2.15f, 4.0f, 2.15f)),
-			AddSurfaceMaterial("cube left", glm::vec3(0.75f, 0.75f, 0.75f)));
+			AddSurfaceMaterial("cube left", glm::vec3(0.75f, 0.75f, 0.75f)),
+			1.0f,
+			world_volume_idx, -1);
 
 		AddPrimInstance(cube_idx,
 			AddTransform(glm::vec3(0.0f, -3.0f, -5.0f), glm::vec3(2.15f, 4.0f, 2.15f)),
-			AddSurfaceMaterial("cube mid", glm::vec3(0.75f, 0.75f, 0.75f)));
+			AddSurfaceMaterial("cube mid", glm::vec3(0.75f, 0.75f, 0.75f)),
+			1.0f,
+			world_volume_idx, -1);
 
 		AddPrimInstance(cube_idx,
 			AddTransform(glm::vec3(3.0f, -3.0f, -5.0f), glm::vec3(2.15f, 4.0f, 2.15f)),
-			AddSurfaceMaterial("cube right", glm::vec3(0.75f, 0.75f, 0.75f)));
+			AddSurfaceMaterial("cube right", glm::vec3(0.75f, 0.75f, 0.75f)),
+			1.0f,
+			world_volume_idx, -1);
 
 		// light
 		AddPrimInstance(cube_idx,
 			AddTransform(glm::vec3(-3.0f, 4.15f, -5.0f), glm::vec3(2.0f, 0.3f, 2.0f)),
-			AddLightMaterial("ceil light", glm::vec3(1.0f), 15.0f));
+			AddLightMaterial("ceil light", glm::vec3(1.0f), 15.0f),
+			1.0f,
+			world_volume_idx, -1);
 
 		// sphere light
 		AddPrimInstance(sphere_idx,
 			AddTransform(glm::vec3(3.0f, 4.15f, -5.0f), glm::vec3(0.3f, 0.3f, 0.3f)),
-			AddLightMaterial("sphere light", glm::vec3(1.0f), 36.0f));
+			AddLightMaterial("sphere light", glm::vec3(1.0f), 36.0f),
+			1.0f,
+			world_volume_idx, -1);
 
 		// ground
 		AddPrimInstance(cube_idx,
 			AddTransform(glm::vec3(0.0f, -5.55f, 0.0f), glm::vec3(10000.0, 1.0f, 10000.0f)),
-			AddSurfaceMaterial("ground", glm::vec3(0.55f, 0.55f, 0.55f), glm::vec3(0.0f), 0.2, 0.2, 1.3, 0.0f, 0.0f, 0.0f));
+			AddSurfaceMaterial("ground", glm::vec3(0.55f, 0.55f, 0.55f), glm::vec3(0.0f), 0.2, 0.2, 1.3, 0.0f, 0.0f, 0.0f),
+			1.0f,
+			world_volume_idx, -1);
 
 		ACBVHBuilder SceneBuilder(prim_instances.data(),
 			(uint32_t)prim_instances.size(),

@@ -21,6 +21,8 @@ namespace YumeRT
 	struct DistantLight;
 
 	struct ShapeLight;
+
+	struct Volume;
 	
 	// TODO: turn this into void pointer!
 	struct Scene
@@ -63,6 +65,9 @@ namespace YumeRT
 		uint32_t shape_light_count = 0;
 		ShapeLight *shape_lights = nullptr;
 		float *shape_light_sample_table = nullptr;
+
+		uint32_t volume_count = 0;
+		Volume *volumes = nullptr;	
 	};
 
 	struct RenderSetting
@@ -72,11 +77,12 @@ namespace YumeRT
 		float gamma;
 		float exposure;
 		int max_frame_count;
-		bool stratified;
 		bool enable_distant_light;
+		bool enable_volume_scattering;
 		bool enable_env_light;
+		bool enable_russian_roulette;
 
 		__device__ __host__ RenderSetting(): ssp(1), ray_depth(4), gamma(2.2f), exposure(1.0f), 
-			max_frame_count(-1), stratified(false), enable_distant_light(false), enable_env_light(true) {}
+			max_frame_count(-1), enable_distant_light(false), enable_env_light(true), enable_russian_roulette(true), enable_volume_scattering(true)  {}
 	};
 };

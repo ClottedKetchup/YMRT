@@ -126,6 +126,11 @@ namespace YumeRT
 			trackball.camera.SetDir(from - look);
 		}
 
+		inline void SetCamera(const Camera& camera)
+		{
+			trackball.camera = camera;
+		}
+
 		inline Camera& GetCamera() { return trackball.camera; }
 
 		inline uint32_t GetWidth() { return m_width; }
@@ -393,17 +398,19 @@ namespace YumeRT
 		}
 
 		ImGui::Checkbox("Disable Selected Effect", &highlight_flag);
-		if (ImGui::Checkbox("Stratified", &render_setting.stratified))
-		{
-			int stratified_width = (int)glm::ceil(glm::sqrt(glm::max(render_setting.max_frame_count, 4)));
-			render_setting.max_frame_count = Sqr(stratified_width);
-			rt_renderer->SetRenderSettingChange(true);
-		}
 		if (ImGui::Checkbox("Distant Light", &render_setting.enable_distant_light))
 		{
 			rt_renderer->SetRenderSettingChange(true);
 		}
 		if (ImGui::Checkbox("Env Light", &render_setting.enable_env_light))
+		{
+			rt_renderer->SetRenderSettingChange(true);
+		}
+		if (ImGui::Checkbox("Volume Scatter", &render_setting.enable_volume_scattering))
+		{
+			rt_renderer->SetRenderSettingChange(true);
+		}
+		if (ImGui::Checkbox("Russian Roulette", &render_setting.enable_russian_roulette))
 		{
 			rt_renderer->SetRenderSettingChange(true);
 		}
@@ -416,11 +423,6 @@ namespace YumeRT
 		}
 		if (ImGui::InputInt("Max Accumulate Frame Count", &render_setting.max_frame_count))
 		{
-			if (render_setting.stratified)
-			{
-				int stratified_width = (int)glm::ceil(glm::sqrt(glm::max(render_setting.max_frame_count, 4)));
-				render_setting.max_frame_count = Sqr(stratified_width);
-			}
 			rt_renderer->SetRenderSettingChange(true);
 		}
 		if (ImGui::InputInt("Ray Depth", &render_setting.ray_depth))
@@ -452,7 +454,14 @@ namespace YumeRT
 		static float camera_ior = 1.0f;
 		if (ImGui::InputFloat("External IOR", &camera_ior))
 		{
+			camera_ior = glm::max(camera_ior, 0.001f);
 			UserInterface::GetCamera().SetIOR(camera_ior);
+		}
+		static int camera_volume_idx = -1;
+		if (ImGui::InputInt("Volume Index", &camera_volume_idx))
+		{
+			camera_volume_idx = glm::clamp(camera_volume_idx, 0, (int)(scene_manager->GetVolumes().size()) - 1);
+			UserInterface::GetCamera().SetVolumeIndex(camera_volume_idx);
 		}
 		ImGui::End();
 	}
@@ -661,7 +670,7 @@ namespace YumeRT
 			static const char* material_type_names[] = { "surface material", "light material" };
 			if (ImGui::BeginCombo("Material Type", material_type_names[highlight_material.material_type]))
 			{
-				for (uint32_t i = MATERIAL_TYPE::SURFACE_MTL; i <= MATERIAL_TYPE::LIGHT_MTL; ++i)
+				for (uint32_t i = MATERIAL_TYPE::SURFACE_MTL_DEFAULT; i <= MATERIAL_TYPE::LIGHT_MTL; ++i)
 				{
 					if (ImGui::Selectable(material_type_names[i])) 
 					{ 
@@ -672,7 +681,7 @@ namespace YumeRT
 				ImGui::EndCombo();
 			}
 
-			if (highlight_material.material_type == SURFACE_MTL)
+			if (highlight_material.material_type == SURFACE_MTL_DEFAULT)
 			{
 				ImGui::Separator();
 				if (ImGui::ColorEdit3("Diffuse Albedo", (float*)(&highlight_material.surface_material.diffuse_albedo), ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR))
@@ -826,10 +835,20 @@ namespace YumeRT
 		if (prim_ptr != nullptr)
 		{
 			PrimitiveInstance &prim_inst = (*prim_ptr);
-			static float prim_external_ior = 1.0f;
-			if (ImGui::InputFloat("External IOR", &prim_external_ior))
+			if (ImGui::InputFloat("External IOR", &prim_inst.external_ior))
 			{
-				scene_manager->ChangePrimExIOR(m_click_prim_idx, glm::max(0.001f, prim_external_ior));
+				prim_inst.external_ior = glm::max(0.001f, prim_inst.external_ior);
+				scene_manager->ChangePrimVolumeAttribute(m_click_prim_idx, nullptr, nullptr, nullptr);
+			}
+			if (ImGui::InputInt("External Volume Index", &prim_inst.outer_volume_idx))
+			{
+				prim_inst.outer_volume_idx = glm::clamp(prim_inst.outer_volume_idx, 0, (int)(scene_manager->GetVolumes().size()) - 1);
+				scene_manager->ChangePrimVolumeAttribute(m_click_prim_idx, nullptr, nullptr, nullptr);
+			}
+			if (ImGui::InputInt("Internal Volume Index:", &prim_inst.inner_volume_idx))
+			{
+				prim_inst.inner_volume_idx = glm::clamp(prim_inst.inner_volume_idx, 0, (int)(scene_manager->GetVolumes().size()) - 1);
+				scene_manager->ChangePrimVolumeAttribute(m_click_prim_idx, nullptr, nullptr, nullptr);
 			}
 			ImGui::Text("Instance Geometry: %s", scene_manager->GetGeometryNames()[prim_inst.geometry_idx].c_str());
 			ImGui::Text("Instance Material: %s", scene_manager->GetMaterialNames()[prim_inst.material_idx].c_str());
@@ -849,6 +868,35 @@ namespace YumeRT
 		}
 		ImGui::Separator();
 
+		const std::vector<PrimitiveInstance> &prim_instances = scene_manager->GetPrimInstances();
+		if (ImGui::CollapsingHeader("Instances")) 
+		{
+			ImVec2 button_size;
+			if (ImGui::BeginListBox(""))
+			{
+				button_size = ImGui::GetItemRectSize();
+				for (uint32_t instance_idx = 0; instance_idx < (uint32_t)prim_instances.size(); ++instance_idx)
+				{
+					bool button_press = false;
+					const std::string instance_name = std::string("instance_") + std::to_string(instance_idx);
+					if (instance_idx == m_click_prim_idx)
+					{
+						ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(215, 92, 92, 151));
+						ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(250, 127, 127, 250));
+						button_press = ImGui::Button(instance_name.c_str(), button_size);
+						ImGui::PopStyleColor();
+						ImGui::PopStyleColor();
+					}
+					else
+					{
+						button_press = ImGui::Button(instance_name.c_str(), button_size);
+					}
+
+					if (button_press) { m_click_prim_idx = instance_idx; }
+				}
+				ImGui::EndListBox();
+			}
+		}
 		if (ImGui::CollapsingHeader("Instance Transform"))
 		{
 			if (m_click_prim_idx != INVALID_UINT_32)

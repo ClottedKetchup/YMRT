@@ -22,6 +22,14 @@ namespace YumeRT
 		return glm::vec3(disk_point.x, disk_point.y, r2 < 1.0f ? glm::sqrt(1.0f - r2) : 0.0f);
 	}
 
+	__device__ __host__ inline glm::vec3 SampleUnitSphere(float u0, float u1)
+	{
+		float z = 1.0f - 2 * u0;
+		float r = glm::sqrt(glm::max(0.0f, 1.0f - z * z));
+		float phi = TWO_PI * u1;
+		return glm::vec3(r * glm::cos(phi), r * glm::sin(phi), z);
+	}
+
 	__device__ __host__ inline glm::vec3 SampleCone(float u0, float u1, float cos_theta_max)
 	{
 		float cos_theta = (1.0f - u0) + u0 * cos_theta_max;

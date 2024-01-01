@@ -2,6 +2,8 @@
 
 #include <driver_types.h>
 
+#include "DeviceRandom.cuh"
+
 #include "GeometryDefines.h"
 #include "SceneDefines.h"
 #include "BoundingBox.h"
@@ -17,14 +19,14 @@ namespace YumeRT
 	struct HitRecord
 	{
 		// for sphere, it is the object space position
-		glm::vec3 hit_barycentric; 
+		glm::vec3 hit_barycentric = glm::vec3(1.0f, 1.0f, 1.0f); 
 		float hit_t = TMAX;
 		uint32_t hit_instance_idx = INVALID_UINT_32;
 
 		// for mesh only
 		uint32_t hit_triangle_idx = INVALID_UINT_32;
 		int hit_back = 0;
-		uint32_t empty_slot;
+		int volume_hit = 0;
 		// may have to store if the ray hit the object back face
 	};
 #pragma pack(pop)
@@ -239,7 +241,76 @@ namespace YumeRT
 		}
 	}
 
-	__device__ __host__  bool BVHTraverse(const Scene &scene, const Ray &ray, HitRecord *hit_record, bool test_any_hit)
+	__device__ __host__  bool BVHTraverse(const Scene &scene, const Ray &ray, HitRecord *hit_record)
+	{
+		if (scene.top_node_count == 0 || scene.top_nodes == nullptr)
+		{
+			return false;
+		}
+
+		const uint32_t stack_size = 32;
+		uint32_t root_idx = 0;
+
+		uint32_t stack[stack_size];
+		int p_top = -1;
+
+		float t = 0.0f;
+		bool hit = false;
+
+		stack[++p_top] = root_idx;
+		while (p_top != -1)
+		{
+			uint32_t node_idx = stack[p_top--];
+			TopNode &node = scene.top_nodes[node_idx];
+
+			if (node.internal.left != INVALID_UINT_32)
+			{
+				PrimitiveInstance *prim_instances = scene.prim_instances + node.leaf.offset;
+				for (uint32_t i = 0; i < node.leaf.count; ++i)
+				{
+					const PrimitiveInstance &prim = prim_instances[i];
+					const glm::mat4 &i_transform = scene.i_transforms[prim.transform_idx];
+					Ray object_ray = TransformRay(ray, i_transform);
+					const GeometryData &geometry = scene.geometries[prim.geometry_idx];
+					if (IntersectGeometry(geometry, scene, object_ray, hit_record, false))
+					{
+						hit_record->hit_instance_idx = node.leaf.offset + i;
+						hit = hit || true;
+						ray.t = object_ray.t;
+					}
+				}
+				continue;
+			}
+
+			uint32_t n_node = node_idx + 1;
+			uint32_t f_node = node.internal.right;
+
+			float tn, tf;
+			bool bn = IntersectBBox3(scene.top_nodes[n_node].bbox, ray, &tn);
+			bool bf = IntersectBBox3(scene.top_nodes[f_node].bbox, ray, &tf);
+			if (tf < tn)
+			{
+				Swap(tf, tn);
+				Swap(n_node, f_node);
+				Swap(bn, bf);
+			}
+
+			if (bf)
+			{
+				stack[++p_top] = f_node;
+				assert(p_top < stack_size);
+			}
+			if (bn)
+			{
+				stack[++p_top] = n_node;
+				assert(p_top < stack_size);
+			}
+		}
+
+		return hit;
+	}
+
+	__device__ __host__  bool BVHTraverseShadow(const Scene &scene, const Ray &ray, HitRecord *hit_record)
 	{
 		if (scene.top_node_count == 0 || scene.top_nodes == nullptr)
 		{
@@ -269,13 +340,13 @@ namespace YumeRT
 					const glm::mat4 &i_transform = scene.i_transforms[prim_instances[i].transform_idx];
 					Ray object_ray = TransformRay(ray, i_transform);
 					const GeometryData &geometry = scene.geometries[prim_instances[i].geometry_idx];
-					if (IntersectGeometry(geometry, scene, object_ray, hit_record, test_any_hit))
+					if (IntersectGeometry(geometry, scene, object_ray, hit_record, true /* test any hit */))
 					{
 						hit_record->hit_instance_idx = node.leaf.offset + i;
 						hit = hit || true;
+						ray.t = object_ray.t;
+						return hit;
 					}
-					ray.t = object_ray.t;
-					if (test_any_hit && hit) { return hit; }
 				}
 				continue;
 			}

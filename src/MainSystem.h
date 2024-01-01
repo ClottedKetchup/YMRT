@@ -97,7 +97,7 @@ namespace YumeRT
 		empty_VAO.InitVAO();
 
 		scene_manager = SceneManager::GetInstance();
-		scene_manager->InitScene();
+		scene_manager->InitScene(screen_width, screen_height);
 
 		rt_renderer = Renderer::GetInstance();
 		rt_renderer->Init();
@@ -105,10 +105,7 @@ namespace YumeRT
 		user_interface = UserInterface::GetInstance();
 		user_interface->Init(window, screen_width, screen_height, Renderer::GetInstance(), SceneManager::GetInstance());
 		user_interface->SetCallBack(window);
-		user_interface->SetCamera(glm::vec3(0.0f, 0.0f, 6.0f),
-													 glm::vec3(0.0f, 0.0f, 0.0f),
-													 glm::radians(45.0f),
-													 float(screen_width) / float(screen_height));
+		user_interface->SetCamera(scene_manager->GetCamera());
 	}
 
 	void MainSystem::Run() 

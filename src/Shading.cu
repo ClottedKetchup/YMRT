@@ -19,6 +19,7 @@
 #include "PrimtiveInstance.h"
 #include "Material.h"
 #include "Light.h"
+#include "Volume.h"
 
 #include "ShadingUtilities.cuh"
 #include "DeviceRandom.cuh"
@@ -28,7 +29,7 @@
 namespace YumeRT
 {
 
-#define MAX_RAY_DEPTH 16
+#define MAX_RAY_DEPTH 32
 
 #define TILE_X_RES 16u
 #define TILE_Y_RES 16u
@@ -39,6 +40,58 @@ namespace YumeRT
 	{
 		// return glm::vec3(0.0f);
 		return glm::mix(glm::vec3(1.0f), glm::vec3(0.05f, 0.2f, 0.85f), direction.y * 0.5f + 0.5f);
+	}
+
+	// give sampled distance
+	__device__  bool SampleVolumeScattering(const Scene& scene, 
+																		 const Ray& ray,
+																		 const float t_max, 
+																		 glm::vec3 *tr_weight, 
+																		 float *sampled_distance, 
+																		 uint32_t px,
+																		 uint32_t py,
+																		 PixelRandom &pixel_random)
+	{
+		*tr_weight = glm::vec3(1.0f);
+		if (scene.volumes == nullptr || scene.volume_count == 0) { return false; }
+		if (ray.volume_idx < 0) { return false; }
+		
+		auto random = [&]()->float {return pixel_random.Random1D(px, py); };
+
+		const Volume &vol = scene.volumes[ray.volume_idx];
+
+		glm::vec3 sigma_t = vol.sigma_a + vol.sigma_s;
+		float channel_sum = sigma_t.x + sigma_t.y + sigma_t.z;
+		glm::vec3 channel_weight = channel_sum > 0.0f? (sigma_t / channel_sum) : glm::vec3(1.0f / 3.0f);
+
+		const float u0 = random();
+		const float u1 = random();
+		int channel = 0;
+		if (u0 < channel_weight[0]) 
+		{
+			channel = 0;
+		}
+		else if (u0 < channel_weight[0] + channel_weight[1])
+		{
+			channel = 1;
+		}
+		else 
+		{
+			channel = 2;
+		}
+
+		float free_path_length = -glm::log(1.0f - u1) / sigma_t[channel];
+		bool volume_scatter = free_path_length < t_max;
+		glm::vec3 tr = glm::exp(-sigma_t * glm::min(t_max, free_path_length));
+		float pdf = volume_scatter ?
+			(channel_weight.x * sigma_t.x * tr.x + channel_weight.y * sigma_t.y * tr.y + channel_weight.z * sigma_t.z * tr.z) :
+			(channel_weight.x * tr.x + channel_weight.y * tr.y + channel_weight.z * tr.z);
+		
+		if (glm::abs(pdf) == 0.0f) { return false; }
+
+		*tr_weight = volume_scatter? (tr * vol.sigma_s / pdf) : (tr / pdf);
+		*sampled_distance = free_path_length;
+		return volume_scatter;
 	}
 
 	__device__ glm::vec3 EvalDistantLight(const Scene &scene, 
@@ -77,7 +130,7 @@ namespace YumeRT
 			Ray shadow_ray(shadow_ray_origin, light_dir);
 
 			HitRecord shadow_ray_record;
-			if ((bsdf_weight.x + bsdf_weight.y + bsdf_weight.z > 1E-16f) && !BVHTraverse(scene, shadow_ray, &shadow_ray_record, true))
+			if ((bsdf_weight.x + bsdf_weight.y + bsdf_weight.z > 1E-16f) && !BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
 			{
 				float mis_weight = 1.0f / (1.0f + Sqr(light_wi_pdf) / glm::min(1E24f, glm::max(Sqr(light_sample_pdf), 1E-16f)));
 				direct_lighting +=  mis_weight * glm::min(bsdf_weight, glm::vec3(1E16f)) * glm::min(Li, glm::vec3(1E16f));
@@ -102,7 +155,7 @@ namespace YumeRT
 				glm::vec3 Li = scene.distant_lights[0].EvalLi(scene, light_dir, &bsdf_wi_pdf);
 
 				HitRecord shadow_ray_record;
-				if ((Li.x + Li.y + Li.z > 1E-16f) && !BVHTraverse(scene, shadow_ray, &shadow_ray_record, true))
+				if ((Li.x + Li.y + Li.z > 1E-16f) && !BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
 				{
 					float mis_weight = 1.0f / (1.0f + Sqr(bsdf_wi_pdf) / glm::min(1E24f, glm::max(Sqr(bsdf_sample_pdf), 1E-16f)));
 					direct_lighting += mis_weight * glm::min(bsdf_weight, glm::vec3(1E16f)) * glm::min(Li, glm::vec3(1E16f));
@@ -156,7 +209,7 @@ namespace YumeRT
 				Ray shadow_ray(shadow_ray_origin, light_dir);
 				shadow_ray.t = glm::length(OffsetRayOrigin(light_pos, light_geo_normal) - hit_position) * 0.9996f;
 
-				if (!BVHTraverse(scene, shadow_ray, &shadow_ray_record, true))
+				if (!BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
 				{
 					float mis_weight = 1.0f / (1.0f + Sqr(light_wi_pdf) / glm::min(1E24f, glm::max(Sqr(light_sample_pdf), 1E-16f)));
 					direct_lighting += mis_weight * glm::min(bsdf_weight, glm::vec3(1E16f)) * glm::min(Li, glm::vec3(1E16f));
@@ -186,7 +239,7 @@ namespace YumeRT
 					Ray shadow_ray(shadow_ray_origin, light_dir);
 					shadow_ray.t = glm::length(OffsetRayOrigin(light_pos, light_geo_normal) - hit_position) * 0.9996f;
 
-					if (!BVHTraverse(scene, shadow_ray, &shadow_ray_record, true))
+					if (!BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
 					{
 						float mis_weight = 1.0f / (1.0f + Sqr(bsdf_wi_pdf) / glm::min(1E24f, glm::max(Sqr(bsdf_sample_pdf), 1E-16f)));
 						direct_lighting += mis_weight * glm::min(bsdf_weight, glm::vec3(1E16f)) * glm::min(Li, glm::vec3(1E16f));
@@ -233,29 +286,51 @@ namespace YumeRT
 		glm::vec3 col(0.0f);
 		for (int sample_idx = 0; sample_idx < render_setting.ssp; ++sample_idx)
 		{
-			Ray ray;
-			if (render_setting.stratified) 
-			{
-				int stratified_sample_count = render_setting.max_frame_count;
-				int current_sample_idx = glm::min(frame_count, stratified_sample_count);
-				int stratified_width = (int)glm::ceil(glm::sqrt((float)stratified_sample_count));
-				int stratified_x = current_sample_idx / stratified_width;
-				int stratified_y = current_sample_idx % stratified_width;
-				ray = scene.camera->generateRay(float(px + ((float)stratified_x + random_1D()) / float(stratified_width)) / float(width),
-																		 float(py + ((float)stratified_y + random_1D()) / float(stratified_width)) / float(height));
-			}
-			else 
-			{
-				ray = scene.camera->generateRay(float(px + random_1D()) / float(width), float(py + random_1D()) / float(height));
-			}
+			Ray ray = scene.camera->generateRay(float(px + random_1D()) / float(width), float(py + random_1D()) / float(height));
 
 			glm::vec3 L(0.0f), throughput(1.0f);
+			bool volume_bounce = false;
 			for (int depth = 1;;)
 			{
 				if (depth > MAX_RAY_DEPTH) { break; }
-				bool hit = false;
+				
 				HitRecord hit_record;
-				if (BVHTraverse(scene, ray, &hit_record, false))
+				bool hit_surface = BVHTraverse(scene, ray, &hit_record);
+
+				if (sample_idx == 0 && depth == 1)
+				{
+					prim_idx_buffer[pixel_idx] = hit_surface? hit_record.hit_instance_idx : INVALID_UINT_32;
+				}
+
+				// volume scatter
+				glm::vec3 tr_weight(1.0f);
+				float sampled_distance = 0.0f;
+				if (render_setting.enable_volume_scattering &&
+					SampleVolumeScattering(scene, ray, hit_surface? hit_record.hit_t : TMAX, &tr_weight, &sampled_distance, px, py, pixel_randoms[pixel_idx]))
+				{
+					throughput *= tr_weight;
+					glm::vec3 new_origin = ray.PositionAtT(sampled_distance);
+					glm::vec3 new_direction = SampleUnitSphere(random_1D(), random_1D());
+					// multiply phase weight
+					float rr = glm::max(throughput.x, glm::max(throughput.y, throughput.z));
+					if (depth + 1 > render_setting.ray_depth)
+					{
+						if (render_setting.enable_russian_roulette && random_1D() < rr) { throughput /= glm::max(rr, 1E-20f); }
+						else { break; }
+					}
+
+					ray = Ray(new_origin, new_direction, ray.ray_ior, ray.volume_idx);
+					++depth;
+					volume_bounce = true;
+					continue;
+				}
+				else
+				{
+					throughput *= tr_weight;
+				}
+				
+
+				if (hit_surface)
 				{
 					glm::vec3 hit_position;
 					glm::vec3	hit_shading_normal;
@@ -273,16 +348,14 @@ namespace YumeRT
 												&hit_dpdu,
 												&hit_dpdv);
 
-					if (sample_idx == 0 && depth == 1) {
-						prim_idx_buffer[pixel_idx] = hit_record.hit_instance_idx;
-					}
-
 					const PrimitiveInstance &prim = scene.prim_instances[hit_record.hit_instance_idx];
 					const Material &mtl = scene.materials[prim.material_idx];
 
+					
+
 					if (mtl.material_type == LIGHT_MTL)
 					{
-						if (depth == 1) { L += throughput * mtl.light_material.light_color * mtl.light_material.intensity; }
+						if (depth == 1 || volume_bounce) { L += throughput * mtl.light_material.light_color * mtl.light_material.intensity; }
 						break;
 					}
 
@@ -335,7 +408,7 @@ namespace YumeRT
 					if (depth + 1 > render_setting.ray_depth)
 					{
 						// break;
-						if (random_1D() < rr) { throughput /= glm::max(rr, 1E-10f); }
+						if (render_setting.enable_russian_roulette && random_1D() < rr) { throughput /= glm::max(rr, 1E-20f); }
 						else { break; }
 					}
 
@@ -344,14 +417,14 @@ namespace YumeRT
 					// this method to avoid self intersection is still not robust, it makes the sphere self-intersection when radius is big
 					glm::vec3 new_origin = OffsetRayOrigin(hit_position, front_side_bounce? hit_geometry_normal : -hit_geometry_normal);
 					
-					ray = Ray(new_origin, new_direction, front_side_bounce? prim.external_ior : mtl.surface_material.ior_n);
+					ray = Ray(new_origin, new_direction,
+						front_side_bounce? prim.external_ior : mtl.surface_material.ior_n, 
+						front_side_bounce? prim.outer_volume_idx : prim.inner_volume_idx);
+					volume_bounce = false;
 					++depth;
 				}
 				else
 				{
-					if (sample_idx == 0 && depth == 1) {
-						prim_idx_buffer[pixel_idx] = INVALID_UINT_32;
-					}
 					// TODO: switch to turn off env light
 					L += render_setting.enable_env_light? throughput * Background(ray.direction) : glm::vec3(0.0f);
 					break;

@@ -70,7 +70,7 @@ namespace YumeRT
 			float height = 2.0f * tan_half_fov;
 			float width = height * aspect_ratio;
 			glm::vec3 dir = -w + (ndc_x - 0.5f) * width * u + (ndc_y - 0.5f) * height * v;
-			return Ray(position, dir, camera_ior);
+			return Ray(position, dir, camera_ior, volume_idx);
 		}
 
 		__device__ __host__ inline glm::vec3 GetU() const { return u; }
@@ -120,6 +120,16 @@ namespace YumeRT
 			camera_ior = refractive_index;
 		}
 
+		__device__ __host__ inline float GetVolumeIndex() const
+		{
+			return volume_idx;
+		}
+
+		__device__ __host__ inline void SetVolumeIndex(int idx)
+		{
+			volume_idx = idx;
+		}
+
 		__device__ __host__ inline float GetAspectRatio() const
 		{
 			return aspect_ratio;
@@ -163,7 +173,7 @@ namespace YumeRT
 		float tan_half_fov;
 
 		float camera_ior = 1.0f;
-		uint32_t volume_idx = INVALID_UINT_32;
+		int volume_idx = -1;
 
 		glm::mat4 perspective;
 
@@ -208,6 +218,7 @@ namespace YumeRT
 				cam_a.GetAspectRatio() == cam_b.GetAspectRatio() &&
 				cam_a.GetFov() == cam_b.GetFov() &&
 				cam_a.GetLensRadius() == cam_b.GetLensRadius() &&
-				cam_a.GetIOR() == cam_b.GetIOR();
+				cam_a.GetIOR() == cam_b.GetIOR() &&
+				cam_a.GetVolumeIndex() == cam_b.GetVolumeIndex();
 	}
 };

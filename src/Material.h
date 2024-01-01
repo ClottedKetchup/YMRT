@@ -8,7 +8,7 @@ namespace YumeRT
 {
 	enum  MATERIAL_TYPE
 	{
-		SURFACE_MTL = 0,
+		SURFACE_MTL_DEFAULT = 0,
 		LIGHT_MTL = 1
 	};
 
