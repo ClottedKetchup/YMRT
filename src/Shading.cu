@@ -38,7 +38,6 @@ namespace YumeRT
 
 	__device__ __host__ glm::vec3 Background(const glm::vec3 &direction)
 	{
-		// return glm::vec3(0.0f);
 		return glm::mix(glm::vec3(1.0f), glm::vec3(0.05f, 0.2f, 0.85f), direction.y * 0.5f + 0.5f);
 	}
 

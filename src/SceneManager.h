@@ -1329,7 +1329,7 @@ namespace YumeRT
 	void SceneManager::CornellBox(int screen_width, int screen_height)
 	{
 		uint32_t cube_idx = AddQube("Cube"), sphere_idx = AddSphere("Sphere", 1.0f);
-		uint32_t world_volume_idx = AddVolume("world volume", glm::vec3(0.03f), glm::vec3(0.01f));
+		uint32_t world_volume_idx = AddVolume("world volume", glm::vec3(0.08f), glm::vec3(0.025f));
 
 		glm::vec3 camera_from = glm::vec3(0.0f, 0.0f, 6.0f);
 		glm::vec3 camera_look = glm::vec3(0.0f, 0.0f, 0.0f);
