@@ -117,6 +117,7 @@ namespace YumeRT
 			uint32_t current_h = user_interface->GetHeight();
 			if (rt_renderer->GetWidth() != current_w || rt_renderer->GetHeight() != current_h)
 			{
+				rt_renderer->SetRenderSettingChange(true);
 				rt_renderer->SetWidth(current_w);
 				rt_renderer->SetHeight(current_h);
 				rt_renderer->DestroyResources();

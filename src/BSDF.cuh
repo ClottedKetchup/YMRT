@@ -466,6 +466,7 @@ namespace YumeRT
 			component_inited[3] = false;
 		}
 
+
 		__device__ __host__ inline void InitShadingSpace(const glm::vec3 &hit_normal, const glm::vec3 &hit_tangent)
 		{
 			normal = hit_normal;

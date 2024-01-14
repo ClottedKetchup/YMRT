@@ -1,6 +1,8 @@
 #include <iostream>
+#include <vector>
 
 #include "MainSystem.h"
+#include "MathCommon.h"
 
 int main(int argc, char *argv[])
 {
@@ -25,4 +27,6 @@ int main(int argc, char *argv[])
 	{
 		std::cout << err.what() << std::endl;
 	}
+
+	return 0;
 }

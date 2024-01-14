@@ -55,61 +55,73 @@ namespace YumeRT
 	__host__ inline  bool EvalSAH(T *prims, uint32_t count, const BBox3 &center_bbox, const float parent_cost, float *split_pos, int *split_axis)
 	{
 		assert(count > 0);
+		if (BBox3Area(center_bbox) <= 0.0f) { return false; }
 
-		int best_axis = 0;
-		float best_pos = prims[0].GetCenter()[best_axis];
-		float best_cost = 1E33f;
-		glm::vec3 extent = center_bbox.p_max - center_bbox.p_min;
+		// check all axis
+		int best_axis = -1;
+		float best_pos = 0.0f;
+		float best_cost = 1E36f;
 
 		struct Bin { uint32_t count = 0; BBox3 bbox; };
 		const int bin_count = 16;
-		int axis = BBox3LongestAxis(center_bbox);
 
-		Bin bins[bin_count];
-		const float step = extent[axis] / float(bin_count);
-		const float inv_len = 1.f / extent[axis];
+		Bin bins[bin_count][3];
+		const glm::vec3 i_extent = glm::vec3(1.0f) / (center_bbox.p_max - center_bbox.p_min);
+		const glm::vec3 bin_length = (center_bbox.p_max - center_bbox.p_min) / float(bin_count);
 		for (uint32_t idx = 0; idx < count; ++idx)
 		{
-			float prim_ndc = (prims[idx].GetCenter()[axis] - center_bbox.p_min[axis]) * inv_len;
-			int bin_idx = glm::max(glm::min((int)(prim_ndc * bin_count), bin_count - 1), 0);
-			bins[bin_idx].count++;
-			bins[bin_idx].bbox = BBox3Union(bins[bin_idx].bbox, prims[idx].GetBBox());
+			const BBox3 prim_bbox = prims[idx].GetBBox();
+			const glm::vec3 prim_ndc = (prims[idx].GetCenter() - center_bbox.p_min) * i_extent;
+
+			int bin_idx_x = glm::max(glm::min((int)(prim_ndc.x * bin_count), bin_count - 1), 0);
+			bins[bin_idx_x][0].count++;
+			bins[bin_idx_x][0].bbox = BBox3Union(bins[bin_idx_x][0].bbox, prim_bbox);
+
+			int bin_idx_y = glm::max(glm::min((int)(prim_ndc.y * bin_count), bin_count - 1), 0);
+			bins[bin_idx_y][1].count++;
+			bins[bin_idx_y][1].bbox = BBox3Union(bins[bin_idx_y][1].bbox, prim_bbox);
+
+			int bin_idx_z = glm::max(glm::min((int)(prim_ndc.z * bin_count), bin_count - 1), 0);
+			bins[bin_idx_z][2].count++;
+			bins[bin_idx_z][2].bbox = BBox3Union(bins[bin_idx_z][2].bbox, prim_bbox);
 		}
 
-		float left_areas[bin_count - 1], right_areas[bin_count - 1];
-		uint32_t left_counts[bin_count - 1], right_counts[bin_count - 1];
-
-		BBox3 left_bbox, right_bbox;
-		uint32_t left_count = 0, right_count = 0;
-		for (uint32_t i = 0; i < bin_count - 1; ++i)
+		float left_areas[bin_count - 1][3], right_areas[bin_count - 1][3];
+		uint32_t left_counts[bin_count - 1][3], right_counts[bin_count - 1][3];
+		for (int axis = 0; axis < 3; ++axis)
 		{
-			left_count += bins[i].count;
-			left_bbox = BBox3Union(left_bbox, bins[i].bbox);
-			left_counts[i] = left_count;
-			left_areas[i] = BBox3Area(left_bbox);
+			if ((center_bbox.p_max[axis] - center_bbox.p_min[axis]) < 1E-8f) { continue; }
 
-			right_count += bins[bin_count - 1 - i].count;
-			right_bbox = BBox3Union(right_bbox, bins[bin_count - 1 - i].bbox);
-			right_counts[bin_count - 2 - i] = right_count;
-			right_areas[bin_count - 2 - i] = BBox3Area(right_bbox);
-		}
+			BBox3 left_bbox, right_bbox;
+			uint32_t left_count = 0, right_count = 0;
 
-		for (int i = 0; i < bin_count - 1; ++i)
-		{
-			float cost = left_counts[i] * left_areas[i] + right_counts[i] * right_areas[i];
-			if (cost <= 0.0f) { continue; }
-			if (cost < best_cost)
+			for (uint32_t i = 0; i < bin_count - 1; ++i)
 			{
-				best_cost = cost;
-				best_axis = axis;
-				best_pos = center_bbox.p_min[axis] + float(i + 1) * step;
+				left_count += bins[i][axis].count;
+				left_bbox = BBox3Union(left_bbox, bins[i][axis].bbox);
+				left_counts[i][axis] = left_count;
+				left_areas[i][axis] = BBox3Area(left_bbox);
+
+				right_count += bins[bin_count - 1 - i][axis].count;
+				right_bbox = BBox3Union(right_bbox, bins[bin_count - 1 - i][axis].bbox);
+				right_counts[bin_count - 2 - i][axis] = right_count;
+				right_areas[bin_count - 2 - i][axis] = BBox3Area(right_bbox);
+			}
+
+			for (int i = 0; i < bin_count - 1; ++i)
+			{
+				float cost = left_counts[i][axis] * left_areas[i][axis] + right_counts[i][axis] * right_areas[i][axis];
+				if (cost <= 0.0f) { continue; }
+				if (cost < best_cost)
+				{
+					best_cost = cost;
+					best_axis = axis;
+					best_pos = center_bbox.p_min[axis] + float(i + 1) * bin_length[axis];
+				}
 			}
 		}
 
-		if (best_cost >= parent_cost)
-		{
-			return false;
-		}
+		if (best_axis == -1 || best_cost >= parent_cost) { return false; }
 
 		*split_axis = best_axis;
 		*split_pos = best_pos;
@@ -177,6 +189,7 @@ namespace YumeRT
 	};
 	struct TopNode
 	{
+		// TODO: can we use some thing to store if this treelet contain volume?
 		BBox3 bbox;
 		union
 		{

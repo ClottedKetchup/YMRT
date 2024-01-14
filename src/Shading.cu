@@ -22,7 +22,7 @@
 #include "Volume.h"
 
 #include "ShadingUtilities.cuh"
-#include "DeviceRandom.cuh"
+#include "RandomSampler.cuh"
 #include "SampleUtilities.h"
 #include "BSDF.cuh"
 
@@ -36,9 +36,15 @@ namespace YumeRT
 #define TILE_PIXEL_COUNT 256u
 #define MAX_RAY_COUNT 1024 * 1024
 
-	__device__ __host__ glm::vec3 Background(const glm::vec3 &direction)
+	__device__ __host__ inline glm::vec3 Background(const glm::vec3 &direction)
 	{
 		return glm::mix(glm::vec3(1.0f), glm::vec3(0.05f, 0.2f, 0.85f), direction.y * 0.5f + 0.5f);
+	}
+
+	__device__ __host__ inline float PowerHeuristic(float main_pdf, float vice_pdf)
+	{
+		float f = glm::min(glm::max(1E-15f, vice_pdf * SafeRcp(main_pdf)), 1E15f);
+		return 1.0f / (1.0f + Sqr(f));
 	}
 
 	// give sampled distance
@@ -47,15 +53,13 @@ namespace YumeRT
 																		 const float t_max, 
 																		 glm::vec3 *tr_weight, 
 																		 float *sampled_distance, 
-																		 uint32_t px,
-																		 uint32_t py,
-																		 PixelRandom &pixel_random)
+																		 PCGSampler &sampler)
 	{
 		*tr_weight = glm::vec3(1.0f);
 		if (scene.volumes == nullptr || scene.volume_count == 0) { return false; }
-		if (ray.volume_idx < 0) { return false; }
+		if (ray.volume_idx < 0 || ray.volume_idx > scene.volume_count - 1) { return false; }
 		
-		auto random = [&]()->float {return pixel_random.Random1D(px, py); };
+		auto random = [&]()->float {return sampler.Random1D(); };
 
 		const Volume &vol = scene.volumes[ray.volume_idx];
 
@@ -93,19 +97,72 @@ namespace YumeRT
 		return volume_scatter;
 	}
 
-	__device__ glm::vec3 EvalDistantLight(const Scene &scene, 
+	__device__ glm::vec3 TraceTr(const Scene& scene, 
+												const Ray& ray,
+		PCGSampler &sampler)
+	{
+		glm::vec3 tr(1.0f);
+		if (scene.volumes == nullptr || scene.volume_count == 0) { return tr; }
+
+		// distance from position to light
+		Ray tr_ray = ray;
+		const float max_trace_distance = ray.t;
+		float traced_distance = TMIN;
+		while (traced_distance < max_trace_distance)
+		{
+			HitRecord hit_record;
+			bool hit_boundary = ClosestVolume(scene, tr_ray, &hit_record);
+
+			glm::vec3 sigma_t(1.0f);
+			bool ray_inside_volume = tr_ray.volume_idx >= 0 && tr_ray.volume_idx < scene.volume_count;
+			if (ray_inside_volume)
+			{
+				const Volume& vol = scene.volumes[tr_ray.volume_idx];
+				sigma_t = vol.sigma_a + vol.sigma_s;
+			}
+			
+			if (!hit_boundary)
+			{
+				tr *= ray_inside_volume? glm::exp(-sigma_t * glm::max(max_trace_distance - traced_distance, 0.0f)) : glm::vec3(1.0f);
+				break;
+			}
+			else 
+			{
+				tr *= ray_inside_volume? glm::exp(-sigma_t * hit_record.hit_t) : glm::vec3(1.0f);
+
+				traced_distance += hit_record.hit_t;
+
+				// trace forward the ray
+				const PrimitiveInstance &prim = scene.prim_instances[hit_record.hit_instance_idx];
+				glm::vec3 hit_position, hit_geometry_normal;
+				FetchGeometryNormal(scene, hit_record, &hit_position, &hit_geometry_normal);
+
+				glm::vec3 new_direction = tr_ray.direction;
+				bool front_side_bounce = glm::dot(hit_geometry_normal, new_direction) >= 0.0f;
+				glm::vec3 new_origin = OffsetRayOrigin(hit_position, front_side_bounce ? hit_geometry_normal : -hit_geometry_normal);
+
+				tr_ray = Ray(new_origin, 
+									new_direction, 
+									tr_ray.ray_ior, 
+									front_side_bounce ? prim.outer_volume_idx : prim.inner_volume_idx);
+			}
+		}
+		return tr;
+	}
+
+	__device__ glm::vec3 EvalDistantLight(const RenderSetting &render_setting,
+																const Scene &scene, 
 																UberBSDF &uber_bsdf, 
 																const glm::vec3 &ray_direction, 
+																const PrimitiveInstance& hit_prim,
 																const glm::vec3 &hit_position, 
 																const glm::vec3 &hit_shading_normal, 
 																const glm::vec3 &hit_geometry_normal,
-																uint32_t px, 
-																uint32_t py, 
-																PixelRandom &pixel_random)
+		PCGSampler &sampler)
 	{
 		assert(scene.distant_lights != nullptr);
 		if (scene.distant_lights == nullptr) {return glm::vec3(0.0f);}
-		auto random = [&]()->float {return pixel_random.Random1D(px, py); };
+		auto random = [&]()->float {return sampler.Random1D(); };
 		
 		glm::vec3 direct_lighting(0.0f);
 
@@ -119,20 +176,36 @@ namespace YumeRT
 		{
 			glm::vec3 light_dir, light_pos;
 			float light_sample_pdf;
-			glm::vec3 Li = scene.distant_lights[0].SampleLi(scene, hit_position, hit_shading_normal, random(), random(), &light_dir, &light_pos, &light_sample_pdf);
+			glm::vec3 Li = scene.distant_lights[0].SampleLi(scene, hit_position, random(), random(), &light_dir, &light_pos, &light_sample_pdf);
 
 			glm::vec3 light_wi = uber_bsdf.WorldToShading(light_dir);
 			float light_wi_pdf = 0.0f;
 			const glm::vec3 bsdf_weight = uber_bsdf.EvalSingleBSDF(selected_bsdf_idx, wo, light_wi, &light_wi_pdf) * bsdf_select_pdf;
 
-			const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, glm::dot(light_dir, hit_geometry_normal) >= 0.0f ? hit_geometry_normal : -hit_geometry_normal);
-			Ray shadow_ray(shadow_ray_origin, light_dir);
-
-			HitRecord shadow_ray_record;
-			if ((bsdf_weight.x + bsdf_weight.y + bsdf_weight.z > 1E-16f) && !BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
+			if (bsdf_weight.x + bsdf_weight.y + bsdf_weight.z > 1E-16f)
 			{
-				float mis_weight = 1.0f / (1.0f + Sqr(light_wi_pdf) / glm::min(1E24f, glm::max(Sqr(light_sample_pdf), 1E-16f)));
-				direct_lighting +=  mis_weight * glm::min(bsdf_weight, glm::vec3(1E16f)) * glm::min(Li, glm::vec3(1E16f));
+				bool front_side_light = glm::dot(light_dir, hit_geometry_normal) >= 0.0f;
+				const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position,  front_side_light ? hit_geometry_normal : -hit_geometry_normal);
+				Ray shadow_ray(shadow_ray_origin, light_dir);
+
+				HitRecord shadow_ray_record;
+				if (!BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record)) 
+				{
+					glm::vec3 tr(1.0f);
+					if (render_setting.enable_volume_scattering)
+					{
+						// don't need ior, set it arbitrary value.
+						shadow_ray = Ray(shadow_ray_origin,
+													  light_dir,
+													  1.0f,
+													  front_side_light ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
+						shadow_ray.t = TMAX;
+						tr = TraceTr(scene, shadow_ray, sampler);
+					}
+
+					float mis_weight = PowerHeuristic(light_sample_pdf, light_wi_pdf);
+					direct_lighting += mis_weight * tr * glm::min(bsdf_weight, glm::vec3(1E16f)) * glm::min(Li, glm::vec3(1E16f));
+				}
 			}
 		}
 
@@ -147,17 +220,33 @@ namespace YumeRT
 			if (sample_valid)
 			{
 				const glm::vec3 light_dir = uber_bsdf.ShadingToWorld(bsdf_wi);
-				const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, glm::dot(light_dir, hit_geometry_normal) >= 0.0f ? hit_geometry_normal : -hit_geometry_normal);
-				Ray shadow_ray(shadow_ray_origin, light_dir);
-
 				float bsdf_wi_pdf = 0.0f;
 				glm::vec3 Li = scene.distant_lights[0].EvalLi(scene, light_dir, &bsdf_wi_pdf);
 
-				HitRecord shadow_ray_record;
-				if ((Li.x + Li.y + Li.z > 1E-16f) && !BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
+				if (Li.x + Li.y + Li.z > 1E-16f)
 				{
-					float mis_weight = 1.0f / (1.0f + Sqr(bsdf_wi_pdf) / glm::min(1E24f, glm::max(Sqr(bsdf_sample_pdf), 1E-16f)));
-					direct_lighting += mis_weight * glm::min(bsdf_weight, glm::vec3(1E16f)) * glm::min(Li, glm::vec3(1E16f));
+					bool front_side_light = glm::dot(light_dir, hit_geometry_normal) >= 0.0f;
+					const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, front_side_light ? hit_geometry_normal : -hit_geometry_normal);
+					Ray shadow_ray(shadow_ray_origin, light_dir);
+
+					HitRecord shadow_ray_record;
+					if (!BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
+					{
+						glm::vec3 tr(1.0f);
+						if (render_setting.enable_volume_scattering)
+						{
+							// don't need ior, set it arbitrary value.
+							shadow_ray = Ray(shadow_ray_origin,
+														  light_dir,
+														  1.0f,
+														  front_side_light ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
+							shadow_ray.t = TMAX;
+							tr = TraceTr(scene, shadow_ray, sampler);
+						}
+
+						float mis_weight = PowerHeuristic(bsdf_sample_pdf, bsdf_wi_pdf);
+						direct_lighting += mis_weight * tr * glm::min(bsdf_weight, glm::vec3(1E16f)) * glm::min(Li, glm::vec3(1E16f));
+					}
 				}
 			}
 		}
@@ -165,18 +254,103 @@ namespace YumeRT
 		return  bsdf_select_pdf == 0.0f ? glm::vec3(0.0f) : direct_lighting / bsdf_select_pdf;
 	}
 
-	__device__ glm::vec3 EvalShapeLight(const Scene &scene,
+
+
+	__device__ glm::vec3 EvalVolumeDistantLight(const RenderSetting &render_setting,
+																			 const Scene &scene,
+																			 const Volume &volume,
+																			 const Ray &ray,
+																			 const glm::vec3 &volume_hit_position,
+		PCGSampler &sampler)
+	{
+		if (scene.distant_lights == nullptr) { return glm::vec3(0.0f); }
+		auto random = [&]()->float {return sampler.Random1D(); };
+
+		glm::vec3 direct_lighting(0.0f);
+
+		// sample from light
+		{
+			glm::vec3 light_dir, light_pos;
+			float light_sample_pdf;
+			glm::vec3 Li = scene.distant_lights[0].SampleLi(scene, volume_hit_position, random(), random(), &light_dir, &light_pos, &light_sample_pdf);
+
+			glm::vec3 light_wi = light_dir;
+			float light_wi_pdf = 0.0f;
+			const float phase_weight = volume.EvalPhase(-ray.direction, light_wi, &light_wi_pdf);
+
+			if (phase_weight > 1E16f)
+			{
+				Ray shadow_ray(volume_hit_position, light_dir);
+				shadow_ray.t = TMAX;
+
+				HitRecord shadow_ray_record;
+				if (!BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
+				{
+					// don't need ior, set it arbitrary value.
+					shadow_ray = Ray(volume_hit_position,
+												  light_dir,
+												  1.0f,
+												  ray.volume_idx);
+					shadow_ray.t = TMAX;
+					glm::vec3 tr = TraceTr(scene, shadow_ray, sampler);
+
+					float mis_weight = PowerHeuristic(light_sample_pdf, light_wi_pdf);
+					direct_lighting += mis_weight * tr * glm::min(phase_weight, 1E16f) * glm::min(Li, glm::vec3(1E16f));
+				}
+			}
+		}
+
+		// sample from volume
+		{
+			glm::vec3 phase_wi;
+			float phase_sample_pdf = 0.0f, phase_weight = 0.0f;
+			bool sample_valid = volume.SamplePhase(random(), random(), -ray.direction, &phase_weight, &phase_wi, &phase_sample_pdf);
+
+			if (sample_valid)
+			{
+				const glm::vec3 light_dir = phase_wi;
+				float phase_wi_pdf = 0.0f;
+				glm::vec3 Li = scene.distant_lights[0].EvalLi(scene, light_dir, &phase_wi_pdf);
+
+				if (Li.x + Li.y + Li.z > 1E-16f)
+				{
+					Ray shadow_ray(volume_hit_position, light_dir);
+					shadow_ray.t = TMAX;
+
+					HitRecord shadow_ray_record;
+					if (!BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
+					{
+						// don't need ior, set it arbitrary value.
+						shadow_ray = Ray(volume_hit_position,
+													  light_dir,
+													  1.0f,
+												 	  ray.volume_idx);
+						shadow_ray.t = TMAX;
+						glm::vec3 tr = TraceTr(scene, shadow_ray, sampler);
+
+						float mis_weight = PowerHeuristic(phase_sample_pdf, phase_wi_pdf);
+						direct_lighting += mis_weight * tr * glm::min(phase_weight, 1E16f) * glm::min(Li, glm::vec3(1E16f));
+					}
+				}
+			}
+		}
+
+		return direct_lighting;
+	}
+
+
+	__device__ glm::vec3 EvalShapeLight(const RenderSetting &render_setting,
+																const Scene &scene,
 																UberBSDF &uber_bsdf,
 																const glm::vec3 &ray_direction,
+																const PrimitiveInstance &hit_prim,
 																const glm::vec3 &hit_position,
 																const glm::vec3 &hit_shading_normal,
 																const glm::vec3 &hit_geometry_normal,
-																uint32_t px,
-																uint32_t py,
-																PixelRandom &pixel_random)
+		PCGSampler &sampler)
 	{
 		if (scene.shape_light_count == 0 || scene.shape_lights == nullptr) { return glm::vec3(0.0f); }
-		auto random = [&]()->float {return pixel_random.Random1D(px, py); };
+		auto random = [&]()->float {return sampler.Random1D(); };
 
 		glm::vec3 direct_lighting(0.0f);
 
@@ -195,7 +369,7 @@ namespace YumeRT
 		{
 			glm::vec3 light_dir, light_pos, light_geo_normal;
 			float light_sample_pdf;
-			glm::vec3 Li = shape_light.SampleLi(scene, hit_position, hit_shading_normal, random(), random(), &light_dir, &light_pos, &light_geo_normal, &light_sample_pdf);
+			glm::vec3 Li = shape_light.SampleLi(scene, hit_position, random(), random(), &light_dir, &light_pos, &light_geo_normal, &light_sample_pdf);
 
 			glm::vec3 light_wi = uber_bsdf.WorldToShading(light_dir);
 			float light_wi_pdf = 0.0f;
@@ -203,15 +377,31 @@ namespace YumeRT
 
 			if (bsdf_weight.x + bsdf_weight.y + bsdf_weight.z > 1E-16f)
 			{
-				HitRecord shadow_ray_record;
-				const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, glm::dot(light_dir, hit_geometry_normal) >= 0.0f ? hit_geometry_normal : -hit_geometry_normal);
-				Ray shadow_ray(shadow_ray_origin, light_dir);
-				shadow_ray.t = glm::length(OffsetRayOrigin(light_pos, light_geo_normal) - hit_position) * 0.9996f;
+				bool front_side_light = glm::dot(light_dir, hit_geometry_normal) >= 0.0f;
+				const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, front_side_light ? hit_geometry_normal : -hit_geometry_normal);
 
+				// only for test occlusion, so we don't need ior and volume
+				Ray shadow_ray(shadow_ray_origin, light_dir);
+				float max_trace_distance = glm::length(OffsetRayOrigin(light_pos, light_geo_normal) - hit_position) * 0.9996f;
+				
+				shadow_ray.t = max_trace_distance;
+				HitRecord shadow_ray_record;
 				if (!BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
 				{
-					float mis_weight = 1.0f / (1.0f + Sqr(light_wi_pdf) / glm::min(1E24f, glm::max(Sqr(light_sample_pdf), 1E-16f)));
-					direct_lighting += mis_weight * glm::min(bsdf_weight, glm::vec3(1E16f)) * glm::min(Li, glm::vec3(1E16f));
+					glm::vec3 tr(1.0f);
+					if (render_setting.enable_volume_scattering) 
+					{
+						// don't need ior, set it arbitrary value.
+						shadow_ray = Ray(shadow_ray_origin, 
+													  light_dir, 
+													  1.0f, 
+													  front_side_light ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
+						shadow_ray.t = max_trace_distance;
+						tr = TraceTr(scene, shadow_ray, sampler);
+					}
+					// float mis_weight = 1.0f / (1.0f + Sqr(light_wi_pdf) / glm::min(1E24f, glm::max(Sqr(light_sample_pdf), 1E-16f)));
+					float mis_weight = PowerHeuristic(light_sample_pdf, light_wi_pdf);
+					direct_lighting += mis_weight * tr * glm::min(bsdf_weight, glm::vec3(1E16f)) * glm::min(Li, glm::vec3(1E16f));
 				}
 			}
 		}
@@ -231,17 +421,33 @@ namespace YumeRT
 				float bsdf_wi_pdf = 0.0f;
 				glm::vec3 Li = shape_light.EvalLi(scene, hit_position, light_dir, &light_pos, &light_geo_normal, &bsdf_wi_pdf);
 
-				if ((Li.x + Li.y + Li.z > 1E-16f))
+				if (Li.x + Li.y + Li.z > 1E-16f)
 				{
-					HitRecord shadow_ray_record;
-					glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, glm::dot(light_dir, hit_geometry_normal) >= 0.0f ? hit_geometry_normal : -hit_geometry_normal);
+					bool front_side_light = glm::dot(light_dir, hit_geometry_normal) >= 0.0f;
+					glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position,  front_side_light? hit_geometry_normal : -hit_geometry_normal);
+					
+					// only for test occlusion, so we don't need ior and volume
 					Ray shadow_ray(shadow_ray_origin, light_dir);
-					shadow_ray.t = glm::length(OffsetRayOrigin(light_pos, light_geo_normal) - hit_position) * 0.9996f;
+					float max_trace_distance = glm::length(OffsetRayOrigin(light_pos, light_geo_normal) - hit_position) * 0.9996f;
 
+					shadow_ray.t = max_trace_distance;
+					HitRecord shadow_ray_record;
 					if (!BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
 					{
-						float mis_weight = 1.0f / (1.0f + Sqr(bsdf_wi_pdf) / glm::min(1E24f, glm::max(Sqr(bsdf_sample_pdf), 1E-16f)));
-						direct_lighting += mis_weight * glm::min(bsdf_weight, glm::vec3(1E16f)) * glm::min(Li, glm::vec3(1E16f));
+						glm::vec3 tr(1.0f);
+						if (render_setting.enable_volume_scattering)
+						{
+							// don't need ior, set it arbitrary value.
+							shadow_ray = Ray(shadow_ray_origin, 
+														  light_dir, 
+														  1.0f, 
+														  front_side_light ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
+							shadow_ray.t = max_trace_distance;
+							tr = TraceTr(scene, shadow_ray, sampler);
+						}
+						// float mis_weight = 1.0f / (1.0f + Sqr(bsdf_wi_pdf) / glm::min(1E24f, glm::max(Sqr(bsdf_sample_pdf), 1E-16f)));
+						float mis_weight = PowerHeuristic(bsdf_sample_pdf, bsdf_wi_pdf);
+						direct_lighting += mis_weight * tr * glm::min(bsdf_weight, glm::vec3(1E16f)) * glm::min(Li, glm::vec3(1E16f));
 					}
 				}
 			}
@@ -251,8 +457,97 @@ namespace YumeRT
 		return   (bsdf_select_pdf * light_select_pdf)  < 1E-10f?  glm::vec3(0.0f) : (direct_lighting / (bsdf_select_pdf * light_select_pdf));
 	}
 
+	__device__ glm::vec3 EvalVolumeShapeLight(const RenderSetting &render_setting,
+																			const Scene &scene,
+																			const Volume &volume,
+																			const Ray &ray,
+																			const glm::vec3 &volume_hit_position, 
+		PCGSampler &sampler)
+	{
+		if (scene.shape_light_count == 0 || scene.shape_lights == nullptr) { return glm::vec3(0.0f); }
+		auto random = [&]()->float {return sampler.Random1D(); };
+
+		glm::vec3 direct_lighting(0.0f);
+
+		float light_select_pdf = 0.0f;
+		int light_idx = SampleLightPower(scene, random(), &light_select_pdf);
+
+		const ShapeLight &shape_light = scene.shape_lights[light_idx];
+
+		// sample from light
+		{
+			glm::vec3 light_dir, light_pos, light_geo_normal;
+			float light_sample_pdf;
+			glm::vec3 Li = shape_light.SampleLi(scene, volume_hit_position, random(), random(), &light_dir, &light_pos, &light_geo_normal, &light_sample_pdf);
+
+			float light_wi_pdf = 0.0f;
+			float phase_weight = volume.EvalPhase(-ray.direction ,light_dir, &light_wi_pdf);
+
+			if (phase_weight > 1E-16f)
+			{
+				Ray shadow_ray(volume_hit_position, light_dir);
+				float max_trace_distance = glm::length(OffsetRayOrigin(light_pos, light_geo_normal) - volume_hit_position) * 0.9996f;
+
+				shadow_ray.t = max_trace_distance;
+				HitRecord shadow_ray_record;
+				if (!BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
+				{
+					// don't need ior, set it arbitrary value.
+					shadow_ray = Ray(volume_hit_position,
+												  light_dir,
+												  1.0f,
+												  ray.volume_idx);
+					shadow_ray.t = max_trace_distance;
+					glm::vec3 tr = TraceTr(scene, shadow_ray, sampler);
+					
+					float mis_weight = PowerHeuristic(light_sample_pdf, light_wi_pdf);
+					direct_lighting += mis_weight * tr * glm::min(phase_weight, 1E16f) * glm::min(Li, glm::vec3(1E16f));
+				}
+			}
+		}
+
+		// sample from phase
+		{
+			glm::vec3 phase_wi;
+			float phase_sample_pdf = 0.0f, phase_weight = 0.0f;
+			bool sample_valid = volume.SamplePhase(random(), random(), -ray.direction, &phase_weight, &phase_wi, &phase_sample_pdf);
+
+			if (sample_valid)
+			{
+				glm::vec3 light_dir = phase_wi;
+				glm::vec3 light_pos, light_geo_normal;
+				float phase_wi_pdf = 0.0f;
+				glm::vec3 Li = shape_light.EvalLi(scene, volume_hit_position, light_dir, &light_pos, &light_geo_normal, &phase_wi_pdf);
+
+				if (Li.x + Li.y + Li.z > 1E-16f)
+				{
+					// only for test occlusion, so we don't need ior and volume
+					Ray shadow_ray(volume_hit_position, light_dir);
+					float max_trace_distance = glm::length(OffsetRayOrigin(light_pos, light_geo_normal) - volume_hit_position) * 0.9996f;
+
+					shadow_ray.t = max_trace_distance;
+					HitRecord shadow_ray_record;
+					if (!BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
+					{
+						// don't need ior, set it arbitrary value.
+						shadow_ray = Ray(volume_hit_position,
+													  light_dir,
+													  1.0f,
+													  ray.volume_idx);
+						shadow_ray.t = max_trace_distance;
+						glm::vec3 tr = TraceTr(scene, shadow_ray, sampler);
+						
+						float mis_weight = PowerHeuristic(phase_sample_pdf, phase_wi_pdf);
+						direct_lighting += mis_weight * tr * glm::min(phase_weight, 1E16f) * glm::min(Li, glm::vec3(1E16f));
+					}
+				}
+			}
+		}
+
+		return light_select_pdf == 0.0f ? glm::vec3(0.0f) : (direct_lighting / light_select_pdf);
+	}
+
 	__global__ void RenderImage(Scene *scene_ptr,
-													PixelRandom *pixel_randoms,
 													const RenderSetting render_setting,
 													const int frame_count,
 													glm::vec4 *image,
@@ -280,15 +575,23 @@ namespace YumeRT
 		uint32_t pixel_idx = py * width + px;
 		Scene &scene = *scene_ptr;
 
-		auto random_1D = [&]() ->float {return pixel_randoms[pixel_idx].Random1D(px, py); };
-
 		glm::vec3 col(0.0f);
 		for (int sample_idx = 0; sample_idx < render_setting.ssp; ++sample_idx)
 		{
-			Ray ray = scene.camera->generateRay(float(px + random_1D()) / float(width), float(py + random_1D()) / float(height));
+			PCGSampler sampler(pixel_idx, sample_idx, 0, frame_count);
+
+			//// mute temporally
+			//HaltonSampler sampler(render_setting.ssp, 
+			//	sample_idx, 
+			//	frame_count - 1, 
+			//	0, 
+			//	pixel_idx, 
+			//	render_setting.max_frame_count, 
+			//	scene.sampler_data.halton_permute_table);
+
+			Ray ray = scene.camera->generateRay(float(px + sampler.Random1D()) / float(width), float(py + sampler.Random1D()) / float(height));
 
 			glm::vec3 L(0.0f), throughput(1.0f);
-			bool volume_bounce = false;
 			for (int depth = 1;;)
 			{
 				if (depth > MAX_RAY_DEPTH) { break; }
@@ -304,23 +607,37 @@ namespace YumeRT
 				// volume scatter
 				glm::vec3 tr_weight(1.0f);
 				float sampled_distance = 0.0f;
-				if (render_setting.enable_volume_scattering &&
-					SampleVolumeScattering(scene, ray, hit_surface? hit_record.hit_t : TMAX, &tr_weight, &sampled_distance, px, py, pixel_randoms[pixel_idx]))
+				if (render_setting.enable_volume_scattering && SampleVolumeScattering(scene, ray, hit_surface? hit_record.hit_t : TMAX, &tr_weight, &sampled_distance, sampler))
 				{
+					const Volume &vol = scene.volumes[ray.volume_idx];
+
 					throughput *= tr_weight;
-					glm::vec3 new_origin = ray.PositionAtT(sampled_distance);
-					glm::vec3 new_direction = SampleUnitSphere(random_1D(), random_1D());
+					glm::vec3 volume_hit_position = ray.PositionAtT(sampled_distance);
+
+					if (render_setting.enable_distant_light)
+					{
+						L += throughput * EvalVolumeDistantLight(render_setting, scene, vol, ray, volume_hit_position, sampler);
+					}
+
+					L += throughput * EvalVolumeShapeLight(render_setting, scene, vol, ray, volume_hit_position, sampler);
+					
+					// sample phase function
 					// multiply phase weight
+					glm::vec3 wi;
+					float pdf = 0.0f, phase_weight = 0.0f;
+					bool continue_bounce = vol.SamplePhase(sampler.Random1D(), sampler.Random1D(), -ray.direction, &phase_weight, &wi, &pdf);
+					if (!continue_bounce) { break; }
+
+					throughput *= phase_weight;
 					float rr = glm::max(throughput.x, glm::max(throughput.y, throughput.z));
 					if (depth + 1 > render_setting.ray_depth)
 					{
-						if (render_setting.enable_russian_roulette && random_1D() < rr) { throughput /= glm::max(rr, 1E-20f); }
+						if (render_setting.enable_russian_roulette && sampler.Random1D() < rr) { throughput /= glm::max(rr, 1E-20f); }
 						else { break; }
 					}
 
-					ray = Ray(new_origin, new_direction, ray.ray_ior, ray.volume_idx);
+					ray = Ray(volume_hit_position, wi, ray.ray_ior, ray.volume_idx);
 					++depth;
-					volume_bounce = true;
 					continue;
 				}
 				else
@@ -350,12 +667,21 @@ namespace YumeRT
 					const PrimitiveInstance &prim = scene.prim_instances[hit_record.hit_instance_idx];
 					const Material &mtl = scene.materials[prim.material_idx];
 
-					
-
 					if (mtl.material_type == LIGHT_MTL)
 					{
-						if (depth == 1 || volume_bounce) { L += throughput * mtl.light_material.light_color * mtl.light_material.intensity; }
+						if (depth == 1) { L += throughput * mtl.light_material.light_color * mtl.light_material.intensity; }
 						break;
+					}
+
+					if (prim.is_volume_boundary)
+					{
+						glm::vec3 new_direction = ray.direction;
+						bool front_side_bounce = glm::dot(hit_geometry_normal, new_direction) >= 0.0f;
+						glm::vec3 new_origin = OffsetRayOrigin(hit_position, front_side_bounce ? hit_geometry_normal : -hit_geometry_normal);
+
+						ray = Ray(new_origin, new_direction, ray.ray_ior, front_side_bounce ? prim.outer_volume_idx : prim.inner_volume_idx);
+						++depth;
+						continue;
 					}
 
 					// indirect light
@@ -365,39 +691,42 @@ namespace YumeRT
 					// instance's internal ior is implicitly specified by its material
 					uber_bsdf.InitBSDFSettings(mtl, ray, hit_record.hit_back, prim.external_ior);
 					
-					// TODO: direct lighting
-					// TODO: switch to turn off direct light
-					if (render_setting.enable_distant_light) {
-						L += throughput * EvalDistantLight(scene,
+					if (!hit_record.hit_back) 
+					{
+						// TODO: direct lighting
+						// TODO: switch to turn off direct light (done)
+						if (render_setting.enable_distant_light)
+						{
+							L += throughput * EvalDistantLight(render_setting,
+								scene,
+								uber_bsdf,
+								ray.direction,
+								prim,
+								hit_position,
+								hit_shading_normal,
+								hit_geometry_normal,
+								sampler);
+						}
+
+						// TODO: sample table, light BVH...
+						L += throughput * EvalShapeLight(render_setting,
+							scene,
 							uber_bsdf,
 							ray.direction,
+							prim,
 							hit_position,
 							hit_shading_normal,
 							hit_geometry_normal,
-							px,
-							py,
-							pixel_randoms[pixel_idx]);
+							sampler);
 					}
 
-					// TODO: sample table, light BVH...
-					L += throughput * EvalShapeLight(scene,
-																			uber_bsdf,
-																			ray.direction,
-																			hit_position,
-																			hit_shading_normal,
-																			hit_geometry_normal,
-																			px,
-																			py,
-																			pixel_randoms[pixel_idx]);
-					
-					// break;
 					// current a bunch noise are from indirect light!
 					// indirect lighting
 					glm::vec3 wo = uber_bsdf.WorldToShading(-ray.direction), wi(0.0f), bsdf_weight(0.0f);
 					float pdf = 0.0f;
 					BOUNCE_TYPE bounce_type;
 					
-					bool sample_valid = uber_bsdf.SampleIndirectMix(random_1D(), random_1D(), wo, &bsdf_weight, &wi, &pdf, &bounce_type);
+					bool sample_valid = uber_bsdf.SampleIndirectMix(sampler.Random1D(), sampler.Random1D(), wo, &bsdf_weight, &wi, &pdf, &bounce_type);
 					assert(!glm::isnan(bsdf_weight.x) && !glm::isnan(bsdf_weight.y) && !glm::isnan(bsdf_weight.z));
 					if (!sample_valid) { break; }
 
@@ -407,7 +736,7 @@ namespace YumeRT
 					if (depth + 1 > render_setting.ray_depth)
 					{
 						// break;
-						if (render_setting.enable_russian_roulette && random_1D() < rr) { throughput /= glm::max(rr, 1E-20f); }
+						if (render_setting.enable_russian_roulette && sampler.Random1D() < rr) { throughput /= glm::max(rr, 1E-20f); }
 						else { break; }
 					}
 
@@ -416,10 +745,10 @@ namespace YumeRT
 					// this method to avoid self intersection is still not robust, it makes the sphere self-intersection when radius is big
 					glm::vec3 new_origin = OffsetRayOrigin(hit_position, front_side_bounce? hit_geometry_normal : -hit_geometry_normal);
 					
-					ray = Ray(new_origin, new_direction,
-						front_side_bounce? prim.external_ior : mtl.surface_material.ior_n, 
-						front_side_bounce? prim.outer_volume_idx : prim.inner_volume_idx);
-					volume_bounce = false;
+					ray = Ray(new_origin, 
+									new_direction,
+									front_side_bounce? prim.external_ior : mtl.surface_material.ior_n, 
+									front_side_bounce? prim.outer_volume_idx : prim.inner_volume_idx);
 					++depth;
 				}
 				else
@@ -451,11 +780,6 @@ namespace YumeRT
 
 		RenderSetting rt_settings = render_setting;
 
-		std::vector<PixelRandom> per_pixel_randoms(width * height, PixelRandom(frame_count));
-		PixelRandom *pixel_randoms = nullptr;
-		UPLOAD_TO_GPU(pixel_randoms, per_pixel_randoms.data(), sizeof(PixelRandom) * per_pixel_randoms.size());
-		FREE_STL(per_pixel_randoms);
-
 		auto start_time = std::chrono::high_resolution_clock::now();
 		{
 			Scene *scene_ptr = nullptr;
@@ -464,7 +788,6 @@ namespace YumeRT
 			dim3 block_dim(32, 1, 1);
 			dim3 grid_dim(Round_Block_Count(total_pixel_count, block_dim.x), 1, 1);
 			void *args[] = {&scene_ptr, 
-									&pixel_randoms, 
 									&rt_settings, 
 									&frame_count,
 									&image, 
@@ -478,8 +801,6 @@ namespace YumeRT
 
 			FREE_GPU_RESOURCE(scene_ptr);
 		}
-
-		FREE_GPU_RESOURCE(pixel_randoms);
 
 		auto end_time = std::chrono::high_resolution_clock::now();
 		*render_time = float(std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count()) / 1000.f;

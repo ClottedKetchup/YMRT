@@ -74,6 +74,11 @@ namespace YumeRT
 		return *((float*)(&i));
 	}
 
+	__device__ __host__ inline float SafeRcp(float f)
+	{
+		return glm::abs(f) < 1E-30f ? (f > 0.0f ? 1E30f : -1E30f) : (1.0f / f);
+	}
+
 	 __device__ __host__ inline void OrthogonalBasis(glm::vec3 &N, glm::vec3 &T, glm::vec3 &B)
 	{
 		N = glm::normalize(N);

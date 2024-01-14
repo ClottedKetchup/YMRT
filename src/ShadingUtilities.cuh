@@ -2,8 +2,6 @@
 
 #include <driver_types.h>
 
-#include "DeviceRandom.cuh"
-
 #include "GeometryDefines.h"
 #include "SceneDefines.h"
 #include "BoundingBox.h"
@@ -12,6 +10,7 @@
 #include "BottomBVH.h"
 
 #include "PrimtiveInstance.h"
+#include "Volume.h"
 
 namespace YumeRT
 {
@@ -243,10 +242,7 @@ namespace YumeRT
 
 	__device__ __host__  bool BVHTraverse(const Scene &scene, const Ray &ray, HitRecord *hit_record)
 	{
-		if (scene.top_node_count == 0 || scene.top_nodes == nullptr)
-		{
-			return false;
-		}
+		if (scene.top_node_count == 0 || scene.top_nodes == nullptr) { return false; }
 
 		const uint32_t stack_size = 32;
 		uint32_t root_idx = 0;
@@ -310,12 +306,10 @@ namespace YumeRT
 		return hit;
 	}
 
-	__device__ __host__  bool BVHTraverseShadow(const Scene &scene, const Ray &ray, HitRecord *hit_record)
+	// TODO: you should construst a separate BVH for volume traverse!
+	__device__ __host__  bool ClosestVolume(const Scene &scene, const Ray &ray, HitRecord *hit_record)
 	{
-		if (scene.top_node_count == 0 || scene.top_nodes == nullptr)
-		{
-			return false;
-		}
+		if (scene.top_node_count == 0 || scene.top_nodes == nullptr || scene.volume_count == 0) { return false; }
 
 		const uint32_t stack_size = 32;
 		uint32_t root_idx = 0;
@@ -337,6 +331,77 @@ namespace YumeRT
 				PrimitiveInstance *prim_instances = scene.prim_instances + node.leaf.offset;
 				for (uint32_t i = 0; i < node.leaf.count; ++i)
 				{
+					if (!prim_instances[i].is_volume_boundary) { continue; }
+
+					const PrimitiveInstance &prim = prim_instances[i];
+					const glm::mat4 &i_transform = scene.i_transforms[prim.transform_idx];
+					Ray object_ray = TransformRay(ray, i_transform);
+					const GeometryData &geometry = scene.geometries[prim.geometry_idx];
+					if (IntersectGeometry(geometry, scene, object_ray, hit_record, false))
+					{
+						hit_record->hit_instance_idx = node.leaf.offset + i;
+						hit = hit || true;
+						ray.t = object_ray.t;
+					}
+				}
+				continue;
+			}
+
+			uint32_t n_node = node_idx + 1;
+			uint32_t f_node = node.internal.right;
+
+			float tn, tf;
+			bool bn = IntersectBBox3(scene.top_nodes[n_node].bbox, ray, &tn);
+			bool bf = IntersectBBox3(scene.top_nodes[f_node].bbox, ray, &tf);
+			if (tf < tn)
+			{
+				Swap(tf, tn);
+				Swap(n_node, f_node);
+				Swap(bn, bf);
+			}
+
+			if (bf)
+			{
+				stack[++p_top] = f_node;
+				assert(p_top < stack_size);
+			}
+			if (bn)
+			{
+				stack[++p_top] = n_node;
+				assert(p_top < stack_size);
+			}
+		}
+
+		return hit;
+	}
+
+	__device__ __host__  bool BVHTraverseShadow(const Scene &scene, const Ray &ray, HitRecord *hit_record)
+	{
+		if (scene.top_node_count == 0 || scene.top_nodes == nullptr) { return false; }
+
+		const uint32_t stack_size = 32;
+		uint32_t root_idx = 0;
+
+		uint32_t stack[stack_size];
+		int p_top = -1;
+
+		float t = 0.0f;
+		bool hit = false;
+
+		stack[++p_top] = root_idx;
+		while (p_top != -1)
+		{
+			uint32_t node_idx = stack[p_top--];
+			TopNode &node = scene.top_nodes[node_idx];
+
+			if (node.internal.left != INVALID_UINT_32)
+			{
+				PrimitiveInstance *prim_instances = scene.prim_instances + node.leaf.offset;
+				for (uint32_t i = 0; i < node.leaf.count; ++i)
+				{
+					// skip the test of volume boundary
+					if (prim_instances[i].is_volume_boundary) { continue; }
+
 					const glm::mat4 &i_transform = scene.i_transforms[prim_instances[i].transform_idx];
 					Ray object_ray = TransformRay(ray, i_transform);
 					const GeometryData &geometry = scene.geometries[prim_instances[i].geometry_idx];
@@ -379,6 +444,8 @@ namespace YumeRT
 		return hit;
 	}
 
+
+
 	__device__ __host__ void FetchSphereShadingData(const Scene &scene,
 																					 const HitRecord &hit_record,
 																					 const PrimitiveInstance &hit_instance,
@@ -391,7 +458,7 @@ namespace YumeRT
 	{
 		const GeometryData &hit_sphere = scene.geometries[hit_instance.geometry_idx];
 
-		float radius = glm::max(hit_sphere.sphere.radius, 1E-7f);
+		float radius = glm::max(hit_sphere.sphere.radius, 1E-8f);
 
 		glm::vec3 position_object = hit_record.hit_barycentric;
 		glm::vec3 normal_object = hit_record.hit_barycentric / radius;
@@ -467,10 +534,10 @@ namespace YumeRT
 		const glm::vec3 &n1 = mesh_normals[nid1];
 		const glm::vec3 &n2 = mesh_normals[nid2];
 
-		*hit_shading_normal = glm::normalize(n0 * hit_record.hit_barycentric.x
+		*hit_shading_normal = n0 * hit_record.hit_barycentric.x
 																   + n1 * hit_record.hit_barycentric.y
-																   + n2 * hit_record.hit_barycentric.z);
-		*hit_geometry_normal = glm::normalize(glm::cross(p1 - p0, p2 - p0));
+																   + n2 * hit_record.hit_barycentric.z;
+		*hit_geometry_normal = glm::cross(p1 - p0, p2 - p0);
 
 		bool has_custom_uv = (hit_mesh.tri_mesh.texcoord_count > 0);
 
@@ -573,6 +640,81 @@ namespace YumeRT
 		*hit_dpdv = otw_vector(*hit_dpdv);
 
 		// TODO: maybe flipped the shading normal to match geometry normal
+	}
+
+	__device__ __host__ inline void FetchSphereGeometryNormal(const Scene &scene,
+																								const HitRecord &hit_record, 
+																								const PrimitiveInstance &hit_instance, 
+																								glm::vec3 *hit_position, 
+																								glm::vec3 *hit_geometry_normal)
+	{
+		const GeometryData &hit_sphere = scene.geometries[hit_instance.geometry_idx];
+
+		float radius = glm::max(hit_sphere.sphere.radius, 1E-8f);
+
+		*hit_position = hit_record.hit_barycentric;
+
+		*hit_geometry_normal = hit_record.hit_barycentric / radius;
+	}
+
+	__device__ __host__ inline void FetchMeshGeometryNormal(const Scene &scene,
+																								const HitRecord &hit_record, 
+																								const PrimitiveInstance &hit_instance,
+																								glm::vec3 *hit_position,
+																								glm::vec3 *hit_geometry_normal)
+	{
+		const GeometryData &hit_mesh = scene.geometries[hit_instance.geometry_idx];
+
+		const glm::vec3 *mesh_positions = scene.positions + hit_mesh.tri_mesh.position_offset;
+		const uint32_t *mesh_vidxs = scene.vidxs + hit_mesh.tri_mesh.vidx_offset;
+
+		const Triangle *mesh_triangles = scene.triangles + hit_mesh.tri_mesh.triangle_offset;
+		const Triangle &triangle = mesh_triangles[hit_record.hit_triangle_idx];
+
+		uint32_t vid0 = mesh_vidxs[triangle.id0];
+		uint32_t vid1 = mesh_vidxs[triangle.id1];
+		uint32_t vid2 = mesh_vidxs[triangle.id2];
+
+		const glm::vec3 &p0 = mesh_positions[vid0];
+		const glm::vec3 &p1 = mesh_positions[vid1];
+		const glm::vec3 &p2 = mesh_positions[vid2];
+
+		*hit_position = p0 * hit_record.hit_barycentric.x
+							+ p1 * hit_record.hit_barycentric.y
+							+ p2 * hit_record.hit_barycentric.z;
+
+		*hit_geometry_normal = glm::cross(p1 - p0, p2 - p0);
+	}
+
+	__device__ __host__ inline void FetchGeometryNormal(const Scene &scene, 
+																						const HitRecord &hit_record, 
+																						glm::vec3 *hit_position,
+																						glm::vec3 *hit_geometry_normal)
+	{
+		if (hit_record.hit_instance_idx == INVALID_UINT_32) { return; }
+		const PrimitiveInstance &hit_instance = scene.prim_instances[hit_record.hit_instance_idx];
+		const GeometryData &hit_geometry = scene.geometries[hit_instance.geometry_idx];
+		uint32_t geometry_type = hit_geometry.geometry_type;
+
+		if (geometry_type == GEOMETRY_TYPE::TRIANGLE_MESH)
+		{
+			FetchMeshGeometryNormal(scene, hit_record, hit_instance, hit_position, hit_geometry_normal);
+		}
+		else if (geometry_type == GEOMETRY_TYPE::SPHERE)
+		{
+			FetchSphereGeometryNormal(scene, hit_record, hit_instance, hit_position, hit_geometry_normal);
+		}
+		else
+		{
+			// do nothing
+		}
+
+		const glm::mat4 &i_transform = scene.i_transforms[hit_instance.transform_idx];
+		const glm::mat4 &transform = scene.transforms[hit_instance.transform_idx];
+
+		*hit_position = glm::vec3(transform * glm::vec4((*hit_position), 1.0f));
+
+		*hit_geometry_normal = glm::normalize(glm::vec3(glm::transpose(i_transform) * glm::vec4((*hit_geometry_normal), 0.0f)));
 	}
 
 	__device__  __host__ inline glm::vec3 OffsetRayOrigin(const glm::vec3& p, const glm::vec3 &n)

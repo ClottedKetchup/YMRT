@@ -67,7 +67,11 @@ namespace YumeRT
 		float *shape_light_sample_table = nullptr;
 
 		uint32_t volume_count = 0;
-		Volume *volumes = nullptr;	
+		Volume *volumes = nullptr;
+
+		struct {
+			uint32_t *halton_permute_table = nullptr;
+		}sampler_data;
 	};
 
 	struct RenderSetting
@@ -82,7 +86,7 @@ namespace YumeRT
 		bool enable_env_light;
 		bool enable_russian_roulette;
 
-		__device__ __host__ RenderSetting(): ssp(1), ray_depth(4), gamma(2.2f), exposure(1.0f), 
-			max_frame_count(-1), enable_distant_light(false), enable_env_light(true), enable_russian_roulette(true), enable_volume_scattering(true)  {}
+		__device__ __host__ RenderSetting(): ssp(1), ray_depth(2), gamma(2.2f), exposure(1.0f), 
+			max_frame_count(-1), enable_distant_light(false), enable_env_light(true), enable_russian_roulette(false), enable_volume_scattering(true)  {}
 	};
 };

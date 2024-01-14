@@ -6,6 +6,10 @@
 #include <random>
 #include <string>
 
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+
 #include "SceneDefines.h"
 #include "Camera.h"
 #include "GeometryDefines.h"
@@ -18,6 +22,89 @@
 
 namespace YumeRT
 {
+	const int prime_count = 1000;
+	const uint32_t primes[prime_count] = { 2, 3, 5, 7, 11,
+	13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89,
+	 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167,
+	 173, 179, 181, 191, 193, 197, 199, 211, 223, 227, 229, 233, 239, 241, 251,
+	 257, 263, 269, 271, 277, 281, 283, 293, 307, 311, 313, 317, 331, 337, 347,
+	 349, 353, 359, 367, 373, 379, 383, 389, 397, 401, 409, 419, 421, 431, 433,
+	 439, 443, 449, 457, 461, 463, 467, 479, 487, 491, 499, 503, 509, 521, 523,
+	 541, 547, 557, 563, 569, 571, 577, 587, 593, 599, 601, 607, 613, 617, 619,
+	 631, 641, 643, 647, 653, 659, 661, 673, 677, 683, 691, 701, 709, 719, 727,
+	 733, 739, 743, 751, 757, 761, 769, 773, 787, 797, 809, 811, 821, 823, 827,
+	 829, 839, 853, 857, 859, 863, 877, 881, 883, 887, 907, 911, 919, 929, 937,
+	 941, 947, 953, 967, 971, 977, 983, 991, 997, 1009, 1013, 1019, 1021, 1031,
+	 1033, 1039, 1049, 1051, 1061, 1063, 1069, 1087, 1091, 1093, 1097, 1103,
+	 1109, 1117, 1123, 1129, 1151, 1153, 1163, 1171, 1181, 1187, 1193, 1201,
+	 1213, 1217, 1223, 1229, 1231, 1237, 1249, 1259, 1277, 1279, 1283, 1289,
+	 1291, 1297, 1301, 1303, 1307, 1319, 1321, 1327, 1361, 1367, 1373, 1381,
+	 1399, 1409, 1423, 1427, 1429, 1433, 1439, 1447, 1451, 1453, 1459, 1471,
+	 1481, 1483, 1487, 1489, 1493, 1499, 1511, 1523, 1531, 1543, 1549, 1553,
+	 1559, 1567, 1571, 1579, 1583, 1597, 1601, 1607, 1609, 1613, 1619, 1621,
+	 1627, 1637, 1657, 1663, 1667, 1669, 1693, 1697, 1699, 1709, 1721, 1723,
+	 1733, 1741, 1747, 1753, 1759, 1777, 1783, 1787, 1789, 1801, 1811, 1823,
+	 1831, 1847, 1861, 1867, 1871, 1873, 1877, 1879, 1889, 1901, 1907, 1913,
+	 1931, 1933, 1949, 1951, 1973, 1979, 1987, 1993, 1997, 1999, 2003, 2011,
+	 2017, 2027, 2029, 2039, 2053, 2063, 2069, 2081, 2083, 2087, 2089, 2099,
+	 2111, 2113, 2129, 2131, 2137, 2141, 2143, 2153, 2161, 2179, 2203, 2207,
+	 2213, 2221, 2237, 2239, 2243, 2251, 2267, 2269, 2273, 2281, 2287, 2293,
+	 2297, 2309, 2311, 2333, 2339, 2341, 2347, 2351, 2357, 2371, 2377, 2381,
+	 2383, 2389, 2393, 2399, 2411, 2417, 2423, 2437, 2441, 2447, 2459, 2467,
+	 2473, 2477, 2503, 2521, 2531, 2539, 2543, 2549, 2551, 2557, 2579, 2591,
+	 2593, 2609, 2617, 2621, 2633, 2647, 2657, 2659, 2663, 2671, 2677, 2683,
+	 2687, 2689, 2693, 2699, 2707, 2711, 2713, 2719, 2729, 2731, 2741, 2749,
+	 2753, 2767, 2777, 2789, 2791, 2797, 2801, 2803, 2819, 2833, 2837, 2843,
+	 2851, 2857, 2861, 2879, 2887, 2897, 2903, 2909, 2917, 2927, 2939, 2953,
+	 2957, 2963, 2969, 2971, 2999, 3001, 3011, 3019, 3023, 3037, 3041, 3049,
+	 3061, 3067, 3079, 3083, 3089, 3109, 3119, 3121, 3137, 3163, 3167, 3169,
+	 3181, 3187, 3191, 3203, 3209, 3217, 3221, 3229, 3251, 3253, 3257, 3259,
+	 3271, 3299, 3301, 3307, 3313, 3319, 3323, 3329, 3331, 3343, 3347, 3359,
+	 3361, 3371, 3373, 3389, 3391, 3407, 3413, 3433, 3449, 3457, 3461, 3463,
+	 3467, 3469, 3491, 3499, 3511, 3517, 3527, 3529, 3533, 3539, 3541, 3547,
+	 3557, 3559, 3571, 3581, 3583, 3593, 3607, 3613, 3617, 3623, 3631, 3637,
+	 3643, 3659, 3671, 3673, 3677, 3691, 3697, 3701, 3709, 3719, 3727, 3733,
+	 3739, 3761, 3767, 3769, 3779, 3793, 3797, 3803, 3821, 3823, 3833, 3847,
+	 3851, 3853, 3863, 3877, 3881, 3889, 3907, 3911, 3917, 3919, 3923, 3929,
+	 3931, 3943, 3947, 3967, 3989, 4001, 4003, 4007, 4013, 4019, 4021, 4027,
+	 4049, 4051, 4057, 4073, 4079, 4091, 4093, 4099, 4111, 4127, 4129, 4133,
+	 4139, 4153, 4157, 4159, 4177, 4201, 4211, 4217, 4219, 4229, 4231, 4241,
+	 4243, 4253, 4259, 4261, 4271, 4273, 4283, 4289, 4297, 4327, 4337, 4339,
+	 4349, 4357, 4363, 4373, 4391, 4397, 4409, 4421, 4423, 4441, 4447, 4451,
+	 4457, 4463, 4481, 4483, 4493, 4507, 4513, 4517, 4519, 4523, 4547, 4549,
+	 4561, 4567, 4583, 4591, 4597, 4603, 4621, 4637, 4639, 4643, 4649, 4651,
+	 4657, 4663, 4673, 4679, 4691, 4703, 4721, 4723, 4729, 4733, 4751, 4759,
+	 4783, 4787, 4789, 4793, 4799, 4801, 4813, 4817, 4831, 4861, 4871, 4877,
+	 4889, 4903, 4909, 4919, 4931, 4933, 4937, 4943, 4951, 4957, 4967, 4969,
+	 4973, 4987, 4993, 4999, 5003, 5009, 5011, 5021, 5023, 5039, 5051, 5059,
+	 5077, 5081, 5087, 5099, 5101, 5107, 5113, 5119, 5147, 5153, 5167, 5171,
+	 5179, 5189, 5197, 5209, 5227, 5231, 5233, 5237, 5261, 5273, 5279, 5281,
+	 5297, 5303, 5309, 5323, 5333, 5347, 5351, 5381, 5387, 5393, 5399, 5407,
+	 5413, 5417, 5419, 5431, 5437, 5441, 5443, 5449, 5471, 5477, 5479, 5483,
+	 5501, 5503, 5507, 5519, 5521, 5527, 5531, 5557, 5563, 5569, 5573, 5581,
+	 5591, 5623, 5639, 5641, 5647, 5651, 5653, 5657, 5659, 5669, 5683, 5689,
+	 5693, 5701, 5711, 5717, 5737, 5741, 5743, 5749, 5779, 5783, 5791, 5801,
+	 5807, 5813, 5821, 5827, 5839, 5843, 5849, 5851, 5857, 5861, 5867, 5869,
+	 5879, 5881, 5897, 5903, 5923, 5927, 5939, 5953, 5981, 5987, 6007, 6011,
+	 6029, 6037, 6043, 6047, 6053, 6067, 6073, 6079, 6089, 6091, 6101, 6113,
+	 6121, 6131, 6133, 6143, 6151, 6163, 6173, 6197, 6199, 6203, 6211, 6217,
+	 6221, 6229, 6247, 6257, 6263, 6269, 6271, 6277, 6287, 6299, 6301, 6311,
+	 6317, 6323, 6329, 6337, 6343, 6353, 6359, 6361, 6367, 6373, 6379, 6389,
+	 6397, 6421, 6427, 6449, 6451, 6469, 6473, 6481, 6491, 6521, 6529, 6547,
+	 6551, 6553, 6563, 6569, 6571, 6577, 6581, 6599, 6607, 6619, 6637, 6653,
+	 6659, 6661, 6673, 6679, 6689, 6691, 6701, 6703, 6709, 6719, 6733, 6737,
+	 6761, 6763, 6779, 6781, 6791, 6793, 6803, 6823, 6827, 6829, 6833, 6841,
+	 6857, 6863, 6869, 6871, 6883, 6899, 6907, 6911, 6917, 6947, 6949, 6959,
+	 6961, 6967, 6971, 6977, 6983, 6991, 6997, 7001, 7013, 7019, 7027, 7039,
+	 7043, 7057, 7069, 7079, 7103, 7109, 7121, 7127, 7129, 7151, 7159, 7177,
+	 7187, 7193, 7207, 7211, 7213, 7219, 7229, 7237, 7243, 7247, 7253, 7283,
+	 7297, 7307, 7309, 7321, 7331, 7333, 7349, 7351, 7369, 7393, 7411, 7417,
+	 7433, 7451, 7457, 7459, 7477, 7481, 7487, 7489, 7499, 7507, 7517, 7523,
+	 7529, 7537, 7541, 7547, 7549, 7559, 7561, 7573, 7577, 7583, 7589, 7591,
+	 7603, 7607, 7621, 7639, 7643, 7649, 7669, 7673, 7681, 7687, 7691, 7699,
+	 7703, 7717, 7723, 7727, 7741, 7753, 7757, 7759, 7789, 7793, 7817, 7823,
+	 7829, 7841, 7853, 7867, 7873, 7877, 7879, 7883, 7901, 7907, 7919 };
+
 	struct TransformState
 	{
 		glm::vec3 T;
@@ -67,7 +154,8 @@ namespace YumeRT
 		INSTANCE_EX_IOR_CHANGE = (1 << 12),
 		DISTANT_LIGHT_CHANGE = (1 << 13), 
 		SHAPE_LIGHT_CHANGE = (1 << 14),
-		INSTANCE_VOLUME_CHANGE = (1 << 15)
+		INSTANCE_VOLUME_CHANGE = (1 << 15),
+		VOLUME_CHANGE = (1 << 16)
 	};
 
 	class SceneManager
@@ -102,7 +190,8 @@ namespace YumeRT
 		void ClearInvaildTransform();
 		 
 		// here actually generate the transform matrix, because I need the geometry info
-		inline uint32_t AddPrimInstance(uint32_t geometry_idx, uint32_t transform_idx, uint32_t material_idx, float external_ior = 1.0f, int outer_vol_idx = -1, int inner_vol_idx = -1);
+		inline uint32_t AddCustom(const std::string &name, const std::string &file_path, float external_ior = 1.0f, int outer_vol_idx = -1, int inner_vol_idx = -1, bool is_volume_boundary = false);
+		inline uint32_t AddPrimInstance(uint32_t geometry_idx, uint32_t transform_idx, uint32_t material_idx, float external_ior = 1.0f, int outer_vol_idx = -1, int inner_vol_idx = -1, bool is_volume_boundary = false);
 		inline uint32_t RemovePrimInstance(uint32_t selected_prim_idx);
 		inline void ChangePrimVolumeAttribute(uint32_t prim_idx, const int *outer_vol_idx, const int *inner_vol_idx, const float *outer_ior);
 
@@ -136,6 +225,7 @@ namespace YumeRT
 
 		// volume
 		inline uint32_t AddVolume(const std::string &name, const glm::vec3 &sigma_s, const glm::vec3 &sigma_a);
+		inline void UpdateVolume(uint32_t volume_idx);
 
 		// a bunch of short function
 		inline const Scene& GetScene() const { return scene; }
@@ -149,7 +239,8 @@ namespace YumeRT
 		inline const std::vector<std::string>& GetMaterialNames() const { return material_names; }
 		inline const std::vector<DistantLight>& GetDistantLights() const { return distant_lights; }
 		inline const std::vector<std::string>& GetDistantLightNames() const { return distant_light_names; }
-		inline const std::vector<Volume>& GetVolumes()const { return volumes; }
+		inline const std::vector<Volume>& GetVolumes() const { return volumes; }
+		inline const std::vector<std::string>& GetVolumeNames() const { return volume_names; }
 
 		inline float GetTopBVHTime() const { return top_BVH_time; }
 		inline float GetBottomBVHTime() const { return bottom_BVH_time; }
@@ -201,6 +292,12 @@ namespace YumeRT
 			if (distant_light_idx >(uint32_t)distant_lights.size() - 1) { return nullptr; }
 			return &distant_lights[distant_light_idx];
 		}
+		inline Volume* GetVolume(uint32_t vol_idx) 
+		{
+			if (volumes.empty()) { return nullptr; }
+			if (vol_idx > (uint32_t)volumes.size() - 1) { return nullptr; }
+			return &volumes[vol_idx];
+		}
 
 		// get per-frame scene flag
 		inline bool IsSceneChange()
@@ -214,7 +311,8 @@ namespace YumeRT
 				(scene_change_flag & SCENECHANGE_FLAG::INSTANCE_EX_IOR_CHANGE) ||
 				(scene_change_flag & SCENECHANGE_FLAG::DISTANT_LIGHT_CHANGE) ||
 				(scene_change_flag & SCENECHANGE_FLAG::SHAPE_LIGHT_CHANGE) ||
-				(scene_change_flag & SCENECHANGE_FLAG::INSTANCE_VOLUME_CHANGE);
+				(scene_change_flag & SCENECHANGE_FLAG::INSTANCE_VOLUME_CHANGE) ||
+				(scene_change_flag & SCENECHANGE_FLAG::VOLUME_CHANGE);
 		}
 		inline void AddSceneFlag(SCENECHANGE_FLAG flag) { scene_change_flag |= flag; }
 		inline void ResetSceneFlag() { scene_change_flag = 0; }
@@ -262,9 +360,178 @@ namespace YumeRT
 		std::vector<Volume> volumes;
 		std::vector<std::string> volume_names;
 
+		std::vector<uint32_t> permute_table;
+
 		SceneManager() {}
 		
+		void InitHaltonPermuteTable();
+		void ProcessSceneNode(aiNode *node, const aiScene *scene, float external_ior, int outer_vol_idx, int inner_vol_idx, bool is_volume_boundary);
+		uint32_t CreateCustomMesh(const aiMesh *ai_mesh);
 	};
+
+	void SceneManager::InitHaltonPermuteTable()
+	{
+		size_t total_permutes = 0;
+		for (uint32_t i = 0; i < prime_count; ++i) { total_permutes += primes[i]; }
+
+		auto m_hash = [&](uint32_t base, uint32_t index)->uint32_t
+		{
+			const uint32_t PRIME32_2 = 2246822519U, PRIME32_3 = 3266489917U;
+			const uint32_t PRIME32_4 = 668265263U, PRIME32_5 = 374761393U;
+			uint32_t h32 = index + PRIME32_5 + base * PRIME32_3;
+			h32 = PRIME32_4 * ((h32 << 17) | (h32 >> (32 - 17)));
+			h32 = PRIME32_2 * (h32 ^ (h32 >> 15));
+			h32 = PRIME32_3 * (h32 ^ (h32 >> 13));
+			return h32 ^ (h32 >> 16);
+		};
+
+		auto m_shuffle = [&](uint32_t *digits, uint32_t prime) 
+		{
+			for (int i = 0; i < prime; ++i)
+			{
+				int rest_count = prime - i;
+				int target = i + m_hash(prime, i) % rest_count;
+				Swap(digits[i], digits[target]);
+			}
+		};
+
+		std::random_device rd;
+		std::mt19937 rng(rd());
+
+		permute_table.resize(total_permutes, 0);
+		uint32_t permutes_offset = 0;
+		for (uint32_t i = 0; i < prime_count; ++i)
+		{
+			uint32_t *permutes = permute_table.data() + permutes_offset;
+			for (uint32_t j = 0; j < primes[i]; ++j)
+			{
+				permutes[j] = j;
+			}
+			// m_shuffle(permutes, primes[i]);
+			std::shuffle(permutes, permutes + primes[i], rng);
+
+			permutes_offset += primes[i];
+		}
+
+		UPLOAD_TO_GPU(scene.sampler_data.halton_permute_table, permute_table.data(), sizeof(uint32_t) * permute_table.size());
+	}
+
+	void SceneManager::ProcessSceneNode(aiNode *node, const aiScene *scene, float external_ior, int outer_vol_idx, int inner_vol_idx, bool is_volume_boundary)
+	{
+		if (node == nullptr) { return; }
+
+		for (int i = 0; i < node->mNumMeshes; ++i)
+		{
+			aiMesh *mesh = scene->mMeshes[node->mMeshes[i]];
+
+			const std::string mesh_name = std::string(mesh->mName.C_Str());
+
+			uint32_t mesh_idx = CreateCustomMesh(mesh);
+
+			uint32_t material_idx = AddSurfaceMaterial(mesh_name + "_mtl");
+
+			AddPrimInstance(mesh_idx, AddTransform(), material_idx, external_ior, outer_vol_idx, inner_vol_idx, is_volume_boundary);
+		}
+
+		for (int i = 0; i < node->mNumChildren; ++i)
+		{
+			ProcessSceneNode(node->mChildren[i], scene, external_ior, outer_vol_idx, inner_vol_idx, is_volume_boundary);
+		}
+	}
+
+	uint32_t SceneManager::CreateCustomMesh(const aiMesh *ai_mesh)
+	{
+		const aiMesh &assimp_mesh = (*ai_mesh);
+
+		GeometryData mesh;
+		mesh.geometry_type = GEOMETRY_TYPE::TRIANGLE_MESH;
+
+		mesh.tri_mesh.triangle_offset = (uint32_t)triangles.size();
+		mesh.tri_mesh.vidx_offset = (uint32_t)vidxs.size();
+		mesh.tri_mesh.position_offset = (uint32_t)positions.size();
+		mesh.tri_mesh.nidx_offset = (uint32_t)nidxs.size();
+		mesh.tri_mesh.normal_offset = (uint32_t)normals.size();
+		mesh.tri_mesh.uvidx_offset = (uint32_t)uvidxs.size();
+		mesh.tri_mesh.texcoord_offset = (uint32_t)texcoords.size();
+
+		for (int i = 0; i < assimp_mesh.mNumFaces; ++i)
+		{
+			assert(assimp_mesh.mFaces[i].mNumIndices == 3);
+			
+			Triangle triangle;
+			triangle.id0 = (i * 3) + 0;
+			triangle.id1 = (i * 3) + 1;
+			triangle.id2 = (i * 3) + 2;
+			triangles.push_back(triangle);
+
+			for (int vid = 0; vid < assimp_mesh.mFaces[i].mNumIndices; ++vid)
+			{
+				uint32_t idx = assimp_mesh.mFaces[i].mIndices[vid];
+				vidxs.push_back(idx);
+				nidxs.push_back(idx);
+				uvidxs.push_back(idx);
+			}
+		}
+		
+		if (assimp_mesh.HasPositions())
+		{
+			for (int vert_idx = 0; vert_idx < assimp_mesh.mNumVertices; ++vert_idx)
+			{
+				glm::vec3 position;
+				position.x = assimp_mesh.mVertices[vert_idx].x;
+				position.y = assimp_mesh.mVertices[vert_idx].y;
+				position.z = assimp_mesh.mVertices[vert_idx].z;
+				positions.push_back(position);
+			}
+		}
+
+		if (assimp_mesh.HasNormals())
+		{
+			for (int n_idx = 0; n_idx < assimp_mesh.mNumVertices; ++n_idx)
+			{
+				glm::vec3 normal;
+				normal.x = assimp_mesh.mNormals[n_idx].x;
+				normal.y = assimp_mesh.mNormals[n_idx].y;
+				normal.z = assimp_mesh.mNormals[n_idx].z;
+				normals.push_back(normal);
+			}
+		}
+
+		if (assimp_mesh.HasTextureCoords(0))
+		{
+			for (int uv_idx = 0; uv_idx < assimp_mesh.mNumVertices; ++uv_idx)
+			{
+				glm::vec2 texcoord;
+				texcoord.x = assimp_mesh.mTextureCoords[0][uv_idx].x;
+				texcoord.y = assimp_mesh.mTextureCoords[0][uv_idx].y;
+				texcoords.push_back(texcoord);
+			}
+		}
+
+		mesh.tri_mesh.triangle_count = (uint32_t)triangles.size() - mesh.tri_mesh.triangle_offset;
+		mesh.tri_mesh.idx_count = (uint32_t)vidxs.size() - mesh.tri_mesh.vidx_offset;
+		mesh.tri_mesh.position_count =(uint32_t)positions.size() - mesh.tri_mesh.position_offset;
+		mesh.tri_mesh.normal_count = (uint32_t)normals.size() - mesh.tri_mesh.normal_offset;
+		mesh.tri_mesh.texcoord_count = (uint32_t)texcoords.size() - mesh.tri_mesh.texcoord_offset;
+
+		// add sphere
+		geometries.push_back(mesh);
+		// add its counter to 0
+		geometry_reference_counters.push_back(0);
+		// add its name, now only for display
+		geometry_names.push_back(std::string(assimp_mesh.mName.C_Str()));
+
+		GeometryData &mesh_data = geometries[geometries.size() - 1];
+		BottomBVHBuilder MeshBuilder(&mesh_data,
+			triangles.data() + mesh_data.tri_mesh.triangle_offset,
+			mesh_data.tri_mesh.triangle_count,
+			positions.data() + mesh_data.tri_mesh.position_offset,
+			vidxs.data() + mesh_data.tri_mesh.vidx_offset);
+		MeshBuilder.BuildMeshBVH(bottom_nodes, &bottom_BVH_time);
+
+		AddSceneFlag(SCENECHANGE_FLAG::GEOMETRY_ADD);
+		return (uint32_t)geometries.size() - 1;
+	}
 
 	void SceneManager::DestroyResources()
 	{
@@ -308,6 +575,8 @@ namespace YumeRT
 		scene.volume_count = 0;
 		FREE_GPU_RESOURCE(scene.volumes);
 
+		FREE_GPU_RESOURCE(scene.sampler_data.halton_permute_table);
+
 		assert(scene.camera == nullptr);
 		assert(scene.vidxs == nullptr);
 		assert(scene.positions == nullptr);
@@ -327,10 +596,13 @@ namespace YumeRT
 		assert(scene.shape_lights == nullptr);
 		assert(scene.shape_light_sample_table == nullptr);
 		assert(scene.volumes == nullptr);
+		assert(scene.sampler_data.halton_permute_table == nullptr);
 	}
 
 	void SceneManager::InitScene(int screen_width, int screen_height)
 	{
+		InitHaltonPermuteTable();
+
 		CornellBox(screen_width, screen_height);
 
 		UPLOAD_TO_GPU(scene.camera, &camera, sizeof(Camera));
@@ -931,11 +1203,29 @@ namespace YumeRT
 		AddSceneFlag(SCENECHANGE_FLAG::TRANSFORM_REMOVE);
 	}
 
-	inline uint32_t SceneManager::AddPrimInstance(uint32_t geometry_idx, uint32_t transform_idx, uint32_t material_idx, float external_ior, int outer_vol_idx, int inner_vol_idx)
+	inline uint32_t SceneManager::AddCustom(const std::string &name, 
+		const std::string &file_path, 
+		float external_ior, 
+		int outer_vol_idx, 
+		int inner_vol_idx, 
+		bool is_volume_boundary)
+	{
+		Assimp::Importer importer;
+		const aiScene *scene = importer.ReadFile(file_path, aiProcess_GenSmoothNormals | aiProcess_Triangulate);
+		if (scene == nullptr || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) || scene->mRootNode == nullptr)
+		{
+			printf("Fail to load model from path:\t %s \n", file_path.c_str());
+			importer.FreeScene();
+			return INVALID_UINT_32;
+		}
+		ProcessSceneNode(scene->mRootNode, scene, external_ior, outer_vol_idx, inner_vol_idx, is_volume_boundary);
+		importer.FreeScene();
+	}
+	inline uint32_t SceneManager::AddPrimInstance(uint32_t geometry_idx, uint32_t transform_idx, uint32_t material_idx, float external_ior, int outer_vol_idx, int inner_vol_idx, bool is_volume_boundary)
 	{
 		assert(geometry_idx >= 0 && geometry_idx < geometries.size());
 		assert(material_idx >= 0 && material_idx < materials.size());
-		prim_instances.push_back(PrimitiveInstance(geometry_idx, transform_idx, material_idx, external_ior, outer_vol_idx, inner_vol_idx));
+		prim_instances.push_back(PrimitiveInstance(geometry_idx, transform_idx, material_idx, external_ior, outer_vol_idx, inner_vol_idx, is_volume_boundary));
 		
 		geometry_reference_counters[geometry_idx]++;
 		material_reference_counters[material_idx]++;
@@ -1280,6 +1570,17 @@ namespace YumeRT
 		volume_names.push_back(name);
 		return (uint32_t)volumes.size() - 1;
 	}
+	inline void SceneManager::UpdateVolume(uint32_t volume_idx)
+	{
+		if (volumes.empty()) { return; }
+		if (volume_idx > (uint32_t)volumes.size() - 1) { return; }
+
+		assert(scene.volumes != nullptr);
+		CUDA_CHECK(cudaMemcpy(scene.volumes + volume_idx, &volumes[volume_idx], sizeof(Volume), cudaMemcpyHostToDevice));
+		CUDA_CHECK(cudaDeviceSynchronize());
+
+		AddSceneFlag(SCENECHANGE_FLAG::VOLUME_CHANGE);
+	}
 
 	void SceneManager::TestScene(int screen_width, int screen_height)
 	{
@@ -1329,7 +1630,7 @@ namespace YumeRT
 	void SceneManager::CornellBox(int screen_width, int screen_height)
 	{
 		uint32_t cube_idx = AddQube("Cube"), sphere_idx = AddSphere("Sphere", 1.0f);
-		uint32_t world_volume_idx = AddVolume("world volume", glm::vec3(0.08f), glm::vec3(0.025f));
+		uint32_t world_volume_idx = AddVolume("world volume", glm::vec3(0.085f), glm::vec3(0.001f));
 
 		glm::vec3 camera_from = glm::vec3(0.0f, 0.0f, 6.0f);
 		glm::vec3 camera_look = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -1343,7 +1644,19 @@ namespace YumeRT
 		camera.SetIOR(1.0f);
 		camera.SetVolumeIndex(world_volume_idx);
 
-		AddSurfaceMaterial("default material", glm::vec3(0.25f));
+		uint32_t default_mtl = AddSurfaceMaterial("default material", glm::vec3(0.25f));
+
+		uint32_t bunny_inner_vol_idx_0 = AddVolume("bunny_inner_vol_0", glm::vec3(0.085f), glm::vec3(0.001f));
+		uint32_t bunny_inner_vol_idx_1 = AddVolume("bunny_inner_vol_1", glm::vec3(0.085f), glm::vec3(0.001f));
+
+		// fog bound
+		AddPrimInstance(cube_idx,
+			AddTransform(glm::vec3(0.0f, 9.0f, -5.0f), glm::vec3(150.0f)),
+			default_mtl,
+			1.0f,
+			-1, world_volume_idx, true);
+
+		AddCustom("bunny", "E:\\C++ Huge Project\\GitRe\\YumeRT\\src\\model\\bunny\\bunny.obj", 1.0f, world_volume_idx, bunny_inner_vol_idx_0, false);
 
 		// left
 		AddPrimInstance(cube_idx,
@@ -1399,21 +1712,21 @@ namespace YumeRT
 
 		// light
 		AddPrimInstance(cube_idx,
-			AddTransform(glm::vec3(-3.0f, 4.15f, -5.0f), glm::vec3(2.0f, 0.3f, 2.0f)),
-			AddLightMaterial("ceil light", glm::vec3(1.0f), 15.0f),
+			AddTransform(glm::vec3(-3.0f, 4.15f, -5.0f), glm::vec3(0.3, 0.3f, 0.3)),
+			AddLightMaterial("ceil light", glm::vec3(1.0f), 150.0f),
 			1.0f,
 			world_volume_idx, -1);
 
 		// sphere light
 		AddPrimInstance(sphere_idx,
-			AddTransform(glm::vec3(3.0f, 4.15f, -5.0f), glm::vec3(0.3f, 0.3f, 0.3f)),
-			AddLightMaterial("sphere light", glm::vec3(1.0f), 36.0f),
+			AddTransform(glm::vec3(3.0f, 4.15f, -5.0f), glm::vec3(0.15f, 0.15f, 0.15f)),
+			AddLightMaterial("sphere light", glm::vec3(1.0f), 300.0f),
 			1.0f,
 			world_volume_idx, -1);
 
 		// ground
 		AddPrimInstance(cube_idx,
-			AddTransform(glm::vec3(0.0f, -5.55f, 0.0f), glm::vec3(10000.0, 1.0f, 10000.0f)),
+			AddTransform(glm::vec3(0.0f, -5.55f, 0.0f), glm::vec3(135.0, 1.0f, 135.0f)),
 			AddSurfaceMaterial("ground", glm::vec3(0.55f, 0.55f, 0.55f), glm::vec3(0.0f), 0.2, 0.2, 1.3, 0.0f, 0.0f, 0.0f),
 			1.0f,
 			world_volume_idx, -1);

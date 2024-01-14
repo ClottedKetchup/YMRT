@@ -146,7 +146,9 @@ namespace YumeRT
 				glm::vec3 sample_position = p0 * barycentric.x + p1 * barycentric.y + p2 * barycentric.z;
 				glm::vec3 sample_normal = n0 * barycentric.x + n1 * barycentric.y + n2 * barycentric.z;
 				glm::vec3 world_space_normal = glm::normalize(glm::vec3(glm::transpose(wto) * glm::vec4(sample_normal, 0.0f)));
-				if (-glm::dot(world_space_normal, wi) <= 0.0f)
+				
+				float cos_theta = -glm::dot(world_space_normal, wi);
+				if (cos_theta <= 0.0f)
 				{
 					*pdf = 0.0f;
 					return glm::vec3(0.0f);
@@ -154,7 +156,9 @@ namespace YumeRT
 
 				*light_sample_pos = glm::vec3(otw * glm::vec4(sample_position, 1.0f));
 				*light_sample_geo_normal = glm::normalize(glm::vec3(glm::transpose(wto) * glm::vec4(geo_normal, 0.0f)));
-				*pdf = glm::dot((*light_sample_pos - position), (*light_sample_pos - position)) / (glm::max(-glm::dot(world_space_normal, wi) * area, 1E-8f));
+				
+				float distance = glm::length(*light_sample_pos - position);
+				*pdf = Sqr(distance) * SafeRcp(area * cos_theta);
 				return light_mtl.light_material.light_color * light_mtl.light_material.intensity;
 			}
 			else if(geometry.geometry_type == SPHERE)
@@ -204,7 +208,6 @@ namespace YumeRT
 
 		__device__ __host__ inline glm::vec3 SampleLi(const Scene &scene,
 																				const glm::vec3& position,
-																				const glm::vec3 &normal,
 																				float u0,
 																				float u1,
 																				glm::vec3 *wi,
@@ -222,6 +225,7 @@ namespace YumeRT
 			if (geometry.geometry_type == TRIANGLE_MESH)
 			{
 				// TODO: fix bug
+				// TODO: is noisy
 				const glm::vec3 *mesh_positions = scene.positions + geometry.tri_mesh.position_offset;
 				const uint32_t *mesh_vidxs = scene.vidxs + geometry.tri_mesh.vidx_offset;
 				const Triangle *mesh_triangles = scene.triangles + geometry.tri_mesh.triangle_offset;
@@ -255,10 +259,20 @@ namespace YumeRT
 
 				*light_sample_pos = glm::vec3(otw * glm::vec4(sample_position, 1.0f));
 				*light_sample_geo_normal = glm::normalize(glm::vec3(glm::transpose(wto) * glm::vec4(geo_normal, 0.0f)));
-				*wi = glm::normalize(*light_sample_pos - position);
-				*pdf = glm::dot((*light_sample_pos - position), (*light_sample_pos - position)) / (glm::max(-area * glm::dot(world_space_normal, *wi), 1E-8f));
 
-				return  -glm::dot(world_space_normal, *wi) > 0.0f? light_mtl.light_material.light_color * light_mtl.light_material.intensity / (*pdf) : glm::vec3(0.0f);
+				float distance = glm::length(*light_sample_pos - position);
+				*wi = (*light_sample_pos - position) * SafeRcp(distance);
+
+				float cos_theta = -glm::dot(world_space_normal, *wi);
+				if (cos_theta <= 0.0f)
+				{
+					*pdf = 0.0f;
+					return glm::vec3(0.0f);
+				}
+
+				*pdf = Sqr(distance) * SafeRcp(area * cos_theta);
+
+				return   light_mtl.light_material.light_color * light_mtl.light_material.intensity / (*pdf);
 			}
 			else if (geometry.geometry_type == SPHERE)
 			{
@@ -333,7 +347,6 @@ namespace YumeRT
 		// return light's energy
 		__device__ __host__ inline glm::vec3 SampleLi(const Scene &scene,
 																				 const glm::vec3& position, 
-																				 const glm::vec3 &normal, 
 																				 float u0, 
 																				 float u1,
 																				 glm::vec3 *wi, 

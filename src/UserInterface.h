@@ -152,6 +152,7 @@ namespace YumeRT
 		static uint32_t m_width;
 		static uint32_t m_height;
 		static uint32_t m_display_aov_idx;
+		static bool m_lock_camera;
 		static bool m_mouse_on_GUI;
 		static uint32_t m_click_pixel_x, m_click_pixel_y;
 		static glm::vec4 m_click_color;
@@ -163,6 +164,7 @@ namespace YumeRT
 		static bool m_show_render_menu;
 		static bool m_show_camera_menu;
 		static bool m_show_light_menu;
+		static bool m_show_volume_menu;
 
 		UserInterface() {}
 
@@ -182,6 +184,8 @@ namespace YumeRT
 
 		inline void RenderLightList();
 
+		inline void RenderVolumeList();
+
 		inline void RenderInstanceMenu();
 
 		inline void ExitUI();
@@ -194,6 +198,7 @@ namespace YumeRT
 	uint32_t UserInterface::m_height = 0;
 	uint32_t UserInterface::m_display_aov_idx = 0;
 	bool UserInterface::m_mouse_on_GUI = false;
+	bool UserInterface::m_lock_camera = false;
 
 	uint32_t UserInterface::m_click_pixel_x = 0;
 	uint32_t UserInterface::m_click_pixel_y = 0;
@@ -206,6 +211,7 @@ namespace YumeRT
 	bool UserInterface::m_show_render_menu = false;
 	bool UserInterface::m_show_camera_menu = false;
 	bool UserInterface::m_show_light_menu = false;
+	bool UserInterface::m_show_volume_menu = false;
 
 	void FramebufferSizeCallback(GLFWwindow* window, int width, int height)
 	{
@@ -255,7 +261,7 @@ namespace YumeRT
 		{
 			return;
 		}
-		if (UserInterface::trackball.start_tracking)
+		if (!UserInterface::m_lock_camera && UserInterface::trackball.start_tracking)
 		{
 			double x_pos, y_pos;
 			glfwGetCursorPos(window, &x_pos, &y_pos);
@@ -285,6 +291,7 @@ namespace YumeRT
 
 	void ScrollCallback(GLFWwindow * window, double xoffset, double yoffset)
 	{
+		if (UserInterface::m_lock_camera) { return; }
 		float fov = UserInterface::trackball.camera.GetFov();
 		fov -= glm::radians(yoffset);
 		UserInterface::trackball.camera.SetFov(glm::clamp(fov, glm::radians(1.0f), glm::radians(90.0f)));
@@ -324,19 +331,19 @@ namespace YumeRT
 		{
 			glfwSetWindowShouldClose(window, true);
 		}
-		else if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+		else if (!UserInterface::m_lock_camera && glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
 		{
 			trackball.CameraMoveForward();
 		}
-		else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+		else if (!UserInterface::m_lock_camera && glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
 		{
 			trackball.CameraMoveBackward();
 		}
-		else if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+		else if (!UserInterface::m_lock_camera && glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
 		{
 			trackball.CameraMoveLeft();
 		}
-		else if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+		else if (!UserInterface::m_lock_camera && glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
 		{
 			trackball.CameraMoveRight();
 		}
@@ -447,20 +454,21 @@ namespace YumeRT
 	{
 		if (!m_show_camera_menu) { return; }
 		ImGui::Begin("Camera Setting");
+		if (ImGui::Checkbox("Lock Camera", &UserInterface::m_lock_camera)) {}
 		if (ImGui::InputFloat("Move Speed", &UserInterface::trackball.move_speed))
 		{}
 		if (ImGui::InputFloat("Rotate Speed", &UserInterface::trackball.rotate_speed))
 		{}
-		static float camera_ior = 1.0f;
+		static float camera_ior = trackball.camera.GetIOR();
 		if (ImGui::InputFloat("External IOR", &camera_ior))
 		{
 			camera_ior = glm::max(camera_ior, 0.001f);
 			UserInterface::GetCamera().SetIOR(camera_ior);
 		}
-		static int camera_volume_idx = -1;
+		static int camera_volume_idx = trackball.camera.GetVolumeIndex();
 		if (ImGui::InputInt("Volume Index", &camera_volume_idx))
 		{
-			camera_volume_idx = glm::clamp(camera_volume_idx, 0, (int)(scene_manager->GetVolumes().size()) - 1);
+			// camera_volume_idx = glm::clamp(camera_volume_idx, 0, (int)(scene_manager->GetVolumes().size()) - 1);
 			UserInterface::GetCamera().SetVolumeIndex(camera_volume_idx);
 		}
 		ImGui::End();
@@ -824,6 +832,63 @@ namespace YumeRT
 		ImGui::End();
 	}
 
+	inline void UserInterface::RenderVolumeList()
+	{
+		if (!m_show_volume_menu) { return; }
+		ImGui::Begin("Volume List");
+
+		const std::vector<Volume> &volumes = scene_manager->GetVolumes();
+		const std::vector<std::string> &volume_names = scene_manager->GetVolumeNames();
+
+		ImGui::Text("Total Volume Count: %d", (uint32_t)volumes.size());
+		ImGui::Text("Volumes:");
+
+		static uint32_t highlight_volume_idx = INVALID_UINT_32;
+		highlight_volume_idx = glm::clamp(highlight_volume_idx, 0u, (uint32_t)volumes.size() - 1);
+		ImVec2 button_size;
+		if (ImGui::BeginListBox(""))
+		{
+			button_size = ImGui::GetItemRectSize();
+			for (uint32_t vol_idx = 0; vol_idx < (uint32_t)volumes.size(); ++vol_idx)
+			{
+				bool button_press = false;
+				if (vol_idx == highlight_volume_idx)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(250, 4, 4, 122));
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(250, 4, 4, 255));
+					button_press = ImGui::Button(volume_names[vol_idx].c_str(), button_size);
+					ImGui::PopStyleColor();
+					ImGui::PopStyleColor();
+				}
+				else
+				{
+					button_press = ImGui::Button(volume_names[vol_idx].c_str(), button_size);
+				}
+
+				if (button_press) { highlight_volume_idx = vol_idx; }
+			}
+			ImGui::EndListBox();
+		}
+
+		ImGui::Separator();
+		Volume *volume_ptr = scene_manager->GetVolume(highlight_volume_idx);
+		if (volume_ptr != nullptr)
+		{
+			Volume &volume = (*volume_ptr);
+			ImGui::Text("Volume Attribute");
+			if (ImGui::ColorEdit3("Scatter Coefficient ", (float*)(&volume.sigma_s), ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR))
+			{
+				scene_manager->UpdateVolume(highlight_volume_idx);
+			}
+			if (ImGui::ColorEdit3("Absorb Coefficient ", (float*)(&volume.sigma_a), ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR))
+			{
+				scene_manager->UpdateVolume(highlight_volume_idx);
+			}
+		}
+		
+		ImGui::End();
+	}
+
 	inline void UserInterface::RenderInstanceMenu()
 	{
 		if (!m_show_move_control_menu) { return; }
@@ -842,12 +907,16 @@ namespace YumeRT
 			}
 			if (ImGui::InputInt("External Volume Index", &prim_inst.outer_volume_idx))
 			{
-				prim_inst.outer_volume_idx = glm::clamp(prim_inst.outer_volume_idx, 0, (int)(scene_manager->GetVolumes().size()) - 1);
+				// no need to clamp volume idx
 				scene_manager->ChangePrimVolumeAttribute(m_click_prim_idx, nullptr, nullptr, nullptr);
 			}
 			if (ImGui::InputInt("Internal Volume Index:", &prim_inst.inner_volume_idx))
 			{
-				prim_inst.inner_volume_idx = glm::clamp(prim_inst.inner_volume_idx, 0, (int)(scene_manager->GetVolumes().size()) - 1);
+				// no need to clamp volume idx, why?
+				scene_manager->ChangePrimVolumeAttribute(m_click_prim_idx, nullptr, nullptr, nullptr);
+			}
+			if (ImGui::Checkbox("Treat as Volume Boundary", &prim_inst.is_volume_boundary)) 
+			{
 				scene_manager->ChangePrimVolumeAttribute(m_click_prim_idx, nullptr, nullptr, nullptr);
 			}
 			ImGui::Text("Instance Geometry: %s", scene_manager->GetGeometryNames()[prim_inst.geometry_idx].c_str());
@@ -1109,6 +1178,11 @@ namespace YumeRT
 			ImGui::Checkbox("Show Light List", &UserInterface::m_show_light_menu);
 		}
 
+		if (ImGui::CollapsingHeader("Volume"))
+		{
+			ImGui::Checkbox("Show Volume List", &UserInterface::m_show_volume_menu);
+		}
+
 		ImGui::End();
 	}
 
@@ -1135,6 +1209,7 @@ namespace YumeRT
 		RenderGeometryList();
 		RenderMaterialList();
 		RenderLightList();
+		RenderVolumeList();
 
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
