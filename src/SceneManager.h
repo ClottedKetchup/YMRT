@@ -407,9 +407,8 @@ namespace YumeRT
 			{
 				permutes[j] = j;
 			}
-			// m_shuffle(permutes, primes[i]);
-			std::shuffle(permutes, permutes + primes[i], rng);
 
+			std::shuffle(permutes, permutes + primes[i], rng);
 			permutes_offset += primes[i];
 		}
 

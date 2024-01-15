@@ -83,7 +83,7 @@ namespace YumeRT
 			channel = 2;
 		}
 
-		float free_path_length = -glm::log(1.0f - u1) / sigma_t[channel];
+		float free_path_length = sigma_t[channel] > 0.0f? (-glm::log(1.0f - u1) / sigma_t[channel]) : 1E36f;
 		bool volume_scatter = free_path_length < t_max;
 		glm::vec3 tr = glm::exp(-sigma_t * glm::min(t_max, free_path_length));
 		float pdf = volume_scatter ?
