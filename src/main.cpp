@@ -27,6 +27,5 @@ int main(int argc, char *argv[])
 	{
 		std::cout << err.what() << std::endl;
 	}
-
 	return 0;
 }

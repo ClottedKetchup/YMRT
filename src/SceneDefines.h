@@ -71,9 +71,16 @@ namespace YumeRT
 
 		struct {
 			uint32_t *halton_permute_table = nullptr;
+			uint64_t *sobol_matrices = nullptr;
 		}sampler_data;
 	};
 
+	enum 
+	{
+		PCG_SAMPLER = 0,
+		HALTON_SAMPLER = 1,
+		SOBOL_SAMPLER = 2
+	};
 	struct RenderSetting
 	{
 		int ssp;
@@ -81,12 +88,13 @@ namespace YumeRT
 		float gamma;
 		float exposure;
 		int max_frame_count;
+		int sampler_type;
 		bool enable_distant_light;
 		bool enable_volume_scattering;
 		bool enable_env_light;
 		bool enable_russian_roulette;
 
-		__device__ __host__ RenderSetting(): ssp(1), ray_depth(2), gamma(2.2f), exposure(1.0f), 
+		__device__ __host__ RenderSetting(): ssp(1), ray_depth(2), gamma(2.2f), exposure(1.0f), sampler_type(0),
 			max_frame_count(-1), enable_distant_light(false), enable_env_light(true), enable_russian_roulette(false), enable_volume_scattering(true)  {}
 	};
 };

@@ -53,7 +53,7 @@ namespace YumeRT
 																		 const float t_max, 
 																		 glm::vec3 *tr_weight, 
 																		 float *sampled_distance, 
-																		 PCGSampler &sampler)
+																		 RandomSampler &sampler)
 	{
 		*tr_weight = glm::vec3(1.0f);
 		if (scene.volumes == nullptr || scene.volume_count == 0) { return false; }
@@ -99,7 +99,7 @@ namespace YumeRT
 
 	__device__ glm::vec3 TraceTr(const Scene& scene, 
 												const Ray& ray,
-		PCGSampler &sampler)
+		RandomSampler &sampler)
 	{
 		glm::vec3 tr(1.0f);
 		if (scene.volumes == nullptr || scene.volume_count == 0) { return tr; }
@@ -158,7 +158,7 @@ namespace YumeRT
 																const glm::vec3 &hit_position, 
 																const glm::vec3 &hit_shading_normal, 
 																const glm::vec3 &hit_geometry_normal,
-		PCGSampler &sampler)
+		RandomSampler &sampler)
 	{
 		assert(scene.distant_lights != nullptr);
 		if (scene.distant_lights == nullptr) {return glm::vec3(0.0f);}
@@ -261,7 +261,7 @@ namespace YumeRT
 																			 const Volume &volume,
 																			 const Ray &ray,
 																			 const glm::vec3 &volume_hit_position,
-		PCGSampler &sampler)
+		RandomSampler &sampler)
 	{
 		if (scene.distant_lights == nullptr) { return glm::vec3(0.0f); }
 		auto random = [&]()->float {return sampler.Random1D(); };
@@ -347,7 +347,7 @@ namespace YumeRT
 																const glm::vec3 &hit_position,
 																const glm::vec3 &hit_shading_normal,
 																const glm::vec3 &hit_geometry_normal,
-		PCGSampler &sampler)
+		RandomSampler &sampler)
 	{
 		if (scene.shape_light_count == 0 || scene.shape_lights == nullptr) { return glm::vec3(0.0f); }
 		auto random = [&]()->float {return sampler.Random1D(); };
@@ -462,7 +462,7 @@ namespace YumeRT
 																			const Volume &volume,
 																			const Ray &ray,
 																			const glm::vec3 &volume_hit_position, 
-		PCGSampler &sampler)
+		RandomSampler &sampler)
 	{
 		if (scene.shape_light_count == 0 || scene.shape_lights == nullptr) { return glm::vec3(0.0f); }
 		auto random = [&]()->float {return sampler.Random1D(); };
@@ -548,7 +548,8 @@ namespace YumeRT
 	}
 
 	__global__ void RenderImage(Scene *scene_ptr,
-													const RenderSetting render_setting,
+													const RenderSetting *render_setting_ptr,
+													const HaltonEnumerator *halton_enumerator_ptr,
 													const int frame_count,
 													glm::vec4 *image,
 													uint32_t *prim_idx_buffer,
@@ -573,23 +574,44 @@ namespace YumeRT
 		uint32_t py = tile_y * TILE_Y_RES + tile_pixel_y;
 		if (!(px < width && py < height)) { return; }
 		uint32_t pixel_idx = py * width + px;
+		
 		Scene &scene = *scene_ptr;
+		const RenderSetting &render_setting = *render_setting_ptr;
+		const HaltonEnumerator &halton_enumerator = *halton_enumerator_ptr;
 
 		glm::vec3 col(0.0f);
 		for (int sample_idx = 0; sample_idx < render_setting.ssp; ++sample_idx)
 		{
-			PCGSampler sampler(pixel_idx, sample_idx, 0, frame_count);
+			RandomSampler sampler;
+			glm::vec2 pixel_offset;
+			if (render_setting.sampler_type == PCG) 
+			{
+				sampler.InitPCGSampler(pixel_idx, sample_idx, 0, frame_count - 1);
+				
+				pixel_offset = sampler.SamplePixelOffset();
+			}
+			else if (render_setting.sampler_type == HALTON)
+			{
+				const uint64_t sample_index = halton_enumerator.GetIndex(px, py, (frame_count - 1) * render_setting.ssp + sample_idx);
+				sampler.InitHaltonSampler(sample_index, 2, scene.sampler_data.halton_permute_table);
 
-			//// mute temporally
-			//HaltonSampler sampler(render_setting.ssp, 
-			//	sample_idx, 
-			//	frame_count - 1, 
-			//	0, 
-			//	pixel_idx, 
-			//	render_setting.max_frame_count, 
-			//	scene.sampler_data.halton_permute_table);
+				pixel_offset = sampler.SamplePixelOffset();
+				pixel_offset.x = halton_enumerator.ScaleX(pixel_offset.x) - float(px);
+				pixel_offset.y = halton_enumerator.ScaleY(pixel_offset.y) - float(py);
+				pixel_offset = glm::clamp(pixel_offset, glm::vec2(0.000001f), glm::vec2(0.999999f));
+			}
+			else if (render_setting.sampler_type == SOBOL)
+			{
+				sampler.InitSobolSampler(render_setting.ssp, sample_idx, frame_count - 1, 1, pixel_idx, render_setting.max_frame_count, scene.sampler_data.sobol_matrices);
+			
+				pixel_offset = sampler.SamplePixelOffset();
+			}
+			else 
+			{
+				pixel_offset = glm::vec2(0.5f);
+			}
 
-			Ray ray = scene.camera->generateRay(float(px + sampler.Random1D()) / float(width), float(py + sampler.Random1D()) / float(height));
+			Ray ray = scene.camera->generateRay(float(px + pixel_offset.x) / float(width), float(py + pixel_offset.y) / float(height));
 
 			glm::vec3 L(0.0f), throughput(1.0f);
 			for (int depth = 1;;)
@@ -778,17 +800,24 @@ namespace YumeRT
 		uint32_t tile_count_y = (uint32_t)glm::ceil(float(height) / float(TILE_Y_RES));
 		uint32_t total_pixel_count = tile_count_x * TILE_X_RES  * tile_count_y * TILE_Y_RES;
 
-		RenderSetting rt_settings = render_setting;
-
 		auto start_time = std::chrono::high_resolution_clock::now();
 		{
 			Scene *scene_ptr = nullptr;
 			UPLOAD_TO_GPU(scene_ptr, &scene, sizeof(Scene));
 
+			RenderSetting *render_setting_ptr = nullptr;
+			UPLOAD_TO_GPU(render_setting_ptr, &render_setting, sizeof(RenderSetting));
+
+			HaltonEnumerator halton_enumerator(width, height);
+			HaltonEnumerator *halton_enumerator_ptr = nullptr;
+			UPLOAD_TO_GPU(halton_enumerator_ptr, &halton_enumerator, sizeof(HaltonEnumerator));
+			assert(halton_enumerator.MaxFrameCount() > (uint64_t)render_setting.max_frame_count);
+
 			dim3 block_dim(32, 1, 1);
 			dim3 grid_dim(Round_Block_Count(total_pixel_count, block_dim.x), 1, 1);
 			void *args[] = {&scene_ptr, 
-									&rt_settings, 
+									&render_setting_ptr, 
+									&halton_enumerator_ptr,
 									&frame_count,
 									&image, 
 									&prim_idx_buffer, 
@@ -800,6 +829,8 @@ namespace YumeRT
 			CUDA_CHECK(cudaStreamSynchronize(0));
 
 			FREE_GPU_RESOURCE(scene_ptr);
+			FREE_GPU_RESOURCE(render_setting_ptr);
+			FREE_GPU_RESOURCE(halton_enumerator_ptr);
 		}
 
 		auto end_time = std::chrono::high_resolution_clock::now();

@@ -404,6 +404,24 @@ namespace YumeRT
 			ImGui::PopStyleColor();
 		}
 
+		static int sampler_idx = 0;
+		static const char* sampler_names[3] = { "PCG", "Halton", "Sobol"};
+		if (ImGui::BeginCombo("Sampler", sampler_names[sampler_idx]))
+		{
+			for (int sampler_type = PCG_SAMPLER; sampler_type <= SOBOL_SAMPLER; ++sampler_type)
+			{
+				if (ImGui::Selectable(sampler_names[sampler_type])) 
+				{ 
+					sampler_idx = sampler_type;
+					render_setting.sampler_type = sampler_type;
+
+					rt_renderer->SetRenderSettingChange(true);
+				}
+			}
+			ImGui::EndCombo();
+		}
+
+		ImGui::Separator();
 		ImGui::Checkbox("Disable Selected Effect", &highlight_flag);
 		if (ImGui::Checkbox("Distant Light", &render_setting.enable_distant_light))
 		{

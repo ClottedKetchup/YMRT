@@ -210,6 +210,46 @@ namespace YumeRT
 	3674994
 	};
 
+	// https://lemire.me/blog/2018/08/15/fast-strongly-universal-64-bit-hashing-everywhere/
+	__device__ __host__ inline uint64_t Murmur64(uint64_t h) {
+		h ^= h >> (uint64_t)33;
+		h *= (uint64_t)0xff51afd7ed558ccd;
+		h ^= h >> (uint64_t)33;
+		h *= (uint64_t)0xc4ceb9fe1a85ec53;
+		h ^= h >> (uint64_t)33;
+		return h;
+	}
+
+	// from ChatGPT
+	__device__ __host__ inline uint64_t MurmurHash64(uint64_t input) {
+		const uint64_t m = 0xc6a4a7935bd1e995ull;
+		const int r = 47;
+
+		uint64_t h = 0x8445d61a4e774912ULL ^ (8ull * m);
+		input *= m;
+		input ^= input >> r;
+		input *= m;
+		h ^= input;
+		h *= m;
+		h ^= h >> r;
+		h *= m;
+		h ^= h >> r;
+
+		return h;
+	}
+
+	// https://gist.github.com/badboy/6267743
+	__device__ __host__ inline uint64_t Hash64shift(uint64_t key)
+	{
+		key = (~key) + (key << 21); // key = (key << 21) - key - 1;
+		key = key ^ (key >> 24);
+		key = (key + (key << 3)) + (key << 8); // key * 265
+		key = key ^ (key >> 14);
+		key = (key + (key << 2)) + (key << 4); // key * 21
+		key = key ^ (key >> 28);
+		key = key + (key << 31);
+		return key;
+	}
 
 	// https://www.shadertoy.com/view/XlGcRh
 	__device__ __host__ inline uint32_t XxHash32(uint32_t p)
@@ -325,11 +365,119 @@ namespace YumeRT
 		return v;
 	}
 
+	struct HaltonEnumerator
+	{
+		__device__ __host__ HaltonEnumerator(int width, int height)
+		{
+			int scale2 = 1;
+			exp2 = 0;
+			while (scale2 < width)
+			{
+				scale2 *= 2;
+				++exp2;
+			}
+
+			int scale3 = 1;
+			exp3 = 0;
+			while (scale3 < height)
+			{
+				scale3 *= 3;
+				++exp3;
+			}
+
+			int w = scale2, h = scale3;
+			MultiplicativeInverses mi = ExtendedEuclid(h, w);
+			const int inv2 = mi.x < 0 ? (mi.x + w) : (mi.x % w);
+			const int inv3 = mi.y < 0 ? (mi.y + h) : (mi.y % h);
+			
+			m_x = h * inv2;
+			m_y = w * inv3;
+			m_increment = w * h;
+			m_x_scale = float(scale2);
+			m_y_scale = float(scale3);
+		}
+		__device__ __host__ inline uint64_t GetIndex(int px, int py, int ith_pixel_sample) const
+		{
+			const uint64_t ix = Halton2Inverse(px, exp2);
+			const uint64_t iy = Halton3Inverse(py, exp3);
+			const uint64_t offset = (ix * (uint64_t)m_x + iy * (uint64_t)m_y) % m_increment;
+			return offset + (uint64_t)ith_pixel_sample * (uint64_t)m_increment;
+		}
+		__device__ __host__ inline float ScaleX(float sample_x) const
+		{
+			return sample_x * m_x_scale;
+		}
+		__device__ __host__ inline float ScaleY(float sample_y) const
+		{
+			return sample_y * m_y_scale;
+		}
+		__device__ __host__ inline uint64_t MaxFrameCount()const 
+		{
+			return uint64_t(0xFFFFFFFFFFFFFFFF) / uint64_t(m_increment);
+		}
+
+	private:
+		float m_x_scale;
+		float m_y_scale;
+		int m_x;
+		int m_y;
+		int exp2;
+		int exp3;
+		int m_increment;
+
+		struct MultiplicativeInverses
+		{
+			int x;
+			int y;
+		};
+
+		__device__ __host__ inline MultiplicativeInverses ExtendedEuclid(const int a, const int b) const
+		{
+			if (b == 0)
+			{
+				MultiplicativeInverses mi;
+				mi.x = 1;
+				mi.y = 0;
+				return mi;
+			}
+
+			MultiplicativeInverses m_lower = ExtendedEuclid(b, a % b);
+			MultiplicativeInverses m_upper;
+			m_upper.x = m_lower.y;
+			m_upper.y = m_lower.x - (a / b) * m_lower.y;
+			return m_upper;
+		}
+		__device__ __host__ inline uint64_t Halton2Inverse(uint64_t index, uint64_t digit_count) const
+		{
+			uint64_t i = 0, result = 0;
+			while (i < digit_count)
+			{
+				result = result * 2 + (index % 2);
+				index /= 2;
+				++i;
+			}
+			return result;
+		}
+		__device__ __host__ inline uint64_t Halton3Inverse(uint64_t index, uint64_t digit_count) const
+		{
+			uint64_t i = 0, result = 0;
+			while (i < digit_count)
+			{
+				result = result * 3 + (index % 3);
+				index /= 3;
+				++i;
+			}
+			return result;
+		}
+	};
+
 	// this sampler is for a single sample in a pixel
 	struct PCGSampler 
 	{
 	public:
-		__device__ __host__ PCGSampler(uint32_t pixel_idx, uint32_t pixel_sample_idx, uint32_t dim_idx, uint32_t frame_idx) :pixel_idx(pixel_idx), pixel_sample_idx(pixel_sample_idx), dim_idx(dim_idx), frame_idx(frame_idx){}
+		__device__ __host__ PCGSampler() {}
+		__device__ __host__ PCGSampler(uint32_t pixel_idx, uint32_t pixel_sample_idx, uint32_t dim_idx, uint32_t frame_idx) 
+			:pixel_idx(pixel_idx), pixel_sample_idx(pixel_sample_idx), dim_idx(dim_idx), frame_idx(frame_idx){}
 		__device__ __host__ inline float Random1D() 
 		{
 			glm::uvec4 pcg_num = pcg4d(glm::uvec4(pixel_idx, dim_idx, pixel_sample_idx, frame_idx));
@@ -337,6 +485,10 @@ namespace YumeRT
 			return pcg_num.x / float(uint32_t(INVALID_UINT_32));
 		}
 		__device__ __host__ inline glm::vec2 Random2D()
+		{
+			return glm::vec2(Random1D(), Random1D());
+		}
+		__device__ __host__ inline glm::vec2 SamplePixelOffset()
 		{
 			return glm::vec2(Random1D(), Random1D());
 		}
@@ -348,34 +500,31 @@ namespace YumeRT
 		uint32_t frame_idx;
 	};
 
+	// TODO: use better method to map pixel idx to sample idx, especially for sobol sampler
 	struct HaltonSampler
 	{
 	public:
-		__device__ __host__ HaltonSampler(int pixel_sample_count,
-																 int pixel_sample_idx,
-																 int frame_idx, 
-																 int dim_offset, 
-																 int pixel_idx,
-																 int max_frame_count,
-															     uint32_t *permute_table): dim_idx(dim_offset), permutes(permute_table)
+		__device__ __host__ HaltonSampler() {}
+		__device__ __host__ HaltonSampler(uint64_t sample_index, int dim_offset, uint32_t *permute_table): dim_idx(dim_offset), permutes(permute_table), sample_idx(sample_index)
 		{
-			const uint64_t sample_stride = (uint64_t)(max_frame_count > 0 ? max_frame_count : 82944u);
-			sample_idx = (uint64_t)pixel_idx * sample_stride * (uint64_t)pixel_sample_count 
-				               + (uint64_t)((frame_idx % sample_stride) * pixel_sample_count + pixel_sample_idx);
+			assert(dim_offset >= 2);
 		}
 		__device__ __host__ inline float Random1D()
 		{
 			float r = RadicalInversion(sample_idx, m_primes[dim_idx], permutes + m_prime_sums[dim_idx]);
 			++dim_idx;
+			if (dim_idx >= 1000) { dim_idx = 2; }
 			return r;
 		}
 		__device__ __host__ inline glm::vec2 Random2D()
 		{
-			glm::vec2 r;
-			r.x = RadicalInversion(sample_idx, m_primes[dim_idx], permutes + m_prime_sums[dim_idx]);
-			r.y = RadicalInversion(sample_idx, m_primes[dim_idx + 1], permutes + m_prime_sums[dim_idx + 1]);
-			dim_idx += 2;
-			return r;
+			return glm::vec2(Random1D(), Random1D());
+		}
+		__device__ __host__ inline glm::vec2 SamplePixelOffset()
+		{
+			float x = RadicalInversion2(sample_idx);
+			float y = RadicalInversion3(sample_idx);
+			return glm::vec2(x, y);
 		}
 
 	private:
@@ -400,6 +549,190 @@ namespace YumeRT
 
 			float postfix_zero = permute_table[0] * base_multiply * inv_base / (1.0f - inv_base);
 			return glm::max(0.000001f, glm::min(radical_sum * base_multiply + postfix_zero, 0.999999f));
+		}
+		__device__ __host__ inline float RadicalInversion2(uint64_t index)
+		{
+			constexpr float inv_base = 1.0f / float(2u);
+			uint64_t radical_sum = 0;
+			float base_multiply = 1.0f;
+			while (index)
+			{
+				uint64_t next_index = index / 2u;
+				uint64_t digit = index - next_index * 2u;
+				radical_sum = radical_sum * 2u + digit;
+
+				base_multiply *= inv_base;
+				index = next_index;
+			}
+
+			return glm::max(0.000001f, glm::min(radical_sum * base_multiply, 0.999999f));
+		}
+		__device__ __host__ inline float RadicalInversion3(uint64_t index)
+		{
+			constexpr float inv_base = 1.0f / float(3u);
+			uint64_t radical_sum = 0;
+			float base_multiply = 1.0f;
+			while (index)
+			{
+				uint64_t next_index = index / 3u;
+				uint64_t digit = index - next_index * 3u;
+				radical_sum = radical_sum * 3u + digit;
+
+				base_multiply *= inv_base;
+				index = next_index;
+			}
+
+			return glm::max(0.000001f, glm::min(radical_sum * base_multiply, 0.999999f));
+		}
+	};
+
+	struct SobolSampler
+	{
+	public:
+		__device__ __host__ SobolSampler() {}
+		__device__ __host__ SobolSampler(int pixel_sample_count,
+															   int pixel_sample_idx,
+															   int frame_idx,
+															   int dim_offset,
+															   int pixel_idx,
+															   int max_frame_count,
+															   uint64_t *sobol_matrices): dim_idx(dim_offset), sobol_matrices(sobol_matrices), pixel_idx(pixel_idx)
+		{
+			assert(dim_offset >= 1);
+			const uint64_t sample_stride = (uint64_t)(max_frame_count > 0 ? max_frame_count : 65536u);
+			sample_idx = (uint64_t)pixel_idx * sample_stride * (uint64_t)pixel_sample_count
+				+ (uint64_t)(((uint64_t)frame_idx % sample_stride) * (uint64_t)pixel_sample_count + (uint64_t)pixel_sample_idx);
+		}
+		__device__ __host__ inline float Random1D()
+		{
+			float s = SobolSample(sample_idx, dim_idx, MurmurHash64((uint64_t)dim_idx));
+			++dim_idx;
+			if (dim_idx >= 1024) { dim_idx = 1; }
+			return s;
+		}
+		__device__ __host__ inline glm::vec2 Random2D()
+		{
+			return glm::vec2(Random1D(), Random1D());
+		}
+		__device__ __host__ inline glm::vec2 SamplePixelOffset()
+		{
+			return glm::vec2(Random1D(), Random1D());
+		}
+
+	private:
+		uint32_t pixel_idx;
+		uint64_t sample_idx;
+		uint32_t dim_idx;
+		uint64_t *sobol_matrices;
+
+		__device__ __host__ inline uint64_t GrayCode(uint64_t index)
+		{
+			return index ^ (index >> 1);
+		}
+		__device__ __host__ inline float SobolSample(uint64_t index, uint32_t dim, uint64_t scramble)
+		{
+			const uint64_t *dim_matrix = &sobol_matrices[dim * 64];
+
+			uint64_t s = 0;
+			for (uint64_t i = GrayCode(index), j = 0; i; i >>= 1, ++j)
+			{
+				if (i & 1)
+				{
+					s ^= dim_matrix[j];
+				}
+			}
+			return glm::max(0.000001f, glm::min((float)((double)(s ^ scramble) / double(0xFFFFFFFFFFFFFFFF)), 0.999999f));
+		}
+	};
+
+	enum SAMPLER_TYPE
+	{
+		PCG = 0, HALTON = 1, SOBOL = 2
+	};
+
+	struct RandomSampler
+	{
+		uint32_t sampler_type;
+		union
+		{
+			PCGSampler pcg_sampler;
+			HaltonSampler halton_sampler;
+			SobolSampler sobol_sampler;
+		};
+
+		__device__ __host__ RandomSampler() {}
+		__device__ __host__ inline void InitPCGSampler(uint32_t pixel_idx, uint32_t pixel_sample_idx, uint32_t dim_idx, uint32_t frame_idx) 
+		{
+			sampler_type = PCG;
+			pcg_sampler = PCGSampler(pixel_idx, pixel_sample_idx, dim_idx, frame_idx);
+		}
+		__device__ __host__ inline void InitHaltonSampler(uint64_t sample_index, int dim_offset, uint32_t *permute_table)
+		{
+			sampler_type = HALTON;
+			halton_sampler = HaltonSampler(sample_index, dim_offset, permute_table);
+		}
+		__device__ __host__ inline void InitSobolSampler(int pixel_sample_count, int pixel_sample_idx, int frame_idx, int dim_offset, int pixel_idx, int max_frame_count, uint64_t *sobol_matrices)
+		{
+			sampler_type = SOBOL;
+			sobol_sampler = SobolSampler(pixel_sample_count, pixel_sample_idx, frame_idx, dim_offset, pixel_idx, max_frame_count, sobol_matrices);
+		}
+
+		__device__ __host__ inline float Random1D()
+		{
+			if (sampler_type == PCG) 
+			{ 
+				return pcg_sampler.Random1D(); 
+			}
+			else if (sampler_type == HALTON) 
+			{
+				return halton_sampler.Random1D(); 
+			}
+			else if (sampler_type == SOBOL)
+			{
+				return sobol_sampler.Random1D();
+			}
+			else
+			{ 
+				return 0.0f; 
+			}
+		}
+		__device__ __host__ inline glm::vec2 Random2D()
+		{
+			if (sampler_type == PCG)
+			{
+				return pcg_sampler.Random2D();
+			}
+			else if (sampler_type == HALTON)
+			{
+				return halton_sampler.Random2D();
+			}
+			else if (sampler_type == SOBOL)
+			{
+				return sobol_sampler.Random2D();
+			}
+			else
+			{
+				return glm::vec2(0.0f);
+			}
+		}
+		__device__ __host__ inline glm::vec2 SamplePixelOffset()
+		{
+			if (sampler_type == PCG)
+			{
+				return pcg_sampler.SamplePixelOffset();
+			}
+			else if (sampler_type == HALTON)
+			{
+				return halton_sampler.SamplePixelOffset();
+			}
+			else if (sampler_type == SOBOL)
+			{
+				return sobol_sampler.SamplePixelOffset();
+			}
+			else
+			{
+				return glm::vec2(0.0f);
+			}
 		}
 	};
 	
