@@ -210,6 +210,16 @@ namespace YumeRT
 	3674994
 	};
 
+	// from pbrt-v4
+	__device__ __host__ inline uint32_t ReverseBits32(uint32_t n) {
+		n = (n << 16) | (n >> 16);
+		n = ((n & 0x00ff00ff) << 8) | ((n & 0xff00ff00) >> 8);
+		n = ((n & 0x0f0f0f0f) << 4) | ((n & 0xf0f0f0f0) >> 4);
+		n = ((n & 0x33333333) << 2) | ((n & 0xcccccccc) >> 2);
+		n = ((n & 0x55555555) << 1) | ((n & 0xaaaaaaaa) >> 1);
+		return n;
+	}
+
 	// https://lemire.me/blog/2018/08/15/fast-strongly-universal-64-bit-hashing-everywhere/
 	__device__ __host__ inline uint64_t Murmur64(uint64_t h) {
 		h ^= h >> (uint64_t)33;
@@ -595,17 +605,14 @@ namespace YumeRT
 															   int frame_idx,
 															   int dim_offset,
 															   int pixel_idx,
-															   int max_frame_count,
-															   uint64_t *sobol_matrices): dim_idx(dim_offset), sobol_matrices(sobol_matrices), pixel_idx(pixel_idx)
+															   uint32_t *sobol_matrices): dim_idx(dim_offset), sobol_matrices(sobol_matrices), pixel_idx(pixel_idx)
 		{
 			assert(dim_offset >= 1);
-			const uint64_t sample_stride = (uint64_t)(max_frame_count > 0 ? max_frame_count : 65536u);
-			sample_idx = (uint64_t)pixel_idx * sample_stride * (uint64_t)pixel_sample_count
-				+ (uint64_t)(((uint64_t)frame_idx % sample_stride) * (uint64_t)pixel_sample_count + (uint64_t)pixel_sample_idx);
+			sample_idx = (uint32_t)frame_idx * (uint32_t)pixel_sample_count + (uint32_t)pixel_sample_idx;
 		}
 		__device__ __host__ inline float Random1D()
 		{
-			float s = SobolSample(sample_idx, dim_idx, MurmurHash64((uint64_t)dim_idx));
+			float s = SobolSample(sample_idx, dim_idx);
 			++dim_idx;
 			if (dim_idx >= 1024) { dim_idx = 1; }
 			return s;
@@ -621,28 +628,64 @@ namespace YumeRT
 
 	private:
 		uint32_t pixel_idx;
-		uint64_t sample_idx;
+		uint32_t sample_idx;
 		uint32_t dim_idx;
-		uint64_t *sobol_matrices;
+		uint32_t *sobol_matrices;
 
-		__device__ __host__ inline uint64_t GrayCode(uint64_t index)
+		__device__ __host__ inline uint32_t GrayCode(uint32_t index)
 		{
 			return index ^ (index >> 1);
 		}
-		__device__ __host__ inline float SobolSample(uint64_t index, uint32_t dim, uint64_t scramble)
+		__device__ __host__ inline uint32_t OwenScrambling(uint32_t s, uint32_t dim, uint32_t pixel_index)
 		{
-			const uint64_t *dim_matrix = &sobol_matrices[dim * 64];
+			// I don't know this implementation is correct...
+			const uint32_t seed = XxHash32(glm::uvec3(0xFFFFFFFF, dim, pixel_index));
+			if (seed & 1)
+			{
+				s ^= (1u << 31);
+			}
+			for (int i = 1; i < 32; ++i)
+			{
+				const uint32_t bit_mask = (uint32_t(0xFFFFFFFF) << (32 - i));
+				const uint32_t hash = XxHash32(glm::uvec3(s & bit_mask, dim, pixel_index));
+				if (hash & 1)
+				{
+					s ^= (1u << (31 - i));
+				}
+			}
+			return s;
+		}
+		__device__ __host__ inline uint32_t FastOwenScrambling(uint32_t v, uint32_t dim, uint32_t pixel_index)
+		{
+			uint32_t seed = XxHash32(glm::uvec2(dim, pixel_index));
 
-			uint64_t s = 0;
-			for (uint64_t i = GrayCode(index), j = 0; i; i >>= 1, ++j)
+			// from pbrt-v4
+			v = ReverseBits32(v);
+			v ^= v * 0x3d20adea;
+			v += seed;
+			v *= (seed >> 16) | 1;
+			v ^= v * 0x05526c56;
+			v ^= v * 0x53a22864;
+			return ReverseBits32(v);
+		}
+		__device__ __host__ inline float SobolSample(uint32_t index, uint32_t dim)
+		{
+			const uint32_t *dim_matrix = &sobol_matrices[dim * 32u];
+
+			uint32_t s = 0;
+			for (uint32_t i = GrayCode(index), j = 0; i; i >>= 1, ++j)
 			{
 				if (i & 1)
 				{
 					s ^= dim_matrix[j];
 				}
 			}
-			return glm::max(0.000001f, glm::min((float)((double)(s ^ scramble) / double(0xFFFFFFFFFFFFFFFF)), 0.999999f));
+
+			s = FastOwenScrambling(s, dim, pixel_idx);
+
+			return glm::max(0.000001f, glm::min(float(s) / float(0xFFFFFFFF), 0.999999f));
 		}
+		
 	};
 
 	enum SAMPLER_TYPE
@@ -671,10 +714,10 @@ namespace YumeRT
 			sampler_type = HALTON;
 			halton_sampler = HaltonSampler(sample_index, dim_offset, permute_table);
 		}
-		__device__ __host__ inline void InitSobolSampler(int pixel_sample_count, int pixel_sample_idx, int frame_idx, int dim_offset, int pixel_idx, int max_frame_count, uint64_t *sobol_matrices)
+		__device__ __host__ inline void InitSobolSampler(int pixel_sample_count, int pixel_sample_idx, int frame_idx, int dim_offset, int pixel_idx, uint32_t *sobol_matrices)
 		{
 			sampler_type = SOBOL;
-			sobol_sampler = SobolSampler(pixel_sample_count, pixel_sample_idx, frame_idx, dim_offset, pixel_idx, max_frame_count, sobol_matrices);
+			sobol_sampler = SobolSampler(pixel_sample_count, pixel_sample_idx, frame_idx, dim_offset, pixel_idx, sobol_matrices);
 		}
 
 		__device__ __host__ inline float Random1D()

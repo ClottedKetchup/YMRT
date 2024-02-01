@@ -71,7 +71,7 @@ namespace YumeRT
 
 		struct {
 			uint32_t *halton_permute_table = nullptr;
-			uint64_t *sobol_matrices = nullptr;
+			uint32_t *sobol_matrices = nullptr;
 		}sampler_data;
 	};
 

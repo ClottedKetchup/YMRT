@@ -336,7 +336,7 @@ namespace YumeRT
 	}
 	void SceneManager::InitSobolMatrices()
 	{
-		UPLOAD_TO_GPU(scene.sampler_data.sobol_matrices, sobol_matrices64, sizeof(uint64_t) * 1024ull * 64ull);
+		UPLOAD_TO_GPU(scene.sampler_data.sobol_matrices, sobol_matrices32, sizeof(uint32_t) * 1024u * 32u);
 	}
 
 	void SceneManager::ProcessSceneNode(aiNode *node, const aiScene *scene, float external_ior, int outer_vol_idx, int inner_vol_idx, bool is_volume_boundary)

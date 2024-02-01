@@ -602,7 +602,7 @@ namespace YumeRT
 			}
 			else if (render_setting.sampler_type == SOBOL)
 			{
-				sampler.InitSobolSampler(render_setting.ssp, sample_idx, frame_count - 1, 1, pixel_idx, render_setting.max_frame_count, scene.sampler_data.sobol_matrices);
+				sampler.InitSobolSampler(render_setting.ssp, sample_idx, frame_count - 1, 1, pixel_idx,  scene.sampler_data.sobol_matrices);
 			
 				pixel_offset = sampler.SamplePixelOffset();
 			}
