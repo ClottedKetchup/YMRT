@@ -161,12 +161,15 @@ namespace YumeRT
 		RandomSampler &sampler)
 	{
 		assert(scene.distant_lights != nullptr);
-		if (scene.distant_lights == nullptr) {return glm::vec3(0.0f);}
+		if (scene.distant_lights == nullptr || scene.distant_light_count == 0) {return glm::vec3(0.0f);}
 		auto random = [&]()->float {return sampler.Random1D(); };
 		
 		glm::vec3 direct_lighting(0.0f);
 
 		glm::vec3 wo = uber_bsdf.WorldToShading(-ray_direction);
+
+		float distant_light_select_pdf = 1.0f / float(scene.distant_light_count);
+		int selected_distant_light_idx = glm::max(glm::min((int)(random() * scene.distant_light_count), (int)scene.distant_light_count - 1), 0);
 
 		float bsdf_select_pdf = 0.0f;
 		int selected_bsdf_idx = uber_bsdf.SelectSingleBSDF(random(), &bsdf_select_pdf);
@@ -176,7 +179,7 @@ namespace YumeRT
 		{
 			glm::vec3 light_dir, light_pos;
 			float light_sample_pdf;
-			glm::vec3 Li = scene.distant_lights[0].SampleLi(scene, hit_position, random(), random(), &light_dir, &light_pos, &light_sample_pdf);
+			glm::vec3 Li = scene.distant_lights[selected_distant_light_idx].SampleLi(scene, hit_position, random(), random(), &light_dir, &light_pos, &light_sample_pdf);
 
 			glm::vec3 light_wi = uber_bsdf.WorldToShading(light_dir);
 			float light_wi_pdf = 0.0f;
@@ -221,7 +224,7 @@ namespace YumeRT
 			{
 				const glm::vec3 light_dir = uber_bsdf.ShadingToWorld(bsdf_wi);
 				float bsdf_wi_pdf = 0.0f;
-				glm::vec3 Li = scene.distant_lights[0].EvalLi(scene, light_dir, &bsdf_wi_pdf);
+				glm::vec3 Li = scene.distant_lights[selected_distant_light_idx].EvalLi(scene, light_dir, &bsdf_wi_pdf);
 
 				if (Li.x + Li.y + Li.z > 1E-16f)
 				{
@@ -251,7 +254,7 @@ namespace YumeRT
 			}
 		}
 		assert(!glm::isnan(direct_lighting.x) && !glm::isnan(direct_lighting.y) && !glm::isnan(direct_lighting.z));
-		return  bsdf_select_pdf == 0.0f ? glm::vec3(0.0f) : direct_lighting / bsdf_select_pdf;
+		return  bsdf_select_pdf == 0.0f ? glm::vec3(0.0f) : direct_lighting / (bsdf_select_pdf * distant_light_select_pdf);
 	}
 
 
@@ -713,7 +716,7 @@ namespace YumeRT
 					// instance's internal ior is implicitly specified by its material
 					uber_bsdf.InitBSDFSettings(mtl, ray, hit_record.hit_back, prim.external_ior);
 					
-					if (!hit_record.hit_back) 
+					if (true) 
 					{
 						// TODO: direct lighting
 						// TODO: switch to turn off direct light (done)

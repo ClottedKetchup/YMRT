@@ -32,6 +32,7 @@ namespace YumeRT
 
 		TransformState() { SetInvalid(); }
 
+		// this function have to specify a pivot.
 		inline glm::mat4 GetTransformMatrix(const glm::vec3 &prim_center)
 		{
 			return  Matrix_T(T) *
@@ -42,6 +43,8 @@ namespace YumeRT
 						Matrix_S(S) *
 						Matrix_T(-prim_center);
 		}
+
+		// always scale and rotate around origin.
 		inline glm::mat4 GetTransformMatrix()
 		{
 			return  Matrix_T(T) *
@@ -74,7 +77,9 @@ namespace YumeRT
 		DISTANT_LIGHT_CHANGE = (1 << 13), 
 		SHAPE_LIGHT_CHANGE = (1 << 14),
 		INSTANCE_VOLUME_CHANGE = (1 << 15),
-		VOLUME_CHANGE = (1 << 16)
+		VOLUME_CHANGE = (1 << 16),
+		DISTANT_LIGHT_ADD_REMOVE = (1 << 17),
+		VOLUME_ADD_REMOVE = (1 << 18)
 	};
 
 	class SceneManager
@@ -106,6 +111,8 @@ namespace YumeRT
 		// this function only record the transform state: T, S, R
 		inline uint32_t AddTransform(const glm::vec3 &T = glm::vec3(0.0f), const glm::vec3 &S = glm::vec3(1.0f), const glm::vec3 &R = glm::vec3(0.0f));
 		inline void UpdatePrimTransform(uint32_t selected_prim_idx);
+		inline void UpdateDistantLightTransform(uint32_t selected_light_idx);
+		inline void UpdateVolumeTransform(uint32_t selected_volume_idx);
 		void ClearInvaildTransform();
 		 
 		// here actually generate the transform matrix, because I need the geometry info
@@ -137,13 +144,13 @@ namespace YumeRT
 														   float theta_max = 5.0f);
 		inline uint32_t RemoveDistantLight(uint32_t light_idx);
 		inline void UpdateDistantLight(uint32_t distant_light_idx);
-		inline void UpdateDistantLightTransform(uint32_t selected_light_idx);
 
 		// shape light
 		inline void LoadShapeLights();
 
 		// volume
-		inline uint32_t AddVolume(const std::string &name, const glm::vec3 &sigma_s, const glm::vec3 &sigma_a);
+		inline uint32_t AddVolume(const std::string &name, const glm::vec3 &sigma_s = glm::vec3(0.0f), const glm::vec3 &sigma_a = glm::vec3(0.0f));
+		inline uint32_t RemoveVolume(uint32_t volume_idx);
 		inline void UpdateVolume(uint32_t volume_idx);
 
 		// a bunch of short function
@@ -193,11 +200,11 @@ namespace YumeRT
 			return &transform_states[transform_idx].R;
 		}
 
-		inline PrimitiveInstance* GetPrimitiveInstance(uint32_t idx)
+		inline PrimitiveInstance* GetPrimitiveInstance(uint32_t prim_idx)
 		{
 			if (prim_instances.empty()) { return nullptr; }
-			if (idx >(uint32_t)prim_instances.size() - 1) { return nullptr; }
-			return &prim_instances[idx];
+			if (prim_idx >(uint32_t)prim_instances.size() - 1) { return nullptr; }
+			return &prim_instances[prim_idx];
 		}
 		inline Material* GetMaterial(uint32_t material_idx)
 		{
@@ -231,7 +238,9 @@ namespace YumeRT
 				(scene_change_flag & SCENECHANGE_FLAG::DISTANT_LIGHT_CHANGE) ||
 				(scene_change_flag & SCENECHANGE_FLAG::SHAPE_LIGHT_CHANGE) ||
 				(scene_change_flag & SCENECHANGE_FLAG::INSTANCE_VOLUME_CHANGE) ||
-				(scene_change_flag & SCENECHANGE_FLAG::VOLUME_CHANGE);
+				(scene_change_flag & SCENECHANGE_FLAG::VOLUME_CHANGE) ||
+				(scene_change_flag & SCENECHANGE_FLAG::DISTANT_LIGHT_ADD_REMOVE) ||
+				(scene_change_flag & SCENECHANGE_FLAG::VOLUME_ADD_REMOVE);
 		}
 		inline void AddSceneFlag(SCENECHANGE_FLAG flag) { scene_change_flag |= flag; }
 		inline void ResetSceneFlag() { scene_change_flag = 0; }
@@ -668,6 +677,15 @@ namespace YumeRT
 			UPLOAD_TO_GPU(scene.materials, materials.data(), sizeof(Material) * materials.size());
 		}
 
+		if (scene_change_flag & DISTANT_LIGHT_ADD_REMOVE)
+		{
+			FREE_GPU_RESOURCE(scene.distant_lights);
+			assert(scene.distant_lights == nullptr);
+
+			scene.distant_light_count = (uint32_t)distant_lights.size();
+			UPLOAD_TO_GPU(scene.distant_lights, distant_lights.data(), sizeof(DistantLight) * distant_lights.size());
+		}
+
 		if ((scene_change_flag & SHAPE_LIGHT_CHANGE) || instances_has_rebuild)
 		{
 			FREE_GPU_RESOURCE(scene.shape_lights);
@@ -683,6 +701,15 @@ namespace YumeRT
 			scene.shape_light_count = (uint32_t)shape_lights.size();
 			UPLOAD_TO_GPU(scene.shape_lights, shape_lights.data(), sizeof(ShapeLight) * shape_lights.size());
 			UPLOAD_TO_GPU(scene.shape_light_sample_table, shape_light_sample_table.data(), sizeof(float) * shape_light_sample_table.size());
+		}
+
+		if (scene_change_flag & VOLUME_ADD_REMOVE)
+		{
+			FREE_GPU_RESOURCE(scene.volumes);
+			assert(scene.volumes == nullptr);
+
+			scene.volume_count = (uint32_t)volumes.size();
+			UPLOAD_TO_GPU(scene.volumes, volumes.data(), sizeof(Volume) * volumes.size());
 		}
 
 		CUDA_CHECK(cudaDeviceSynchronize());
@@ -1062,6 +1089,23 @@ namespace YumeRT
 
 		AddSceneFlag(SCENECHANGE_FLAG::INSTANCE_MOVE);
 	}
+	inline void SceneManager::UpdateDistantLightTransform(uint32_t selected_light_idx)
+	{
+		if (distant_lights.empty() || transform_states.empty()) { return; }
+		if (selected_light_idx > (uint32_t)distant_lights.size() - 1) { return; }
+
+		uint32_t transform_idx = distant_lights[selected_light_idx].transform_idx;
+
+		transforms[transform_idx] = transform_states[transform_idx].GetTransformMatrix();
+		i_transforms[transform_idx] = glm::inverse(transforms[transform_idx]);
+
+		assert(scene.transforms != nullptr && scene.i_transforms != nullptr);
+		CUDA_CHECK(cudaMemcpy(scene.transforms + transform_idx, &transforms[transform_idx], sizeof(glm::mat4), cudaMemcpyHostToDevice));
+		CUDA_CHECK(cudaMemcpy(scene.i_transforms + transform_idx, &i_transforms[transform_idx], sizeof(glm::mat4), cudaMemcpyHostToDevice));
+		CUDA_CHECK(cudaDeviceSynchronize());
+
+		AddSceneFlag(SCENECHANGE_FLAG::DISTANT_LIGHT_CHANGE);
+	}
 	void SceneManager::ClearInvaildTransform()
 	{
 		// batch update...
@@ -1297,16 +1341,9 @@ namespace YumeRT
 		material_names.erase(material_names.begin() + material_idx);
 
 		AddSceneFlag(SCENECHANGE_FLAG::MATERIAL_REMOVE);
-
-		// should not happen
-		if (materials.empty())
-		{
-			return INVALID_UINT_32;
-		}
-
 		CUDA_CHECK(cudaDeviceSynchronize());
 
-		return 0;
+		return materials.empty()? INVALID_UINT_32: 0;
 	}
 	inline void SceneManager::UpdateMaterial(uint32_t material_idx)
 	{
@@ -1369,7 +1406,20 @@ namespace YumeRT
 		i_transforms[transform_idx] = glm::inverse(transforms[transform_idx]);
 
 		// AddSceneFlag...
+		AddSceneFlag(SCENECHANGE_FLAG::DISTANT_LIGHT_ADD_REMOVE);
 		return (uint32_t)distant_lights.size() - 1;
+	}
+	inline uint32_t SceneManager::RemoveDistantLight(uint32_t light_idx)
+	{
+		if (distant_lights.empty()) { return INVALID_UINT_32; }
+		if (light_idx >(uint32_t)distant_lights.size() - 1) { return INVALID_UINT_32; }
+
+		distant_lights.erase(distant_lights.begin() + light_idx);
+		distant_light_names.erase(distant_light_names.begin() + light_idx);
+		
+		AddSceneFlag(SCENECHANGE_FLAG::DISTANT_LIGHT_ADD_REMOVE);
+
+		return distant_lights.empty() ? INVALID_UINT_32 : 0;
 	}
 	inline void SceneManager::UpdateDistantLight(uint32_t distant_light_idx)
 	{
@@ -1382,23 +1432,7 @@ namespace YumeRT
 
 		AddSceneFlag(SCENECHANGE_FLAG::DISTANT_LIGHT_CHANGE);
 	}
-	inline void SceneManager::UpdateDistantLightTransform(uint32_t selected_light_idx)
-	{
-		if (distant_lights.empty() || transform_states.empty()) { return; }
-		if (selected_light_idx >(uint32_t)distant_lights.size() - 1) { return; }
-
-		uint32_t transform_idx = distant_lights[selected_light_idx].transform_idx;
-
-		transforms[transform_idx] = transform_states[transform_idx].GetTransformMatrix();
-		i_transforms[transform_idx] = glm::inverse(transforms[transform_idx]);
-
-		assert(scene.transforms != nullptr && scene.i_transforms != nullptr);
-		CUDA_CHECK(cudaMemcpy(scene.transforms + transform_idx, &transforms[transform_idx], sizeof(glm::mat4), cudaMemcpyHostToDevice));
-		CUDA_CHECK(cudaMemcpy(scene.i_transforms + transform_idx, &i_transforms[transform_idx], sizeof(glm::mat4), cudaMemcpyHostToDevice));
-		CUDA_CHECK(cudaDeviceSynchronize());
-
-		AddSceneFlag(SCENECHANGE_FLAG::DISTANT_LIGHT_CHANGE);
-	}
+	
 
 	inline void SceneManager::LoadShapeLights()
 	{
@@ -1494,7 +1528,23 @@ namespace YumeRT
 
 		volumes.push_back(volume);
 		volume_names.push_back(name);
+
+		AddSceneFlag(VOLUME_ADD_REMOVE);
 		return (uint32_t)volumes.size() - 1;
+	}
+	inline uint32_t SceneManager::RemoveVolume(uint32_t volume_idx)
+	{
+		if (volumes.empty()) { return INVALID_UINT_32; }
+		if (volume_idx > (uint32_t)volumes.size() - 1) { return INVALID_UINT_32; }
+
+		// just leave user to manually set...
+		volumes.erase(volumes.begin() + volume_idx);
+		volume_names.erase(volume_names.begin() + volume_idx);
+		
+		AddSceneFlag(VOLUME_ADD_REMOVE);
+		CUDA_CHECK(cudaDeviceSynchronize());
+
+		return volumes.empty() ? INVALID_UINT_32 : 0;
 	}
 	inline void SceneManager::UpdateVolume(uint32_t volume_idx)
 	{
@@ -1581,8 +1631,6 @@ namespace YumeRT
 			default_mtl,
 			1.0f,
 			-1, world_volume_idx, true);
-
-		// AddCustom("bunny", "E:\\C++ Huge Project\\GitRe\\YumeRT\\src\\model\\bunny\\bunny.obj", 1.0f, world_volume_idx, bunny_inner_vol_idx_0, false);
 
 		// left
 		AddPrimInstance(cube_idx,

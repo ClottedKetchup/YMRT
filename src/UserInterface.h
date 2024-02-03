@@ -807,6 +807,19 @@ namespace YumeRT
 			ImGui::EndListBox();
 		}
 
+		static char distant_light_name_buf[32];
+		ImGui::InputText("Distant Light Name", distant_light_name_buf, 32);
+		if (ImGui::Button("Add", ImVec2(button_size.x * 0.48f, button_size.y)))
+		{
+			uint32_t instance_transform_idx = scene_manager->AddTransform();
+			highlight_distant_light_idx = scene_manager->AddDistantLight(std::string(distant_light_name_buf), instance_transform_idx);
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Remove", ImVec2(button_size.x * 0.48f, button_size.y)))
+		{
+			highlight_distant_light_idx = scene_manager->RemoveDistantLight(highlight_distant_light_idx);
+		}
+
 		ImGui::Separator();
 		DistantLight *distant_light_ptr = scene_manager->GetDistantLight(highlight_distant_light_idx);
 		if (distant_light_ptr != nullptr)
@@ -886,6 +899,18 @@ namespace YumeRT
 				if (button_press) { highlight_volume_idx = vol_idx; }
 			}
 			ImGui::EndListBox();
+		}
+
+		static char volume_name_buf[32];
+		ImGui::InputText("Volume Name", volume_name_buf, 32);
+		if (ImGui::Button("Add", ImVec2(button_size.x * 0.48f, button_size.y)))
+		{
+			highlight_volume_idx = scene_manager->AddVolume(std::string(volume_name_buf));
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Remove", ImVec2(button_size.x * 0.48f, button_size.y)))
+		{
+			highlight_volume_idx = scene_manager->RemoveVolume(highlight_volume_idx);
 		}
 
 		ImGui::Separator();
