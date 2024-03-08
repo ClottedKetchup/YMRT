@@ -23,6 +23,8 @@ namespace YumeRT
 	struct ShapeLight;
 
 	struct Volume;
+
+	struct Texture;
 	
 	// TODO: turn this into void pointer!
 	struct Scene
@@ -68,6 +70,9 @@ namespace YumeRT
 
 		uint32_t volume_count = 0;
 		Volume *volumes = nullptr;
+
+		uint32_t texture_count = 0;
+		Texture *textures = nullptr;
 
 		struct {
 			uint32_t *halton_permute_table = nullptr;

@@ -9,6 +9,9 @@
 #include "SceneDefines.h"
 #include "Material.h"
 
+#include "Texture.h"
+#include "TextureEval.cuh"
+
 namespace YumeRT
 {
 #define MAX_BSDF_COUNT 4
@@ -474,7 +477,13 @@ namespace YumeRT
 			bitangent = glm::cross(normal, tangent);
 		}
 
-		__device__ __host__ inline void InitBSDFSettings(const Material &mtl, const Ray &ray_in, int hit_back, float prim_outer_ior)
+		__device__ __host__ inline void InitBSDFSettings(const Material &mtl, 
+			const Texture *textures, 
+			const TextureManager &texture_manager,
+			const TextureCoordinate &texture_coordinate, 
+			const Ray &ray_in, 
+			int hit_back,
+			float prim_outer_ior)
 		{
 			back_side = hit_back;
 
@@ -498,12 +507,15 @@ namespace YumeRT
 			weights[2] = (1.0f - metalness) * (1.0 - fr) * transmission_weight;
 			weights[3] = (1.0f - metalness) * (1.0 - fr) * (1.0f - transmission_weight);
 
-			// F(n) can be seen as the average of F(h), so this could be a reasonable approximation
+			
+			const glm::vec3 diffuse_albedo = mtl.surface_material.diffuse_albedo_tex != INVALID_UINT_32?
+				TextureEval(textures[mtl.surface_material.diffuse_albedo_tex], textures, texture_manager, texture_coordinate):
+				mtl.surface_material.diffuse_albedo;
 
 			if (weights[0] > 0.0f)
 			{
 				glm::vec3 metal_n, metal_k;
-				EdgeTintToConductiveFresnel(mtl.surface_material.diffuse_albedo, mtl.surface_material.specular_albedo, &metal_n, &metal_k);
+				EdgeTintToConductiveFresnel(diffuse_albedo, mtl.surface_material.specular_albedo, &metal_n, &metal_k);
 
 				bsdfs[0].bsdf_type = MICROFACET_REFLECTION;
 				bsdfs[0].microfacet_reflect.specular_albedo = glm::vec3(1.0f);
@@ -546,7 +558,7 @@ namespace YumeRT
 			if (weights[3] > 0.0f)
 			{
 				bsdfs[3].bsdf_type = LAMBERT;
-				bsdfs[3].lambert.diffuse_albedo = mtl.surface_material.diffuse_albedo;
+				bsdfs[3].lambert.diffuse_albedo = diffuse_albedo;
 				bsdfs[3].lambert.ni = in_IOR;
 				bsdfs[3].lambert.nt = out_IOR;
 				bsdfs[3].lambert.specular_weight = mtl.surface_material.specular_weight;

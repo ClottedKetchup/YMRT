@@ -28,13 +28,8 @@ namespace YumeRT
 				float	ior_n = 1.3f;
 				float metalness = 0.0f;
 				float transmission_weight = 0.0f;
-				// coat
-				//glm::vec3 coat_sigma_t = glm::vec3(0.0f);
-				//float coat_ior = 1.3f;
-				//float coat_thickness = 1.0f; // um
-				//float coat_weight = 0.0f;
-				//float coat_alpha_x = 0.2f;
-				//float coat_alpha_y = 0.2f;
+				
+				uint32_t diffuse_albedo_tex = INVALID_UINT_32;
 			}surface_material;
 			struct
 			{

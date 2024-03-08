@@ -577,6 +577,7 @@ namespace YumeRT
 	__device__ __host__ inline void FetchShadingData(const Scene &scene,
 																					const HitRecord &hit_record,
 																					glm::vec3 *hit_position,
+																					glm::vec3 *hit_position_object_space,
 																					glm::vec3 *hit_shading_normal,
 																					glm::vec3 *hit_geometry_normal,
 																					glm::vec2 *hit_uv,
@@ -633,6 +634,7 @@ namespace YumeRT
 			return glm::vec3(glm::transpose(i_transform) * glm::vec4(n, 0.0f));
 		};
 
+		*hit_position_object_space = *hit_position;
 		*hit_position = otw_position(*hit_position);
 		*hit_shading_normal = glm::normalize(otw_normal(*hit_shading_normal));
 		*hit_geometry_normal = glm::normalize(otw_normal(*hit_geometry_normal));

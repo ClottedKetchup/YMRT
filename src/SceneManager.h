@@ -19,6 +19,7 @@
 #include "Material.h"
 #include "Light.h"
 #include "Volume.h"
+#include "Texture.h"
 
 #include "LowDiscrepancy.h"
 
@@ -155,6 +156,7 @@ namespace YumeRT
 
 		// a bunch of short function
 		inline const Scene& GetScene() const { return scene; }
+		inline const TextureManager& GetTextureManager() const { return texture_manager; }
 		inline const Camera& GetCamera()const { return camera; }
 		inline const std::vector<PrimitiveInstance>& GetPrimInstances() const { return prim_instances; }
 		inline const std::vector<GeometryData>& GetGeometries() const { return geometries; }
@@ -253,6 +255,8 @@ namespace YumeRT
 		float top_BVH_time = 0.0f;
 
 		Scene scene;
+		TextureManager texture_manager;
+
 		Camera camera;
 		std::vector<TransformState> transform_states;
 		std::vector<glm::mat4> transforms;
@@ -287,6 +291,8 @@ namespace YumeRT
 
 		std::vector<Volume> volumes;
 		std::vector<std::string> volume_names;
+
+		std::vector<Texture> textures;
 
 		std::vector<uint32_t> permute_table;
 
@@ -507,6 +513,9 @@ namespace YumeRT
 		scene.volume_count = 0;
 		FREE_GPU_RESOURCE(scene.volumes);
 
+		scene.texture_count = 0;
+		FREE_GPU_RESOURCE(scene.textures);
+
 		FREE_GPU_RESOURCE(scene.sampler_data.halton_permute_table);
 		FREE_GPU_RESOURCE(scene.sampler_data.sobol_matrices);
 
@@ -529,6 +538,7 @@ namespace YumeRT
 		assert(scene.shape_lights == nullptr);
 		assert(scene.shape_light_sample_table == nullptr);
 		assert(scene.volumes == nullptr);
+		assert(scene.textures == nullptr);
 		assert(scene.sampler_data.halton_permute_table == nullptr);
 		assert(scene.sampler_data.sobol_matrices == nullptr);
 	}
@@ -578,6 +588,9 @@ namespace YumeRT
 
 		scene.volume_count = (uint32_t)volumes.size();
 		UPLOAD_TO_GPU(scene.volumes, volumes.data(), sizeof(Volume) * volumes.size());
+
+		scene.texture_count = (uint32_t)textures.size();
+		UPLOAD_TO_GPU(scene.textures, textures.data(), sizeof(Texture) * textures.size());
 
 		ResetSceneFlag();
 	}
@@ -1288,6 +1301,8 @@ namespace YumeRT
 		mtl.surface_material.metalness = metalness;
 		mtl.surface_material.specular_weight = specular_weight;
 		mtl.surface_material.transmission_weight = transmission_weight;
+
+		mtl.surface_material.diffuse_albedo_tex = INVALID_UINT_32;
 		
 		material_names.push_back(name);
 		material_reference_counters.push_back(0);
@@ -1414,6 +1429,7 @@ namespace YumeRT
 		if (distant_lights.empty()) { return INVALID_UINT_32; }
 		if (light_idx >(uint32_t)distant_lights.size() - 1) { return INVALID_UINT_32; }
 
+		// TODO: set the transform to invalid
 		distant_lights.erase(distant_lights.begin() + light_idx);
 		distant_light_names.erase(distant_light_names.begin() + light_idx);
 		
@@ -1653,6 +1669,13 @@ namespace YumeRT
 			1.0f,
 			world_volume_idx, -1);
 
+		// test texture eval
+		textures.push_back(Texture().InitConstantTextureRGB(glm::vec3(0.01f)));
+		textures.push_back(Texture().InitConstantTextureRGB(glm::vec3(0.99f)));
+		textures.push_back(Texture().InitCheckerBoardTexture(0, 1, 32.0f));
+		materials.back().surface_material.diffuse_albedo_tex = (uint32_t)textures.size() - 1;
+		
+		// top
 		AddPrimInstance(cube_idx,
 			AddTransform(glm::vec3(0.0f, 5.025f, -5.0f), glm::vec3(10.0f, 0.05f, 10.0f)),
 			AddSurfaceMaterial("top wall", glm::vec3(0.75f, 0.75f, 0.75f)),
@@ -1704,6 +1727,10 @@ namespace YumeRT
 			AddSurfaceMaterial("ground", glm::vec3(0.55f, 0.55f, 0.55f), glm::vec3(0.0f), 0.2, 0.2, 1.3, 0.0f, 0.0f, 0.0f),
 			1.0f,
 			world_volume_idx, -1);
+
+		textures.push_back(Texture().InitConstantTextureRGB(glm::vec3(0.65f, 0.15f, 0.75f)));
+		textures.push_back(Texture().InitNoiseTexture(0, 1, 64.0f));
+		materials.back().surface_material.diffuse_albedo_tex = (uint32_t)textures.size() - 1;
 
 		ACBVHBuilder SceneBuilder(prim_instances.data(),
 			(uint32_t)prim_instances.size(),

@@ -20,6 +20,7 @@
 #include "Material.h"
 #include "Light.h"
 #include "Volume.h"
+#include "Texture.h"
 
 #include "ShadingUtilities.cuh"
 #include "RandomSampler.cuh"
@@ -551,6 +552,7 @@ namespace YumeRT
 	}
 
 	__global__ void RenderImage(Scene *scene_ptr,
+													TextureManager *texture_manager_ptr,
 													const RenderSetting *render_setting_ptr,
 													const HaltonEnumerator *halton_enumerator_ptr,
 													const int frame_count,
@@ -579,6 +581,8 @@ namespace YumeRT
 		uint32_t pixel_idx = py * width + px;
 		
 		Scene &scene = *scene_ptr;
+		TextureManager &texture_manager = *texture_manager_ptr;
+
 		const RenderSetting &render_setting = *render_setting_ptr;
 		const HaltonEnumerator &halton_enumerator = *halton_enumerator_ptr;
 
@@ -674,6 +678,7 @@ namespace YumeRT
 				if (hit_surface)
 				{
 					glm::vec3 hit_position;
+					glm::vec3 hit_position_object_space;
 					glm::vec3	hit_shading_normal;
 					glm::vec3	hit_geometry_normal;
 					glm::vec2	hit_uv;
@@ -683,6 +688,7 @@ namespace YumeRT
 					FetchShadingData(scene,
 												hit_record,
 												&hit_position,
+												&hit_position_object_space,
 												&hit_shading_normal,
 												&hit_geometry_normal,
 												&hit_uv,
@@ -714,7 +720,14 @@ namespace YumeRT
 					uber_bsdf.InitShadingSpace(hit_record.hit_back? -hit_shading_normal : hit_shading_normal,
 																  hit_record.hit_back? -hit_dpdu: hit_dpdu);
 					// instance's internal ior is implicitly specified by its material
-					uber_bsdf.InitBSDFSettings(mtl, ray, hit_record.hit_back, prim.external_ior);
+					TextureCoordinate texture_coordinate(hit_uv, hit_position, hit_position_object_space);
+					uber_bsdf.InitBSDFSettings(mtl, 
+																scene.textures, 
+																texture_manager,
+																texture_coordinate,
+																ray, 
+																hit_record.hit_back, 
+																prim.external_ior);
 					
 					if (true) 
 					{
@@ -791,6 +804,7 @@ namespace YumeRT
 	}
 
 	extern "C" void RenderScene(const Scene &scene,
+		const TextureManager &texture_manager,
 		const RenderSetting &render_setting,
 		glm::vec4 *image, 
 		uint32_t *prim_idx_buffer, 
@@ -814,11 +828,15 @@ namespace YumeRT
 			HaltonEnumerator halton_enumerator(width, height);
 			HaltonEnumerator *halton_enumerator_ptr = nullptr;
 			UPLOAD_TO_GPU(halton_enumerator_ptr, &halton_enumerator, sizeof(HaltonEnumerator));
-			assert(halton_enumerator.MaxFrameCount() > (uint64_t)render_setting.max_frame_count);
+			// assert(halton_enumerator.MaxFrameCount() > (uint64_t)render_setting.max_frame_count);
+
+			TextureManager *texture_manager_ptr = nullptr;
+			UPLOAD_TO_GPU(texture_manager_ptr, &texture_manager, sizeof(TextureManager));
 
 			dim3 block_dim(32, 1, 1);
 			dim3 grid_dim(Round_Block_Count(total_pixel_count, block_dim.x), 1, 1);
 			void *args[] = {&scene_ptr, 
+									&texture_manager_ptr,
 									&render_setting_ptr, 
 									&halton_enumerator_ptr,
 									&frame_count,
@@ -834,6 +852,7 @@ namespace YumeRT
 			FREE_GPU_RESOURCE(scene_ptr);
 			FREE_GPU_RESOURCE(render_setting_ptr);
 			FREE_GPU_RESOURCE(halton_enumerator_ptr);
+			FREE_GPU_RESOURCE(texture_manager_ptr);
 		}
 
 		auto end_time = std::chrono::high_resolution_clock::now();

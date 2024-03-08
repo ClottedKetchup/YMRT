@@ -17,6 +17,7 @@
 namespace YumeRT 
 {
 	extern "C" void RenderScene(const Scene &scene, 
+													const TextureManager &texture_manager,
 													const RenderSetting &render_setting, 
 													glm::vec4 *image, 
 													uint32_t *prim_idx_buffer, 
@@ -114,7 +115,7 @@ namespace YumeRT
 		}
 
 		// scene should be accompanied with some scene flag
-		inline void Render(const Scene &scene, bool is_scene_change)
+		inline void Render(const Scene &scene, const TextureManager &texture_manager, bool is_scene_change)
 		{
 			frame_count = (is_scene_change || render_setting_change) ? 1 : (frame_count + 1);
 
@@ -124,6 +125,7 @@ namespace YumeRT
 			glm::vec4 *accumulate_image = GetImageResource("Accumulate").GetDevicePtr();
 
 			RenderScene(scene, 
+								  texture_manager,
 								  render_setting,
 								  beauty_image, 
 								  prim_idx_buffer,
