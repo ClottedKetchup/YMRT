@@ -100,6 +100,6 @@ namespace YumeRT
 		bool enable_russian_roulette;
 
 		__device__ __host__ RenderSetting(): ssp(1), ray_depth(2), gamma(2.2f), exposure(1.0f), sampler_type(0),
-			max_frame_count(-1), enable_distant_light(false), enable_env_light(true), enable_russian_roulette(false), enable_volume_scattering(true)  {}
+			max_frame_count(-1), enable_distant_light(false), enable_env_light(true), enable_russian_roulette(false), enable_volume_scattering(false)  {}
 	};
 };

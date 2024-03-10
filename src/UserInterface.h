@@ -165,6 +165,7 @@ namespace YumeRT
 		static bool m_show_camera_menu;
 		static bool m_show_light_menu;
 		static bool m_show_volume_menu;
+		static bool m_show_texture_menu;
 
 		UserInterface() {}
 
@@ -185,6 +186,8 @@ namespace YumeRT
 		inline void RenderLightList();
 
 		inline void RenderVolumeList();
+
+		inline void RenderTextureMenu();
 
 		inline void RenderInstanceMenu();
 
@@ -212,6 +215,7 @@ namespace YumeRT
 	bool UserInterface::m_show_camera_menu = false;
 	bool UserInterface::m_show_light_menu = false;
 	bool UserInterface::m_show_volume_menu = false;
+	bool UserInterface::m_show_texture_menu = false;
 
 	void FramebufferSizeCallback(GLFWwindow* window, int width, int height)
 	{
@@ -932,6 +936,222 @@ namespace YumeRT
 		ImGui::End();
 	}
 
+	inline void UserInterface::RenderTextureMenu()
+	{
+		if (!m_show_texture_menu) { return; }
+		ImGui::Begin("Texture List");
+
+		const std::vector<Texture> &textures = scene_manager->GetTextures();
+		const std::vector<std::string> &texture_names = scene_manager->GetTextureNames();
+
+		ImGui::Text("Total Texture Count: %d", (uint32_t)textures.size());
+		ImGui::Text("Textures:");
+
+		static uint32_t highlight_tex_idx = INVALID_UINT_32;
+		highlight_tex_idx = glm::clamp(highlight_tex_idx, 0u, (uint32_t)textures.size() - 1);
+		ImVec2 button_size;
+		if (ImGui::BeginListBox(""))
+		{
+			button_size = ImGui::GetItemRectSize();
+			for (uint32_t tex_idx = 0; tex_idx < (uint32_t)textures.size(); ++tex_idx)
+			{
+				bool button_press = false;
+				if (tex_idx == highlight_tex_idx)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(250, 4, 4, 122));
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(250, 4, 4, 255));
+					button_press = ImGui::Button(texture_names[tex_idx].c_str(), button_size);
+					ImGui::PopStyleColor();
+					ImGui::PopStyleColor();
+				}
+				else
+				{
+					button_press = ImGui::Button(texture_names[tex_idx].c_str(), button_size);
+				}
+
+				if (button_press) { highlight_tex_idx = tex_idx; }
+				
+				if (ImGui::BeginPopupContextItem()) 
+				{
+					ImGui::Text("Texture Attributes:");
+					Texture &texture = *(scene_manager->GetTexture(tex_idx));
+
+					ImGui::Text("Texture index: %d", tex_idx);
+					ImGui::Text("Texture type: %s", texture_type_names[texture.texture_type]);
+					if (texture.texture_type == CONSTANT_TEXTURE_FLOAT)
+					{
+						ConstantTextureFloat& const_float_tex = texture.constant_texture_float;
+						if (ImGui::InputFloat("value", &const_float_tex.value)) 
+						{
+							scene_manager->UpdateTexture(tex_idx);
+						}
+					}
+					else if (texture.texture_type == CONSTANT_TEXTURE_RGB)
+					{
+						ConstantTextureRGB& constant_rgb_tex = texture.constant_texture_rgb;
+						if (ImGui::ColorEdit3("color", (float*)(&constant_rgb_tex.color), ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR))
+						{
+							scene_manager->UpdateTexture(tex_idx);
+						}
+					}
+					else if (texture.texture_type == SOLID_TEXTURE_CHECKERBOARD)
+					{
+						CheckerBoardTexture &checkerboard = texture.checker_board_texture;
+
+						// be careful! not to create cycle in recursive texture
+						int max_allow_idx = glm::max((int)tex_idx - 1, 0);
+						if (ImGui::InputInt("tex black", (int*)&checkerboard.child_texture_indices.texture_black)) 
+						{
+							checkerboard.child_texture_indices.texture_black = glm::clamp(checkerboard.child_texture_indices.texture_black, 0u, (uint32_t)max_allow_idx);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputInt("tex white", (int*)&checkerboard.child_texture_indices.texture_white))
+						{
+							checkerboard.child_texture_indices.texture_white = glm::clamp(checkerboard.child_texture_indices.texture_white, 0u, (uint32_t)max_allow_idx);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("frequency", &checkerboard.frequency)) 
+						{
+							checkerboard.frequency = glm::max(0.0001f, checkerboard.frequency);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+					}
+					else if (texture.texture_type == SOLID_TEXTURE_NOISE)
+					{
+						NoiseTexture &perlin_noise_tex = texture.noise_texture;
+
+						// be careful! not to create cycle in recursive texture
+						int max_allow_idx = glm::max((int)tex_idx - 1, 0);
+						if (ImGui::InputInt("tex black", (int*)&perlin_noise_tex.child_texture_indices.texture_black))
+						{
+							perlin_noise_tex.child_texture_indices.texture_black = glm::clamp(perlin_noise_tex.child_texture_indices.texture_black, 0u, (uint32_t)max_allow_idx);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputInt("tex white", (int*)&perlin_noise_tex.child_texture_indices.texture_white))
+						{
+							perlin_noise_tex.child_texture_indices.texture_white = glm::clamp(perlin_noise_tex.child_texture_indices.texture_white, 0u, (uint32_t)max_allow_idx);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::Checkbox("normalized", &perlin_noise_tex.normalized))
+						{
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("frequency", &perlin_noise_tex.frequency))
+						{
+							perlin_noise_tex.frequency = glm::max(0.0001f, perlin_noise_tex.frequency);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+					}
+					else if (texture.texture_type == SOLID_TEXTURE_FBM) 
+					{
+						NoiseTextureFBM& noise_texture_fbm = texture.noise_texture_fbm;
+
+						int max_allow_idx = glm::max((int)tex_idx - 1, 0);
+						if (ImGui::InputInt("tex black", (int*)&noise_texture_fbm.child_texture_indices.texture_black))
+						{
+							noise_texture_fbm.child_texture_indices.texture_black = glm::clamp(noise_texture_fbm.child_texture_indices.texture_black, 0u, (uint32_t)max_allow_idx);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputInt("tex white", (int*)&noise_texture_fbm.child_texture_indices.texture_white))
+						{
+							noise_texture_fbm.child_texture_indices.texture_white = glm::clamp(noise_texture_fbm.child_texture_indices.texture_white, 0u, (uint32_t)max_allow_idx);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::Checkbox("normalized", &noise_texture_fbm.normalized))
+						{
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("frequency", &noise_texture_fbm.frequency))
+						{
+							noise_texture_fbm.frequency = glm::max(0.0001f, noise_texture_fbm.frequency);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("lacunarity", &noise_texture_fbm.lacunarity)) 
+						{
+							noise_texture_fbm.lacunarity = glm::max(0.0001f, noise_texture_fbm.lacunarity);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("gain", &noise_texture_fbm.gain))
+						{
+							noise_texture_fbm.gain = glm::max(0.0001f, noise_texture_fbm.gain);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputInt("octave", &noise_texture_fbm.layer_count))
+						{
+							noise_texture_fbm.layer_count = glm::max(noise_texture_fbm.layer_count, 1);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+					}
+					else if (texture.texture_type == SOLID_TEXTURE_TURBULENCE)
+					{
+						NoiseTextureTurbulence& noise_texture_turbulence = texture.noise_texture_turbulence;
+
+						int max_allow_idx = glm::max((int)tex_idx - 1, 0);
+						if (ImGui::InputInt("tex black", (int*)&noise_texture_turbulence.child_texture_indices.texture_black))
+						{
+							noise_texture_turbulence.child_texture_indices.texture_black = glm::clamp(noise_texture_turbulence.child_texture_indices.texture_black, 0u, (uint32_t)max_allow_idx);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputInt("tex white", (int*)&noise_texture_turbulence.child_texture_indices.texture_white))
+						{
+							noise_texture_turbulence.child_texture_indices.texture_white = glm::clamp(noise_texture_turbulence.child_texture_indices.texture_white, 0u, (uint32_t)max_allow_idx);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::Checkbox("normalized", &noise_texture_turbulence.normalized))
+						{
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("frequency", &noise_texture_turbulence.frequency))
+						{
+							noise_texture_turbulence.frequency = glm::max(0.0001f, noise_texture_turbulence.frequency);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("lacunarity", &noise_texture_turbulence.lacunarity))
+						{
+							noise_texture_turbulence.lacunarity = glm::max(0.0001f, noise_texture_turbulence.lacunarity);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("gain", &noise_texture_turbulence.gain))
+						{
+							noise_texture_turbulence.gain = glm::max(0.0001f, noise_texture_turbulence.gain);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputInt("octave", &noise_texture_turbulence.layer_count))
+						{
+							noise_texture_turbulence.layer_count = glm::max(noise_texture_turbulence.layer_count, 1);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+					}
+					else if (texture.texture_type == SOLID_TEXTURE_MARBLE)
+					{
+					}
+					else if (texture.texture_type == SOLID_TEXTURE_WOOD)
+					{
+					}
+					else if (texture.texture_type == SOLID_TEXTURE_POLKA_DOT)
+					{
+					}
+					else if (texture.texture_type == SOLID_TEXTURE_WAVE)
+					{
+					}
+					else
+					{
+						
+					}
+					
+					if (ImGui::Button("Close")) 
+					{
+						ImGui::CloseCurrentPopup();
+					}
+					ImGui::EndPopup();
+				}
+			}
+			ImGui::EndListBox();
+		}
+
+		ImGui::End();
+	}
+
 	inline void UserInterface::RenderInstanceMenu()
 	{
 		if (!m_show_move_control_menu) { return; }
@@ -1226,6 +1446,11 @@ namespace YumeRT
 			ImGui::Checkbox("Show Volume List", &UserInterface::m_show_volume_menu);
 		}
 
+		if (ImGui::CollapsingHeader("Texture"))
+		{
+			ImGui::Checkbox("Show Texture List", &UserInterface::m_show_texture_menu);
+		}
+
 		ImGui::End();
 	}
 
@@ -1253,6 +1478,7 @@ namespace YumeRT
 		RenderMaterialList();
 		RenderLightList();
 		RenderVolumeList();
+		RenderTextureMenu();
 
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

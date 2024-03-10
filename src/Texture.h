@@ -15,7 +15,28 @@ namespace YumeRT
 		CONSTANT_TEXTURE_FLOAT = 0,
 		CONSTANT_TEXTURE_RGB = 1,
 		SOLID_TEXTURE_CHECKERBOARD = 2,
-		SOLID_TEXTURE_NOISE = 3
+		SOLID_TEXTURE_NOISE = 3,
+		SOLID_TEXTURE_FBM = 4,
+		SOLID_TEXTURE_TURBULENCE = 5,
+		SOLID_TEXTURE_MARBLE = 6,
+		SOLID_TEXTURE_WOOD = 7,
+		SOLID_TEXTURE_POLKA_DOT = 8,
+		SOLID_TEXTURE_WAVE = 9
+	};
+
+	constexpr int texture_type_count = 10;
+	constexpr char* texture_type_names[texture_type_count] = 
+	{
+		"constant float", 
+		"constant rgb", 
+		"checkerboard", 
+		"perlin noise",
+		"fbm",
+		"turbulence",
+		"marble",
+		"wood",
+		"polka dot",
+		"wave"
 	};
 
 	struct Texture;
@@ -178,6 +199,325 @@ namespace YumeRT
 		}
 	};
 
+	struct NoiseTextureFBM
+	{
+		// texture connection structure
+		union
+		{
+			uint32_t indices[2];
+			struct {
+				uint32_t texture_black;
+				uint32_t texture_white;
+			}child_texture_indices;
+		};
+
+		union
+		{
+			glm::vec3 results[2]; // store the result from sub-tree
+			struct {
+				glm::vec3 col_black;
+				glm::vec3	col_white;
+			}child_texture_results;
+		};
+
+		// parent location in the stack.
+		int16_t parent_index;
+		// specify current texture's child_index of its parent.
+		int16_t ith_child;
+
+		// texture shading attributes
+		float frequency;
+		float lacunarity;
+		float gain;
+		int layer_count;
+
+		bool normalized;
+
+		__device__ __host__ inline NoiseTextureFBM(uint32_t texture_black_idx, uint32_t texture_white_idx, float frequency, float lacunarity, float gain, int layer_count, bool normalized)
+			: indices{ texture_black_idx, texture_white_idx },
+			results{ glm::vec3(TEXTURE_INVALID_VALUE), glm::vec3(TEXTURE_INVALID_VALUE) },
+			parent_index(-1), ith_child(-1),
+			frequency(frequency), lacunarity(lacunarity), gain(gain), layer_count(layer_count), normalized(normalized){}
+
+		__device__ __host__ inline NoiseTextureFBM& operator=(const NoiseTextureFBM& other)
+		{
+			indices[0] = other.indices[0];
+			indices[1] = other.indices[1];
+
+			results[0] = other.results[0];
+			results[1] = other.results[1];
+
+			parent_index = other.parent_index;
+			ith_child = other.ith_child;
+
+			frequency = other.frequency;
+			lacunarity = other.lacunarity;
+			gain = other.gain;
+			layer_count = other.layer_count; 
+
+			normalized = other.normalized;
+
+			return *this;
+		}
+	};
+
+	struct NoiseTextureTurbulence
+	{
+		// texture connection structure
+		union
+		{
+			uint32_t indices[2];
+			struct {
+				uint32_t texture_black;
+				uint32_t texture_white;
+			}child_texture_indices;
+		};
+
+		union
+		{
+			glm::vec3 results[2]; // store the result from sub-tree
+			struct {
+				glm::vec3 col_black;
+				glm::vec3	col_white;
+			}child_texture_results;
+		};
+
+		// parent location in the stack.
+		int16_t parent_index;
+		// specify current texture's child_index of its parent.
+		int16_t ith_child;
+
+		// texture shading attributes
+		float frequency;
+		float lacunarity;
+		float gain;
+		int layer_count;
+
+		bool normalized;
+
+		__device__ __host__ inline NoiseTextureTurbulence(uint32_t texture_black_idx, uint32_t texture_white_idx, float frequency, float lacunarity, float gain, int layer_count, bool normalized)
+			: indices{ texture_black_idx, texture_white_idx },
+			results{ glm::vec3(TEXTURE_INVALID_VALUE), glm::vec3(TEXTURE_INVALID_VALUE) },
+			parent_index(-1), ith_child(-1),
+			frequency(frequency), lacunarity(lacunarity), gain(gain), layer_count(layer_count), normalized(normalized){}
+
+		__device__ __host__ inline NoiseTextureTurbulence& operator=(const NoiseTextureTurbulence& other)
+		{
+			indices[0] = other.indices[0];
+			indices[1] = other.indices[1];
+
+			results[0] = other.results[0];
+			results[1] = other.results[1];
+
+			parent_index = other.parent_index;
+			ith_child = other.ith_child;
+
+			frequency = other.frequency;
+			lacunarity = other.lacunarity;
+			gain = other.gain;
+			layer_count = other.layer_count;
+
+			normalized = other.normalized;
+
+			return *this;
+		}
+	};
+
+	struct NoiseTextureMarble
+	{
+		// texture connection structure
+		union
+		{
+			uint32_t indices[2];
+			struct {
+				uint32_t texture_black;
+				uint32_t texture_white;
+			}child_texture_indices;
+		};
+
+		union
+		{
+			glm::vec3 results[2]; // store the result from sub-tree
+			struct {
+				glm::vec3 col_black;
+				glm::vec3	col_white;
+			}child_texture_results;
+		};
+
+		// parent location in the stack.
+		int16_t parent_index;
+		// specify current texture's child_index of its parent.
+		int16_t ith_child;
+
+		// texture shading attributes
+
+
+		__device__ __host__ inline NoiseTextureMarble(uint32_t texture_black_idx, uint32_t texture_white_idx)
+			: indices{ texture_black_idx, texture_white_idx },
+			results{ glm::vec3(TEXTURE_INVALID_VALUE), glm::vec3(TEXTURE_INVALID_VALUE) },
+			parent_index(-1), ith_child(-1){}
+
+		__device__ __host__ inline NoiseTextureMarble& operator=(const NoiseTextureMarble& other)
+		{
+			indices[0] = other.indices[0];
+			indices[1] = other.indices[1];
+
+			results[0] = other.results[0];
+			results[1] = other.results[1];
+
+			parent_index = other.parent_index;
+			ith_child = other.ith_child;
+
+			return *this;
+		}
+	};
+
+	struct NoiseTextureWood
+	{
+		// texture connection structure
+		union
+		{
+			uint32_t indices[2];
+			struct {
+				uint32_t texture_black;
+				uint32_t texture_white;
+			}child_texture_indices;
+		};
+
+		union
+		{
+			glm::vec3 results[2]; // store the result from sub-tree
+			struct {
+				glm::vec3 col_black;
+				glm::vec3	col_white;
+			}child_texture_results;
+		};
+
+		// parent location in the stack.
+		int16_t parent_index;
+		// specify current texture's child_index of its parent.
+		int16_t ith_child;
+
+		// texture shading attributes
+
+
+		__device__ __host__ inline NoiseTextureWood(uint32_t texture_black_idx, uint32_t texture_white_idx)
+			: indices{ texture_black_idx, texture_white_idx },
+			results{ glm::vec3(TEXTURE_INVALID_VALUE), glm::vec3(TEXTURE_INVALID_VALUE) },
+			parent_index(-1), ith_child(-1){}
+
+		__device__ __host__ inline NoiseTextureWood& operator=(const NoiseTextureWood& other)
+		{
+			indices[0] = other.indices[0];
+			indices[1] = other.indices[1];
+
+			results[0] = other.results[0];
+			results[1] = other.results[1];
+
+			parent_index = other.parent_index;
+			ith_child = other.ith_child;
+
+			return *this;
+		}
+	};
+
+	struct NoiseTexturePolkaDot
+	{
+		// texture connection structure
+		union
+		{
+			uint32_t indices[2];
+			struct {
+				uint32_t texture_black;
+				uint32_t texture_white;
+			}child_texture_indices;
+		};
+
+		union
+		{
+			glm::vec3 results[2]; // store the result from sub-tree
+			struct {
+				glm::vec3 col_black;
+				glm::vec3	col_white;
+			}child_texture_results;
+		};
+
+		// parent location in the stack.
+		int16_t parent_index;
+		// specify current texture's child_index of its parent.
+		int16_t ith_child;
+
+		// texture shading attributes
+
+
+		__device__ __host__ inline NoiseTexturePolkaDot(uint32_t texture_black_idx, uint32_t texture_white_idx)
+			: indices{ texture_black_idx, texture_white_idx },
+			results{ glm::vec3(TEXTURE_INVALID_VALUE), glm::vec3(TEXTURE_INVALID_VALUE) },
+			parent_index(-1), ith_child(-1){}
+
+		__device__ __host__ inline NoiseTexturePolkaDot& operator=(const NoiseTexturePolkaDot& other)
+		{
+			indices[0] = other.indices[0];
+			indices[1] = other.indices[1];
+
+			results[0] = other.results[0];
+			results[1] = other.results[1];
+
+			parent_index = other.parent_index;
+			ith_child = other.ith_child;
+
+			return *this;
+		}
+	};
+
+	struct NoiseTextureWave
+	{
+		// texture connection structure
+		union
+		{
+			uint32_t indices[2];
+			struct {
+				uint32_t texture_black;
+				uint32_t texture_white;
+			}child_texture_indices;
+		};
+
+		union
+		{
+			glm::vec3 results[2]; // store the result from sub-tree
+			struct {
+				glm::vec3 col_black;
+				glm::vec3	col_white;
+			}child_texture_results;
+		};
+
+		// parent location in the stack.
+		int16_t parent_index;
+		// specify current texture's child_index of its parent.
+		int16_t ith_child;
+
+		// texture shading attributes
+
+
+		__device__ __host__ inline NoiseTextureWave(uint32_t texture_black_idx, uint32_t texture_white_idx)
+			: indices{ texture_black_idx, texture_white_idx },
+			results{ glm::vec3(TEXTURE_INVALID_VALUE), glm::vec3(TEXTURE_INVALID_VALUE) },
+			parent_index(-1), ith_child(-1){}
+
+		__device__ __host__ inline NoiseTextureWave& operator=(const NoiseTextureWave& other)
+		{
+			indices[0] = other.indices[0];
+			indices[1] = other.indices[1];
+
+			results[0] = other.results[0];
+			results[1] = other.results[1];
+
+			parent_index = other.parent_index;
+			ith_child = other.ith_child;
+
+			return *this;
+		}
+	};
 
 	struct Texture
 	{
@@ -188,6 +528,12 @@ namespace YumeRT
 			ConstantTextureRGB constant_texture_rgb;
 			CheckerBoardTexture checker_board_texture;
 			NoiseTexture noise_texture;
+			NoiseTextureFBM noise_texture_fbm;
+			NoiseTextureTurbulence noise_texture_turbulence;
+			NoiseTextureMarble noise_texture_marble;
+			NoiseTextureWood noise_texture_wood;
+			NoiseTexturePolkaDot noise_texture_polka_dot;
+			NoiseTextureWave noise_texture_wave;
 		};
 
 		__device__ __host__ inline Texture() {}
@@ -208,6 +554,24 @@ namespace YumeRT
 			case SOLID_TEXTURE_NOISE:
 				noise_texture = other.noise_texture;
 				break;
+			case SOLID_TEXTURE_FBM:
+				noise_texture_fbm = other.noise_texture_fbm;
+				break;
+			case SOLID_TEXTURE_TURBULENCE:
+				noise_texture_turbulence = other.noise_texture_turbulence;
+				break;
+			case SOLID_TEXTURE_MARBLE:
+				noise_texture_marble = other.noise_texture_marble;
+				break;
+			case SOLID_TEXTURE_WOOD:
+				noise_texture_wood = other.noise_texture_wood;
+				break;
+			case SOLID_TEXTURE_POLKA_DOT:
+				noise_texture_polka_dot = other.noise_texture_polka_dot;
+				break;
+			case SOLID_TEXTURE_WAVE:
+				noise_texture_wave = other.noise_texture_wave;
+				break;
 			default:
 				break;
 			}
@@ -225,6 +589,30 @@ namespace YumeRT
 				return 2;
 			}
 			else if (texture_type == SOLID_TEXTURE_NOISE)
+			{
+				return 2;
+			}
+			else if (texture_type == SOLID_TEXTURE_FBM)
+			{
+				return 2;
+			}
+			else if (texture_type == SOLID_TEXTURE_TURBULENCE)
+			{
+				return 2;
+			}
+			else if (texture_type == SOLID_TEXTURE_MARBLE)
+			{
+				return 2;
+			}
+			else if (texture_type == SOLID_TEXTURE_WOOD)
+			{
+				return 2;
+			}
+			else if (texture_type == SOLID_TEXTURE_POLKA_DOT)
+			{
+				return 2;
+			}
+			else if (texture_type == SOLID_TEXTURE_WAVE)
 			{
 				return 2;
 			}
@@ -247,7 +635,31 @@ namespace YumeRT
 			{
 				return noise_texture.results[i];
 			}
-			else 
+			else if (texture_type == SOLID_TEXTURE_FBM)
+			{
+				return noise_texture_fbm.results[i];
+			}
+			else if (texture_type == SOLID_TEXTURE_TURBULENCE)
+			{
+				return noise_texture_turbulence.results[i];
+			}
+			else if (texture_type == SOLID_TEXTURE_MARBLE)
+			{
+				return noise_texture_marble.results[i];
+			}
+			else if (texture_type == SOLID_TEXTURE_WOOD)
+			{
+				return noise_texture_wood.results[i];
+			}
+			else if (texture_type == SOLID_TEXTURE_POLKA_DOT)
+			{
+				return noise_texture_polka_dot.results[i];
+			}
+			else if (texture_type == SOLID_TEXTURE_WAVE)
+			{
+				return noise_texture_wave.results[i];
+			}
+			else
 			{
 				return glm::vec3(0.0f);
 			}
@@ -266,8 +678,33 @@ namespace YumeRT
 			{
 				noise_texture.results[i] = col;
 			}
-			else 
+			else if (texture_type == SOLID_TEXTURE_FBM)
 			{
+				noise_texture_fbm.results[i] = col;
+			}
+			else if (texture_type == SOLID_TEXTURE_TURBULENCE)
+			{
+				noise_texture_turbulence.results[i] = col;
+			}
+			else if (texture_type == SOLID_TEXTURE_MARBLE)
+			{
+				noise_texture_marble.results[i] = col;
+			}
+			else if (texture_type == SOLID_TEXTURE_WOOD)
+			{
+				noise_texture_wood.results[i] = col;
+			}
+			else if (texture_type == SOLID_TEXTURE_POLKA_DOT)
+			{
+				noise_texture_polka_dot.results[i] = col;
+			}
+			else if (texture_type == SOLID_TEXTURE_WAVE)
+			{
+				noise_texture_wave.results[i] = col;
+			}
+			else
+			{
+				
 			}
 		}
 		__device__ __host__ inline uint32_t GetChildTextureIndex(int i) const
@@ -284,7 +721,31 @@ namespace YumeRT
 			{
 				return noise_texture.indices[i];
 			}
-			else 
+			else if (texture_type == SOLID_TEXTURE_FBM)
+			{
+				return noise_texture_fbm.indices[i];
+			}
+			else if (texture_type == SOLID_TEXTURE_TURBULENCE)
+			{
+				return noise_texture_turbulence.indices[i];
+			}
+			else if (texture_type == SOLID_TEXTURE_MARBLE)
+			{
+				return noise_texture_marble.indices[i];
+			}
+			else if (texture_type == SOLID_TEXTURE_WOOD)
+			{
+				return noise_texture_wood.indices[i];
+			}
+			else if (texture_type == SOLID_TEXTURE_POLKA_DOT)
+			{
+				return noise_texture_polka_dot.indices[i];
+			}
+			else if (texture_type == SOLID_TEXTURE_WAVE)
+			{
+				return noise_texture_wave.indices[i];
+			}
+			else
 			{
 				return 0;
 			}
@@ -308,7 +769,31 @@ namespace YumeRT
 			{
 				return noise_texture.parent_index;
 			}
-			else 
+			else if (texture_type == SOLID_TEXTURE_FBM)
+			{
+				return noise_texture_fbm.parent_index;
+			}
+			else if (texture_type == SOLID_TEXTURE_TURBULENCE)
+			{
+				return noise_texture_turbulence.parent_index;
+			}
+			else if (texture_type == SOLID_TEXTURE_MARBLE)
+			{
+				return noise_texture_marble.parent_index;
+			}
+			else if (texture_type == SOLID_TEXTURE_WOOD)
+			{
+				return noise_texture_wood.parent_index;
+			}
+			else if (texture_type == SOLID_TEXTURE_POLKA_DOT)
+			{
+				return noise_texture_polka_dot.parent_index;
+			}
+			else if (texture_type == SOLID_TEXTURE_WAVE)
+			{
+				return noise_texture_wave.parent_index;
+			}
+			else
 			{
 				return 0;
 			}
@@ -330,6 +815,30 @@ namespace YumeRT
 			else if (texture_type == SOLID_TEXTURE_NOISE)
 			{
 				noise_texture.parent_index = parent_index;
+			}
+			else if (texture_type == SOLID_TEXTURE_FBM)
+			{
+				noise_texture_fbm.parent_index = parent_index;
+			}
+			else if (texture_type == SOLID_TEXTURE_TURBULENCE)
+			{
+				noise_texture_turbulence.parent_index = parent_index;
+			}
+			else if (texture_type == SOLID_TEXTURE_MARBLE)
+			{
+				noise_texture_marble.parent_index = parent_index;
+			}
+			else if (texture_type == SOLID_TEXTURE_WOOD)
+			{
+				noise_texture_wood.parent_index = parent_index;
+			}
+			else if (texture_type == SOLID_TEXTURE_POLKA_DOT)
+			{
+				noise_texture_polka_dot.parent_index = parent_index;
+			}
+			else if (texture_type == SOLID_TEXTURE_WAVE)
+			{
+				noise_texture_wave.parent_index = parent_index;
 			}
 			else
 			{
@@ -354,6 +863,30 @@ namespace YumeRT
 			{
 				return noise_texture.ith_child;
 			}
+			else if (texture_type == SOLID_TEXTURE_FBM)
+			{
+				return noise_texture_fbm.ith_child;
+			}
+			else if (texture_type == SOLID_TEXTURE_TURBULENCE)
+			{
+				return noise_texture_turbulence.ith_child;
+			}
+			else if (texture_type == SOLID_TEXTURE_MARBLE)
+			{
+				return noise_texture_marble.ith_child;
+			}
+			else if (texture_type == SOLID_TEXTURE_WOOD)
+			{
+				return noise_texture_wood.ith_child;
+			}
+			else if (texture_type == SOLID_TEXTURE_POLKA_DOT)
+			{
+				return noise_texture_polka_dot.ith_child;
+			}
+			else if (texture_type == SOLID_TEXTURE_WAVE)
+			{
+				return noise_texture_wave.ith_child;
+			}
 			else
 			{
 				return 0;
@@ -376,6 +909,30 @@ namespace YumeRT
 			else if (texture_type == SOLID_TEXTURE_NOISE)
 			{
 				noise_texture.ith_child = ith_child;
+			}
+			else if (texture_type == SOLID_TEXTURE_FBM)
+			{
+				noise_texture_fbm.ith_child = ith_child;
+			}
+			else if (texture_type == SOLID_TEXTURE_TURBULENCE)
+			{
+				noise_texture_turbulence.ith_child = ith_child;
+			}
+			else if (texture_type == SOLID_TEXTURE_MARBLE)
+			{
+				noise_texture_marble.ith_child = ith_child;
+			}
+			else if (texture_type == SOLID_TEXTURE_WOOD)
+			{
+				noise_texture_wood.ith_child = ith_child;
+			}
+			else if (texture_type == SOLID_TEXTURE_POLKA_DOT)
+			{
+				noise_texture_polka_dot.ith_child = ith_child;
+			}
+			else if (texture_type == SOLID_TEXTURE_WAVE)
+			{
+				noise_texture_wave.ith_child = ith_child;
 			}
 			else
 			{
@@ -405,6 +962,42 @@ namespace YumeRT
 		{
 			texture_type = SOLID_TEXTURE_NOISE;
 			noise_texture = NoiseTexture(texture_black_idx, texture_white_idx, frequency, normalized);
+			return *this;
+		}
+		__device__ __host__ inline Texture& InitNoiseTextureFBM(uint32_t texture_black_idx, uint32_t texture_white_idx, float frequency = 16.0f, float lacunarity = 2.0f, float gain = 0.5f, int layer_count = 4, bool normalized = false) 
+		{
+			texture_type = SOLID_TEXTURE_FBM;
+			noise_texture_fbm = NoiseTextureFBM(texture_black_idx, texture_white_idx, frequency, lacunarity, gain, layer_count, normalized);
+			return *this;
+		}
+		__device__ __host__ inline Texture& InitNoiseTextureTurbulence(uint32_t texture_black_idx, uint32_t texture_white_idx, float frequency = 16.0f, float lacunarity = 2.0f, float gain = 0.5f, int layer_count = 4, bool normalized = false)
+		{
+			texture_type = SOLID_TEXTURE_TURBULENCE;
+			noise_texture_turbulence = NoiseTextureTurbulence(texture_black_idx, texture_white_idx, frequency, lacunarity, gain, layer_count, normalized);
+			return *this;
+		}
+		__device__ __host__ inline Texture& InitNoiseTextureMarble(uint32_t texture_black_idx, uint32_t texture_white_idx)
+		{
+			texture_type = SOLID_TEXTURE_MARBLE;
+			noise_texture_marble = NoiseTextureMarble(texture_black_idx, texture_white_idx);
+			return *this;
+		}
+		__device__ __host__ inline Texture& InitNoiseTextureWood(uint32_t texture_black_idx, uint32_t texture_white_idx)
+		{
+			texture_type = SOLID_TEXTURE_WOOD;
+			noise_texture_wood = NoiseTextureWood(texture_black_idx, texture_white_idx);
+			return *this;
+		}
+		__device__ __host__ inline Texture& InitNoiseTexturePolkaDot(uint32_t texture_black_idx, uint32_t texture_white_idx)
+		{
+			texture_type = SOLID_TEXTURE_POLKA_DOT;
+			noise_texture_polka_dot = NoiseTexturePolkaDot(texture_black_idx, texture_white_idx);
+			return *this;
+		}
+		__device__ __host__ inline Texture& InitNoiseTextureWave(uint32_t texture_black_idx, uint32_t texture_white_idx)
+		{
+			texture_type = SOLID_TEXTURE_WAVE;
+			noise_texture_wave = NoiseTextureWave(texture_black_idx, texture_white_idx);
 			return *this;
 		}
 	};

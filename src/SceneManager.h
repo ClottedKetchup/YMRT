@@ -80,7 +80,9 @@ namespace YumeRT
 		INSTANCE_VOLUME_CHANGE = (1 << 15),
 		VOLUME_CHANGE = (1 << 16),
 		DISTANT_LIGHT_ADD_REMOVE = (1 << 17),
-		VOLUME_ADD_REMOVE = (1 << 18)
+		VOLUME_ADD_REMOVE = (1 << 18),
+		TEXTURE_ADD_REMOVE = (1 << 19),
+		TEXTURE_CHANGE = (1 << 20)
 	};
 
 	class SceneManager
@@ -154,6 +156,11 @@ namespace YumeRT
 		inline uint32_t RemoveVolume(uint32_t volume_idx);
 		inline void UpdateVolume(uint32_t volume_idx);
 
+		// texture
+		inline uint32_t AddTexture(const std::string &name, const Texture& texture);
+		inline uint32_t RemoveTexture(uint32_t texture_idx);
+		inline void UpdateTexture(uint32_t texture_idx);
+
 		// a bunch of short function
 		inline const Scene& GetScene() const { return scene; }
 		inline const TextureManager& GetTextureManager() const { return texture_manager; }
@@ -169,6 +176,8 @@ namespace YumeRT
 		inline const std::vector<std::string>& GetDistantLightNames() const { return distant_light_names; }
 		inline const std::vector<Volume>& GetVolumes() const { return volumes; }
 		inline const std::vector<std::string>& GetVolumeNames() const { return volume_names; }
+		inline const std::vector<Texture>& GetTextures()const { return textures; }
+		inline const std::vector<std::string>& GetTextureNames() const { return texture_names; }
 
 		inline float GetTopBVHTime() const { return top_BVH_time; }
 		inline float GetBottomBVHTime() const { return bottom_BVH_time; }
@@ -226,6 +235,12 @@ namespace YumeRT
 			if (vol_idx > (uint32_t)volumes.size() - 1) { return nullptr; }
 			return &volumes[vol_idx];
 		}
+		inline Texture* GetTexture(uint32_t tex_idx) 
+		{
+			if (textures.empty()) { return nullptr; }
+			if (tex_idx > (uint32_t)textures.size() - 1) { return nullptr; }
+			return &textures[tex_idx];
+		}
 
 		// get per-frame scene flag
 		inline bool IsSceneChange()
@@ -242,7 +257,9 @@ namespace YumeRT
 				(scene_change_flag & SCENECHANGE_FLAG::INSTANCE_VOLUME_CHANGE) ||
 				(scene_change_flag & SCENECHANGE_FLAG::VOLUME_CHANGE) ||
 				(scene_change_flag & SCENECHANGE_FLAG::DISTANT_LIGHT_ADD_REMOVE) ||
-				(scene_change_flag & SCENECHANGE_FLAG::VOLUME_ADD_REMOVE);
+				(scene_change_flag & SCENECHANGE_FLAG::VOLUME_ADD_REMOVE) ||
+				(scene_change_flag & SCENECHANGE_FLAG::TEXTURE_ADD_REMOVE) ||
+				(scene_change_flag & SCENECHANGE_FLAG::TEXTURE_CHANGE);
 		}
 		inline void AddSceneFlag(SCENECHANGE_FLAG flag) { scene_change_flag |= flag; }
 		inline void ResetSceneFlag() { scene_change_flag = 0; }
@@ -293,6 +310,7 @@ namespace YumeRT
 		std::vector<std::string> volume_names;
 
 		std::vector<Texture> textures;
+		std::vector<std::string> texture_names;
 
 		std::vector<uint32_t> permute_table;
 
@@ -1574,6 +1592,27 @@ namespace YumeRT
 		AddSceneFlag(SCENECHANGE_FLAG::VOLUME_CHANGE);
 	}
 
+	// TODO: texture GUI
+	inline uint32_t SceneManager::AddTexture(const std::string &name, const Texture& texture)
+	{
+		textures.push_back(texture);
+		texture_names.push_back(name);
+
+		AddSceneFlag(SCENECHANGE_FLAG::TEXTURE_ADD_REMOVE);
+		return (uint32_t)textures.size() - 1;
+	}
+	inline void SceneManager::UpdateTexture(uint32_t texture_idx)
+	{
+		if (textures.empty()) { return; }
+		if (texture_idx > (uint32_t)textures.size() - 1) { return; }
+
+		assert(scene.textures != nullptr);
+		CUDA_CHECK(cudaMemcpy(scene.textures + texture_idx, &textures[texture_idx], sizeof(Texture), cudaMemcpyHostToDevice));
+		CUDA_CHECK(cudaDeviceSynchronize());
+
+		AddSceneFlag(SCENECHANGE_FLAG::TEXTURE_CHANGE);
+	}
+
 	void SceneManager::TestScene(int screen_width, int screen_height)
 	{
 		AddSurfaceMaterial("default material", glm::vec3(0.0f));
@@ -1669,12 +1708,12 @@ namespace YumeRT
 			1.0f,
 			world_volume_idx, -1);
 
-		// test texture eval
-		textures.push_back(Texture().InitConstantTextureRGB(glm::vec3(0.01f)));
-		textures.push_back(Texture().InitConstantTextureRGB(glm::vec3(0.99f)));
-		textures.push_back(Texture().InitCheckerBoardTexture(0, 1, 32.0f));
-		materials.back().surface_material.diffuse_albedo_tex = (uint32_t)textures.size() - 1;
-		
+		// test basic texture op
+		const uint32_t tex_black_idx = AddTexture("tex_black", Texture().InitConstantTextureRGB(glm::vec3(0.01f)));
+		const uint32_t tex_white_idx = AddTexture("tex_white", Texture().InitConstantTextureRGB(glm::vec3(0.99f)));
+		const uint32_t tex_checkerboard = AddTexture("CheckerBoard_0", Texture().InitCheckerBoardTexture(tex_black_idx, tex_white_idx, 64.0f));
+		materials.back().surface_material.diffuse_albedo_tex = tex_checkerboard;
+
 		// top
 		AddPrimInstance(cube_idx,
 			AddTransform(glm::vec3(0.0f, 5.025f, -5.0f), glm::vec3(10.0f, 0.05f, 10.0f)),
@@ -1707,19 +1746,19 @@ namespace YumeRT
 			1.0f,
 			world_volume_idx, -1);
 
-		// light
-		AddPrimInstance(cube_idx,
-			AddTransform(glm::vec3(-3.0f, 4.15f, -5.0f), glm::vec3(0.3, 0.3f, 0.3)),
-			AddLightMaterial("ceil light", glm::vec3(1.0f), 150.0f),
-			1.0f,
-			world_volume_idx, -1);
+		//// light
+		//AddPrimInstance(cube_idx,
+		//	AddTransform(glm::vec3(-3.0f, 4.15f, -5.0f), glm::vec3(0.3, 0.3f, 0.3)),
+		//	AddLightMaterial("ceil light", glm::vec3(1.0f), 150.0f),
+		//	1.0f,
+		//	world_volume_idx, -1);
 
-		// sphere light
-		AddPrimInstance(sphere_idx,
-			AddTransform(glm::vec3(3.0f, 4.15f, -5.0f), glm::vec3(0.15f, 0.15f, 0.15f)),
-			AddLightMaterial("sphere light", glm::vec3(1.0f), 300.0f),
-			1.0f,
-			world_volume_idx, -1);
+		//// sphere light
+		//AddPrimInstance(sphere_idx,
+		//	AddTransform(glm::vec3(3.0f, 4.15f, -5.0f), glm::vec3(0.15f, 0.15f, 0.15f)),
+		//	AddLightMaterial("sphere light", glm::vec3(1.0f), 300.0f),
+		//	1.0f,
+		//	world_volume_idx, -1);
 
 		// ground
 		AddPrimInstance(cube_idx,
@@ -1728,9 +1767,14 @@ namespace YumeRT
 			1.0f,
 			world_volume_idx, -1);
 
-		textures.push_back(Texture().InitConstantTextureRGB(glm::vec3(0.65f, 0.15f, 0.75f)));
-		textures.push_back(Texture().InitNoiseTexture(0, 1, 64.0f));
-		materials.back().surface_material.diffuse_albedo_tex = (uint32_t)textures.size() - 1;
+		AddPrimInstance(cube_idx,
+			AddTransform(glm::vec3(5.8f, -2.55f, 5.8f), glm::vec3(4.0f, 4.0f, 4.0f)),
+			AddSurfaceMaterial("extra cube", glm::vec3(0.55f, 0.55f, 0.55f), glm::vec3(0.0f), 0.2, 0.2, 1.3, 0.0f, 0.0f, 0.0f),
+			1.0f,
+			world_volume_idx, -1);
+
+		const uint32_t tex_perlin_noise = AddTexture("Noise_0", Texture().InitNoiseTextureTurbulence(tex_black_idx, tex_white_idx));
+		materials.back().surface_material.diffuse_albedo_tex = tex_perlin_noise;
 
 		ACBVHBuilder SceneBuilder(prim_instances.data(),
 			(uint32_t)prim_instances.size(),
