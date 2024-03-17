@@ -1124,15 +1124,151 @@ namespace YumeRT
 					}
 					else if (texture.texture_type == SOLID_TEXTURE_MARBLE)
 					{
+						NoiseTextureMarble& noise_texture_marble = texture.noise_texture_marble;
+
+						int max_allow_idx = glm::max((int)tex_idx - 1, 0);
+						if (ImGui::InputInt("tex black", (int*)&noise_texture_marble.child_texture_indices.texture_black))
+						{
+							noise_texture_marble.child_texture_indices.texture_black = glm::clamp(noise_texture_marble.child_texture_indices.texture_black, 0u, (uint32_t)max_allow_idx);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputInt("tex white", (int*)&noise_texture_marble.child_texture_indices.texture_white))
+						{
+							noise_texture_marble.child_texture_indices.texture_white = glm::clamp(noise_texture_marble.child_texture_indices.texture_white, 0u, (uint32_t)max_allow_idx);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("variation", &noise_texture_marble.variation))
+						{
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("frequency", &noise_texture_marble.frequency))
+						{
+							noise_texture_marble.frequency = glm::max(0.0001f, noise_texture_marble.frequency);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("lacunarity", &noise_texture_marble.lacunarity))
+						{
+							noise_texture_marble.lacunarity = glm::max(0.0001f, noise_texture_marble.lacunarity);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("gain", &noise_texture_marble.gain))
+						{
+							noise_texture_marble.gain = glm::max(0.0001f, noise_texture_marble.gain);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputInt("octave", &noise_texture_marble.layer_count))
+						{
+							noise_texture_marble.layer_count = glm::max(noise_texture_marble.layer_count, 1);
+							scene_manager->UpdateTexture(tex_idx);
+						}
 					}
 					else if (texture.texture_type == SOLID_TEXTURE_WOOD)
 					{
+						NoiseTextureWood& noise_texture_wood = texture.noise_texture_wood;
+
+						int max_allow_idx = glm::max((int)tex_idx - 1, 0);
+						if (ImGui::InputInt("tex black", (int*)&noise_texture_wood.child_texture_indices.texture_black))
+						{
+							noise_texture_wood.child_texture_indices.texture_black = glm::clamp(noise_texture_wood.child_texture_indices.texture_black, 0u, (uint32_t)max_allow_idx);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputInt("tex white", (int*)&noise_texture_wood.child_texture_indices.texture_white))
+						{
+							noise_texture_wood.child_texture_indices.texture_white = glm::clamp(noise_texture_wood.child_texture_indices.texture_white, 0u, (uint32_t)max_allow_idx);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("variation", &noise_texture_wood.variation))
+						{
+							noise_texture_wood.variation = glm::max(0.f, noise_texture_wood.variation);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("frequency", &noise_texture_wood.frequency))
+						{
+							noise_texture_wood.frequency = glm::max(0.0001f, noise_texture_wood.frequency);
+							scene_manager->UpdateTexture(tex_idx);
+						}
 					}
 					else if (texture.texture_type == SOLID_TEXTURE_POLKA_DOT)
 					{
+						NoiseTexturePolkaDot& noise_texture_polka_dot = texture.noise_texture_polka_dot;
+
+						int max_allow_idx = glm::max((int)tex_idx - 1, 0);
+						if (ImGui::InputInt("tex black", (int*)&noise_texture_polka_dot.child_texture_indices.texture_black))
+						{
+							noise_texture_polka_dot.child_texture_indices.texture_black = glm::clamp(noise_texture_polka_dot.child_texture_indices.texture_black, 0u, (uint32_t)max_allow_idx);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputInt("tex white", (int*)&noise_texture_polka_dot.child_texture_indices.texture_white))
+						{
+							noise_texture_polka_dot.child_texture_indices.texture_white = glm::clamp(noise_texture_polka_dot.child_texture_indices.texture_white, 0u, (uint32_t)max_allow_idx);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("radius", &noise_texture_polka_dot.radius))
+						{
+							noise_texture_polka_dot.radius = glm::clamp(noise_texture_polka_dot.radius, 0.0f, 0.5f);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("frequency", &noise_texture_polka_dot.frequency))
+						{
+							noise_texture_polka_dot.frequency = glm::max(0.0001f, noise_texture_polka_dot.frequency);
+							scene_manager->UpdateTexture(tex_idx);
+						}
 					}
 					else if (texture.texture_type == SOLID_TEXTURE_WAVE)
 					{
+						NoiseTextureWave& noise_texture_wave = texture.noise_texture_wave;
+
+						int max_allow_idx = glm::max((int)tex_idx - 1, 0);
+						if (ImGui::InputInt("tex black", (int*)&noise_texture_wave.child_texture_indices.texture_black))
+						{
+							noise_texture_wave.child_texture_indices.texture_black = glm::clamp(noise_texture_wave.child_texture_indices.texture_black, 0u, (uint32_t)max_allow_idx);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputInt("tex white", (int*)&noise_texture_wave.child_texture_indices.texture_white))
+						{
+							noise_texture_wave.child_texture_indices.texture_white = glm::clamp(noise_texture_wave.child_texture_indices.texture_white, 0u, (uint32_t)max_allow_idx);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("frequency0", &noise_texture_wave.freq_0))
+						{
+							noise_texture_wave.freq_0 = glm::max(0.0001f, noise_texture_wave.freq_0);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("lacunarity0", &noise_texture_wave.lacunarity_0))
+						{
+							noise_texture_wave.lacunarity_0 = glm::max(0.0001f, noise_texture_wave.lacunarity_0);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("gain0", &noise_texture_wave.gain_0))
+						{
+							noise_texture_wave.gain_0 = glm::max(0.0001f, noise_texture_wave.gain_0);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputInt("octave0", &noise_texture_wave.layer_count_0))
+						{
+							noise_texture_wave.layer_count_0 = glm::max(noise_texture_wave.layer_count_0, 1);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("frequency1", &noise_texture_wave.freq_1))
+						{
+							noise_texture_wave.freq_1 = glm::max(0.0001f, noise_texture_wave.freq_1);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("lacunarity1", &noise_texture_wave.lacunarity_1))
+						{
+							noise_texture_wave.lacunarity_1 = glm::max(0.0001f, noise_texture_wave.lacunarity_1);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("gain1", &noise_texture_wave.gain_1))
+						{
+							noise_texture_wave.gain_1 = glm::max(0.0001f, noise_texture_wave.gain_1);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputInt("octave1", &noise_texture_wave.layer_count_1))
+						{
+							noise_texture_wave.layer_count_1 = glm::max(noise_texture_wave.layer_count_1, 1);
+							scene_manager->UpdateTexture(tex_idx);
+						}
 					}
 					else
 					{

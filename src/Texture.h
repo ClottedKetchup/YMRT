@@ -8,7 +8,7 @@
 
 namespace YumeRT
 {
-#define TEXTURE_INVALID_VALUE 1E30f
+#define TEXTURE_INVALID_VALUE 1E36f
 
 	enum TEXTURE_TYPE
 	{
@@ -350,12 +350,19 @@ namespace YumeRT
 		int16_t ith_child;
 
 		// texture shading attributes
+		float frequency;
+		float lacunarity;
+		float gain;
+		int layer_count;
+		float variation;
 
 
-		__device__ __host__ inline NoiseTextureMarble(uint32_t texture_black_idx, uint32_t texture_white_idx)
+		__device__ __host__ inline NoiseTextureMarble(uint32_t texture_black_idx, uint32_t texture_white_idx, 
+			float frequency, float lacunarity, float gain, int layer_count, float variation)
 			: indices{ texture_black_idx, texture_white_idx },
 			results{ glm::vec3(TEXTURE_INVALID_VALUE), glm::vec3(TEXTURE_INVALID_VALUE) },
-			parent_index(-1), ith_child(-1){}
+			parent_index(-1), ith_child(-1),
+			frequency(frequency),  lacunarity(lacunarity),  gain(gain),  layer_count(layer_count),  variation(variation){}
 
 		__device__ __host__ inline NoiseTextureMarble& operator=(const NoiseTextureMarble& other)
 		{
@@ -367,6 +374,13 @@ namespace YumeRT
 
 			parent_index = other.parent_index;
 			ith_child = other.ith_child;
+
+			frequency = other.frequency;
+			lacunarity = other.lacunarity;
+			gain = other.gain;
+			layer_count = other.layer_count;
+
+			variation = other.variation;
 
 			return *this;
 		}
@@ -399,12 +413,15 @@ namespace YumeRT
 		int16_t ith_child;
 
 		// texture shading attributes
+		float frequency;
+		float variation;
 
 
-		__device__ __host__ inline NoiseTextureWood(uint32_t texture_black_idx, uint32_t texture_white_idx)
+		__device__ __host__ inline NoiseTextureWood(uint32_t texture_black_idx, uint32_t texture_white_idx, float frequency, float variation)
 			: indices{ texture_black_idx, texture_white_idx },
 			results{ glm::vec3(TEXTURE_INVALID_VALUE), glm::vec3(TEXTURE_INVALID_VALUE) },
-			parent_index(-1), ith_child(-1){}
+			parent_index(-1), ith_child(-1),
+			frequency(frequency),  variation(variation){}
 
 		__device__ __host__ inline NoiseTextureWood& operator=(const NoiseTextureWood& other)
 		{
@@ -416,6 +433,9 @@ namespace YumeRT
 
 			parent_index = other.parent_index;
 			ith_child = other.ith_child;
+
+			frequency = other.frequency;
+			variation = other.variation;
 
 			return *this;
 		}
@@ -448,12 +468,15 @@ namespace YumeRT
 		int16_t ith_child;
 
 		// texture shading attributes
+		float frequency;
+		float radius;
 
 
-		__device__ __host__ inline NoiseTexturePolkaDot(uint32_t texture_black_idx, uint32_t texture_white_idx)
+		__device__ __host__ inline NoiseTexturePolkaDot(uint32_t texture_black_idx, uint32_t texture_white_idx, float frequency, float radius)
 			: indices{ texture_black_idx, texture_white_idx },
 			results{ glm::vec3(TEXTURE_INVALID_VALUE), glm::vec3(TEXTURE_INVALID_VALUE) },
-			parent_index(-1), ith_child(-1){}
+			parent_index(-1), ith_child(-1),  
+			frequency(frequency),  radius(radius){}
 
 		__device__ __host__ inline NoiseTexturePolkaDot& operator=(const NoiseTexturePolkaDot& other)
 		{
@@ -465,6 +488,9 @@ namespace YumeRT
 
 			parent_index = other.parent_index;
 			ith_child = other.ith_child;
+
+			frequency = other.frequency;
+			radius = other.radius;
 
 			return *this;
 		}
@@ -497,12 +523,23 @@ namespace YumeRT
 		int16_t ith_child;
 
 		// texture shading attributes
+		float freq_0;
+		float lacunarity_0;
+		float gain_0;
+		int layer_count_0;
+		float freq_1;
+		float lacunarity_1;
+		float gain_1;
+		int layer_count_1;
 
-
-		__device__ __host__ inline NoiseTextureWave(uint32_t texture_black_idx, uint32_t texture_white_idx)
+		__device__ __host__ inline NoiseTextureWave(uint32_t texture_black_idx, uint32_t texture_white_idx,
+			float freq_0, float lacunarity_0, float gain_0, int layer_count_0,
+			float freq_1, float lacunarity_1, float gain_1, int layer_count_1)
 			: indices{ texture_black_idx, texture_white_idx },
 			results{ glm::vec3(TEXTURE_INVALID_VALUE), glm::vec3(TEXTURE_INVALID_VALUE) },
-			parent_index(-1), ith_child(-1){}
+			parent_index(-1), ith_child(-1), 
+			freq_0(freq_0),  lacunarity_0(lacunarity_0),  gain_0(gain_0),  layer_count_0(layer_count_0),
+			freq_1(freq_1), lacunarity_1(lacunarity_1), gain_1(gain_1), layer_count_1(layer_count_1){}
 
 		__device__ __host__ inline NoiseTextureWave& operator=(const NoiseTextureWave& other)
 		{
@@ -514,6 +551,15 @@ namespace YumeRT
 
 			parent_index = other.parent_index;
 			ith_child = other.ith_child;
+
+			 freq_0 = other.freq_0;
+			 lacunarity_0 = other.lacunarity_0;
+			 gain_0 = other.gain_0;
+			 layer_count_0 = other.layer_count_0;
+			 freq_1 = other.freq_1;
+			 lacunarity_1 = other.lacunarity_1;
+			 gain_1 = other.gain_1;
+			 layer_count_1 = other.layer_count_1;
 
 			return *this;
 		}
@@ -676,7 +722,9 @@ namespace YumeRT
 			}
 			else if (texture_type == SOLID_TEXTURE_NOISE)
 			{
-				noise_texture.results[i] = col;
+				noise_texture.results[i].x = col.x;
+				noise_texture.results[i].y = col.y;
+				noise_texture.results[i].z = col.z;
 			}
 			else if (texture_type == SOLID_TEXTURE_FBM)
 			{
@@ -696,7 +744,9 @@ namespace YumeRT
 			}
 			else if (texture_type == SOLID_TEXTURE_POLKA_DOT)
 			{
-				noise_texture_polka_dot.results[i] = col;
+				noise_texture_polka_dot.results[i].x = col.x;
+				noise_texture_polka_dot.results[i].y = col.y;
+				noise_texture_polka_dot.results[i].z = col.z;
 			}
 			else if (texture_type == SOLID_TEXTURE_WAVE)
 			{
@@ -976,28 +1026,32 @@ namespace YumeRT
 			noise_texture_turbulence = NoiseTextureTurbulence(texture_black_idx, texture_white_idx, frequency, lacunarity, gain, layer_count, normalized);
 			return *this;
 		}
-		__device__ __host__ inline Texture& InitNoiseTextureMarble(uint32_t texture_black_idx, uint32_t texture_white_idx)
+		__device__ __host__ inline Texture& InitNoiseTextureMarble(uint32_t texture_black_idx, uint32_t texture_white_idx, float frequency = 16.0f, float lacunarity = 2.0f, float gain = 0.5f, int layer_count = 4, float variation = 10.0f)
 		{
 			texture_type = SOLID_TEXTURE_MARBLE;
-			noise_texture_marble = NoiseTextureMarble(texture_black_idx, texture_white_idx);
+			noise_texture_marble = NoiseTextureMarble(texture_black_idx, texture_white_idx, frequency, lacunarity, gain, layer_count, variation);
 			return *this;
 		}
-		__device__ __host__ inline Texture& InitNoiseTextureWood(uint32_t texture_black_idx, uint32_t texture_white_idx)
+		__device__ __host__ inline Texture& InitNoiseTextureWood(uint32_t texture_black_idx, uint32_t texture_white_idx, float frequency = 2.0f, float variation = 10.0f)
 		{
 			texture_type = SOLID_TEXTURE_WOOD;
-			noise_texture_wood = NoiseTextureWood(texture_black_idx, texture_white_idx);
+			noise_texture_wood = NoiseTextureWood(texture_black_idx, texture_white_idx, frequency, variation);
 			return *this;
 		}
-		__device__ __host__ inline Texture& InitNoiseTexturePolkaDot(uint32_t texture_black_idx, uint32_t texture_white_idx)
+		__device__ __host__ inline Texture& InitNoiseTexturePolkaDot(uint32_t texture_black_idx, uint32_t texture_white_idx, float frequency = 8.0f, float radius = 0.35f)
 		{
 			texture_type = SOLID_TEXTURE_POLKA_DOT;
-			noise_texture_polka_dot = NoiseTexturePolkaDot(texture_black_idx, texture_white_idx);
+			noise_texture_polka_dot = NoiseTexturePolkaDot(texture_black_idx, texture_white_idx, frequency, radius);
 			return *this;
 		}
-		__device__ __host__ inline Texture& InitNoiseTextureWave(uint32_t texture_black_idx, uint32_t texture_white_idx)
+		__device__ __host__ inline Texture& InitNoiseTextureWave(uint32_t texture_black_idx, uint32_t texture_white_idx, 
+			float freq_0 = 0.1f, float lacunarity_0 = 2.0f, float gain_0 = 0.5f, int layer_count_0 = 2,
+			float freq_1 = 2.0f, float lacunarity_1 = 2.0f, float gain_1 = 0.5f, int layer_count_1 = 4)
 		{
 			texture_type = SOLID_TEXTURE_WAVE;
-			noise_texture_wave = NoiseTextureWave(texture_black_idx, texture_white_idx);
+			noise_texture_wave = NoiseTextureWave(texture_black_idx, texture_white_idx, 
+				freq_0, lacunarity_0, gain_0, layer_count_0,
+				freq_1, lacunarity_1, gain_1, layer_count_1);
 			return *this;
 		}
 	};

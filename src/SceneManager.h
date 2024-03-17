@@ -1664,7 +1664,7 @@ namespace YumeRT
 		uint32_t world_volume_idx = AddVolume("world volume", glm::vec3(0.085f), glm::vec3(0.001f));
 
 		glm::vec3 camera_from = glm::vec3(0.0f, 0.0f, 6.0f);
-		glm::vec3 camera_look = glm::vec3(0.0f, 0.0f, 0.0f);
+		glm::vec3 camera_look = glm::vec3(5.0f, 0.0f, 4.0f);
 		float camera_fov = glm::radians(45.0f);
 		float camera_aspect = float(screen_width) / float(screen_height);
 
@@ -1773,7 +1773,7 @@ namespace YumeRT
 			1.0f,
 			world_volume_idx, -1);
 
-		const uint32_t tex_perlin_noise = AddTexture("Noise_0", Texture().InitNoiseTextureTurbulence(tex_black_idx, tex_white_idx));
+		const uint32_t tex_perlin_noise = AddTexture("Noise_0", Texture().InitNoiseTexturePolkaDot(tex_black_idx, tex_white_idx));
 		materials.back().surface_material.diffuse_albedo_tex = tex_perlin_noise;
 
 		ACBVHBuilder SceneBuilder(prim_instances.data(),
