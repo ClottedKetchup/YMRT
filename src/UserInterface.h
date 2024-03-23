@@ -909,7 +909,8 @@ namespace YumeRT
 		ImGui::InputText("Volume Name", volume_name_buf, 32);
 		if (ImGui::Button("Add", ImVec2(button_size.x * 0.48f, button_size.y)))
 		{
-			highlight_volume_idx = scene_manager->AddVolume(std::string(volume_name_buf));
+			uint32_t vol_transform_idx = scene_manager->AddTransform();
+			highlight_volume_idx = scene_manager->AddVolume(std::string(volume_name_buf), vol_transform_idx);
 		}
 		ImGui::SameLine();
 		if (ImGui::Button("Remove", ImVec2(button_size.x * 0.48f, button_size.y)))
@@ -930,6 +931,38 @@ namespace YumeRT
 			if (ImGui::ColorEdit3("Absorb Coefficient ", (float*)(&volume.sigma_a), ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR))
 			{
 				scene_manager->UpdateVolume(highlight_volume_idx);
+			}
+			if (ImGui::SliderFloat("Anisotropy", &volume.g, -0.9999f, 0.9999f)) 
+			{
+				scene_manager->UpdateVolume(highlight_volume_idx);
+			}
+
+			const uint32_t transform_idx = volume.transform_idx;
+			TransformState *transform_state_ptr = scene_manager->GetTransformState(transform_idx);
+			if (transform_state_ptr != nullptr)
+			{
+				TransformState &transform_state = *transform_state_ptr;
+				if (ImGui::SliderFloat("Rotate X", &transform_state.R.x, 0.0f, 360.0f))
+				{
+					scene_manager->UpdateVolumeTransform(highlight_volume_idx);
+				}
+				if (ImGui::SliderFloat("Rotate Y", &transform_state.R.y, 0.0f, 360.0f))
+				{
+					scene_manager->UpdateVolumeTransform(highlight_volume_idx);
+				}
+				if (ImGui::SliderFloat("Rotate Z", &transform_state.R.z, 0.0f, 360.0f))
+				{
+					scene_manager->UpdateVolumeTransform(highlight_volume_idx);
+				}
+				if (ImGui::InputFloat3("Translate", (float*)(&transform_state.T)))
+				{
+					scene_manager->UpdateVolumeTransform(highlight_volume_idx);
+				}
+				if (ImGui::InputFloat3("Scale", (float*)(&transform_state.S)))
+				{
+					transform_state.S = glm::vec3(glm::max(0.0001f, transform_state.S.x), glm::max(0.0001f, transform_state.S.y), glm::max(0.0001f, transform_state.S.z));
+					scene_manager->UpdateVolumeTransform(highlight_volume_idx);
+				}
 			}
 		}
 		

@@ -152,7 +152,9 @@ namespace YumeRT
 		inline void LoadShapeLights();
 
 		// volume
-		inline uint32_t AddVolume(const std::string &name, const glm::vec3 &sigma_s = glm::vec3(0.0f), const glm::vec3 &sigma_a = glm::vec3(0.0f));
+		inline uint32_t AddVolume(const std::string &name, uint32_t transform_idx, 
+			const glm::vec3 &sigma_s = glm::vec3(0.0f), 
+			const glm::vec3 &sigma_a = glm::vec3(0.0f), float g = 0.0f, int density_texture_idx = -1);
 		inline uint32_t RemoveVolume(uint32_t volume_idx);
 		inline void UpdateVolume(uint32_t volume_idx);
 
@@ -1137,11 +1139,28 @@ namespace YumeRT
 
 		AddSceneFlag(SCENECHANGE_FLAG::DISTANT_LIGHT_CHANGE);
 	}
+	inline void SceneManager::UpdateVolumeTransform(uint32_t selected_volume_idx)
+	{
+		if (volumes.empty() || transform_states.empty()) { return; }
+		if (selected_volume_idx > (uint32_t)volumes.size() - 1) { return; }
+
+		uint32_t transform_idx = volumes[selected_volume_idx].transform_idx;
+
+		transforms[transform_idx] = transform_states[transform_idx].GetTransformMatrix();
+		i_transforms[transform_idx] = glm::inverse(transforms[transform_idx]);
+
+		assert(scene.transforms != nullptr && scene.i_transforms != nullptr);
+		CUDA_CHECK(cudaMemcpy(scene.transforms + transform_idx, &transforms[transform_idx], sizeof(glm::mat4), cudaMemcpyHostToDevice));
+		CUDA_CHECK(cudaMemcpy(scene.i_transforms + transform_idx, &i_transforms[transform_idx], sizeof(glm::mat4), cudaMemcpyHostToDevice));
+		CUDA_CHECK(cudaDeviceSynchronize());
+		
+		AddSceneFlag(SCENECHANGE_FLAG::VOLUME_CHANGE);
+	}
 	void SceneManager::ClearInvaildTransform()
 	{
 		// batch update...
 		// TODO: handle distantlight's clear
-		if (prim_instances.size() >= transform_states.size() / 2) { return; }
+		if (prim_instances.size() + volumes.size() + distant_lights.size() >= transform_states.size() / 2) { return; }
 
 		// compute their locations...
 		// TODO: parallel prefix sum
@@ -1447,6 +1466,8 @@ namespace YumeRT
 		if (distant_lights.empty()) { return INVALID_UINT_32; }
 		if (light_idx >(uint32_t)distant_lights.size() - 1) { return INVALID_UINT_32; }
 
+		transform_states[distant_lights[light_idx].transform_idx].SetInvalid();
+
 		// TODO: set the transform to invalid
 		distant_lights.erase(distant_lights.begin() + light_idx);
 		distant_light_names.erase(distant_light_names.begin() + light_idx);
@@ -1554,11 +1575,19 @@ namespace YumeRT
 	}
 
 	// TODO: volume GUI
-	inline uint32_t SceneManager::AddVolume(const std::string &name, const glm::vec3 &sigma_s, const glm::vec3 &sigma_a)
+	inline uint32_t SceneManager::AddVolume(const std::string &name, uint32_t transform_idx,
+		const glm::vec3 &sigma_s,
+		const glm::vec3 &sigma_a, float g, int density_texture_idx)
 	{
 		Volume volume;
 		volume.sigma_a = sigma_a;
 		volume.sigma_s = sigma_s;
+		volume.transform_idx = transform_idx;
+		volume.density_texture_idx = density_texture_idx;
+		volume.g = g;
+
+		transforms[transform_idx] = transform_states[transform_idx].GetTransformMatrix();
+		i_transforms[transform_idx] = glm::inverse(transforms[transform_idx]);
 
 		volumes.push_back(volume);
 		volume_names.push_back(name);
@@ -1570,6 +1599,8 @@ namespace YumeRT
 	{
 		if (volumes.empty()) { return INVALID_UINT_32; }
 		if (volume_idx > (uint32_t)volumes.size() - 1) { return INVALID_UINT_32; }
+
+		transform_states[volumes[volume_idx].transform_idx].SetInvalid();
 
 		// just leave user to manually set...
 		volumes.erase(volumes.begin() + volume_idx);
@@ -1661,7 +1692,7 @@ namespace YumeRT
 	void SceneManager::CornellBox(int screen_width, int screen_height)
 	{
 		uint32_t cube_idx = AddQube("Cube"), sphere_idx = AddSphere("Sphere", 1.0f);
-		uint32_t world_volume_idx = AddVolume("world volume", glm::vec3(0.085f), glm::vec3(0.001f));
+		uint32_t world_volume_idx = AddVolume("world volume", AddTransform(), glm::vec3(0.085f), glm::vec3(0.001f));
 
 		glm::vec3 camera_from = glm::vec3(0.0f, 0.0f, 6.0f);
 		glm::vec3 camera_look = glm::vec3(5.0f, 0.0f, 4.0f);
@@ -1677,8 +1708,8 @@ namespace YumeRT
 
 		uint32_t default_mtl = AddSurfaceMaterial("default material", glm::vec3(0.25f));
 
-		uint32_t bunny_inner_vol_idx_0 = AddVolume("bunny_inner_vol_0", glm::vec3(0.085f), glm::vec3(0.001f));
-		uint32_t bunny_inner_vol_idx_1 = AddVolume("bunny_inner_vol_1", glm::vec3(0.085f), glm::vec3(0.001f));
+		uint32_t bunny_inner_vol_idx_0 = AddVolume("bunny_inner_vol_0", AddTransform(), glm::vec3(0.085f), glm::vec3(0.001f));
+		uint32_t bunny_inner_vol_idx_1 = AddVolume("bunny_inner_vol_1", AddTransform(), glm::vec3(0.085f), glm::vec3(0.001f));
 
 		// fog bound
 		AddPrimInstance(cube_idx,
@@ -1753,12 +1784,12 @@ namespace YumeRT
 		//	1.0f,
 		//	world_volume_idx, -1);
 
-		//// sphere light
-		//AddPrimInstance(sphere_idx,
-		//	AddTransform(glm::vec3(3.0f, 4.15f, -5.0f), glm::vec3(0.15f, 0.15f, 0.15f)),
-		//	AddLightMaterial("sphere light", glm::vec3(1.0f), 300.0f),
-		//	1.0f,
-		//	world_volume_idx, -1);
+		// sphere light
+		AddPrimInstance(sphere_idx,
+			AddTransform(glm::vec3(3.0f, 4.15f, -5.0f), glm::vec3(0.15f, 0.15f, 0.15f)),
+			AddLightMaterial("sphere light", glm::vec3(1.0f), 300.0f),
+			1.0f,
+			world_volume_idx, -1);
 
 		// ground
 		AddPrimInstance(cube_idx,
