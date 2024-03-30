@@ -507,7 +507,6 @@ namespace YumeRT
 			weights[2] = (1.0f - metalness) * (1.0 - fr) * transmission_weight;
 			weights[3] = (1.0f - metalness) * (1.0 - fr) * (1.0f - transmission_weight);
 
-			
 			const glm::vec3 diffuse_albedo = mtl.surface_material.diffuse_albedo_tex != INVALID_UINT_32?
 				TextureEval(textures[mtl.surface_material.diffuse_albedo_tex], textures, texture_manager, texture_coordinate):
 				mtl.surface_material.diffuse_albedo;

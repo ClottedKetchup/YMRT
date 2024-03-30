@@ -1692,7 +1692,10 @@ namespace YumeRT
 	void SceneManager::CornellBox(int screen_width, int screen_height)
 	{
 		uint32_t cube_idx = AddQube("Cube"), sphere_idx = AddSphere("Sphere", 1.0f);
-		uint32_t world_volume_idx = AddVolume("world volume", AddTransform(), glm::vec3(0.085f), glm::vec3(0.001f));
+		const uint32_t fog_tex_black = AddTexture("fog_tex_black", Texture().InitConstantTextureRGB(glm::vec3(0.04f)));
+		const uint32_t fog_tex_white = AddTexture("fog_tex_white", Texture().InitConstantTextureRGB(glm::vec3(0.96f)));
+		const uint32_t fog_tex = AddTexture("fog_tex", Texture().InitNoiseTextureMarble(fog_tex_black, fog_tex_white));
+		int world_volume_idx = -1;
 
 		glm::vec3 camera_from = glm::vec3(0.0f, 0.0f, 6.0f);
 		glm::vec3 camera_look = glm::vec3(5.0f, 0.0f, 4.0f);
@@ -1784,12 +1787,12 @@ namespace YumeRT
 		//	1.0f,
 		//	world_volume_idx, -1);
 
-		// sphere light
-		AddPrimInstance(sphere_idx,
-			AddTransform(glm::vec3(3.0f, 4.15f, -5.0f), glm::vec3(0.15f, 0.15f, 0.15f)),
-			AddLightMaterial("sphere light", glm::vec3(1.0f), 300.0f),
-			1.0f,
-			world_volume_idx, -1);
+		//// sphere light
+		//AddPrimInstance(sphere_idx,
+		//	AddTransform(glm::vec3(3.0f, 4.15f, -5.0f), glm::vec3(0.15f, 0.15f, 0.15f)),
+		//	AddLightMaterial("sphere light", glm::vec3(1.0f), 300.0f),
+		//	1.0f,
+		//	world_volume_idx, -1);
 
 		// ground
 		AddPrimInstance(cube_idx,
@@ -1804,8 +1807,16 @@ namespace YumeRT
 			1.0f,
 			world_volume_idx, -1);
 
-		const uint32_t tex_perlin_noise = AddTexture("Noise_0", Texture().InitNoiseTexturePolkaDot(tex_black_idx, tex_white_idx));
+		const uint32_t tex_perlin_noise = AddTexture("Noise_0", Texture().InitNoiseTextureMarble(tex_black_idx, tex_white_idx));
 		materials.back().surface_material.diffuse_albedo_tex = tex_perlin_noise;
+
+		uint32_t cube_volume = AddVolume("cube volume", AddTransform(), glm::vec3(0.085f), glm::vec3(0.001f), 0.0f, fog_tex);
+		AddPrimInstance(cube_idx,
+			AddTransform(glm::vec3(0.0f, 9.0f, 0.0f), glm::vec3(15.0f, 2.0f, 15.0f)),
+			AddSurfaceMaterial("extra cube"),
+			1.0f,
+			world_volume_idx, cube_volume, true);
+
 
 		ACBVHBuilder SceneBuilder(prim_instances.data(),
 			(uint32_t)prim_instances.size(),

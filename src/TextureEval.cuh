@@ -131,28 +131,28 @@ namespace YumeRT
 
 		return v0 + iz * (v1 - v0);
 	}
-	__device__ __host__ inline float PerlinNoiseFBM(const glm::vec3 &p, float lacunarity, float gain, int num_layer)
+	__device__ __host__ inline float PerlinNoiseFBM(const glm::vec3 &p, float lacunarity, float gain, int num_layer, float amplitude = 1.0f, float offset = 0.0f)
 	{
 		float fbm_result = 0.0f;
-		float amplitude = 1.0f;
 		float frequency = 1.0f;
 		for (int i = 0; i < num_layer; ++i)
 		{
-			fbm_result += amplitude * PerlinNoiseEval(frequency * p);
+			fbm_result += amplitude * PerlinNoiseEval(frequency * p) + offset;
 			amplitude *= gain;
+			offset *= gain;
 			frequency *= lacunarity;
 		}
 		return fbm_result;
 	}
-	__device__ __host__ inline float PerlinNoiseTurbulence(const glm::vec3 &p, float lacunarity, float gain, int num_layer)
+	__device__ __host__ inline float PerlinNoiseTurbulence(const glm::vec3 &p, float lacunarity, float gain, int num_layer, float amplitude = 1.0f, float offset = 0.0f)
 	{
 		float turbulence_result = 0.0f;
-		float amplitude = 1.0f;
 		float frequency = 1.0f;
 		for (int i = 0; i < num_layer; ++i)
 		{
-			turbulence_result += amplitude * glm::abs(PerlinNoiseEval(frequency * p));
+			turbulence_result += amplitude * glm::abs(PerlinNoiseEval(frequency * p)) + offset;
 			amplitude *= gain;
+			offset *= gain;
 			frequency *= lacunarity;
 		}
 		assert(turbulence_result >= 0.0f);
@@ -196,9 +196,10 @@ namespace YumeRT
 		float fbm_result = PerlinNoiseFBM(texture.noise_texture_fbm.frequency * texture_coordinate.p_object,
 																texture.noise_texture_fbm.lacunarity, 
 																texture.noise_texture_fbm.gain, 
-																texture.noise_texture_fbm.layer_count);
+																texture.noise_texture_fbm.layer_count, 
+																texture.noise_texture_fbm.amplitude, 
+																texture.noise_texture_fbm.offset);
 
-		if (texture.noise_texture_fbm.normalized) { fbm_result = (fbm_result * (1.0f - texture.noise_texture_fbm.gain)) * 0.5f + 0.5f; }
 		return tex_black_result + fbm_result * (tex_white_result - tex_black_result);
 	}
 	__device__ __host__ inline glm::vec3 EvalTexPerlinNoiseTurbulence(const Texture& texture, const TextureManager& texture_manager, const TextureCoordinate& texture_coordinate)
@@ -207,11 +208,12 @@ namespace YumeRT
 		const glm::vec3 tex_black_result = texture.noise_texture_turbulence.child_texture_results.col_black;
 
 		float turbulence_result = PerlinNoiseTurbulence(texture.noise_texture_turbulence.frequency * texture_coordinate.p_object,
-																					texture.noise_texture_turbulence.lacunarity,
-																					texture.noise_texture_turbulence.gain,
-																					texture.noise_texture_turbulence.layer_count);
+																					  texture.noise_texture_turbulence.lacunarity,
+																					  texture.noise_texture_turbulence.gain,
+																					  texture.noise_texture_turbulence.layer_count, 
+																					  texture.noise_texture_turbulence.amplitude, 
+																					  texture.noise_texture_turbulence.offset);
 
-		if (texture.noise_texture_turbulence.normalized) { turbulence_result = (turbulence_result * (1.0f - texture.noise_texture_turbulence.gain)) * 0.5f + 0.5f; }
 		return tex_black_result + turbulence_result * (tex_white_result - tex_black_result);
 	}
 	__device__ __host__ inline glm::vec3 EvalTexPerlinNoiseMarble(const Texture& texture, const TextureManager& texture_manager, const TextureCoordinate& texture_coordinate)
@@ -223,7 +225,12 @@ namespace YumeRT
 																texture.noise_texture_marble.lacunarity,
 																texture.noise_texture_marble.gain,
 																texture.noise_texture_marble.layer_count);
-		float marble = glm::sin(texture_coordinate.p_object.y + texture.noise_texture_marble.variation * fbm_result) * 0.5f + 0.5f;
+		float turb_coordinate = 0.0f;
+		turb_coordinate += texture.noise_texture_marble.x_turb ? texture_coordinate.p_object.x : 0.0f;
+		turb_coordinate += texture.noise_texture_marble.y_turb ? texture_coordinate.p_object.y : 0.0f;
+		turb_coordinate += texture.noise_texture_marble.z_turb ? texture_coordinate.p_object.z : 0.0f;
+
+		float marble = glm::sin(turb_coordinate + texture.noise_texture_marble.variation * fbm_result) * 0.5f + 0.5f;
 		return tex_black_result + marble * (tex_white_result - tex_black_result);
 	}
 	__device__ __host__ inline glm::vec3 EvalTexPerlinNoiseWood(const Texture& texture, const TextureManager& texture_manager, const TextureCoordinate& texture_coordinate)

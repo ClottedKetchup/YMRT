@@ -614,7 +614,10 @@ namespace YumeRT
 		{
 			float s = SobolSample(sample_idx, dim_idx);
 			++dim_idx;
-			if (dim_idx >= 1024) { dim_idx = 1; }
+			if (dim_idx >= 1024) { 
+				printf("sobol: dim index overflow.\n");
+				dim_idx = 1;
+			}
 			return s;
 		}
 		__device__ __host__ inline glm::vec2 Random2D()
@@ -624,6 +627,10 @@ namespace YumeRT
 		__device__ __host__ inline glm::vec2 SamplePixelOffset()
 		{
 			return glm::vec2(Random1D(), Random1D());
+		}
+		__device__ __host__ inline int GetDim()const
+		{
+			return dim_idx;
 		}
 
 	private:

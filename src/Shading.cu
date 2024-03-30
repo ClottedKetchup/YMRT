@@ -27,10 +27,12 @@
 #include "SampleUtilities.h"
 #include "BSDF.cuh"
 
+#include "VolumeEval.cuh"
+
 namespace YumeRT
 {
 
-#define MAX_RAY_DEPTH 32
+#define MAX_RAY_DEPTH 16
 
 #define TILE_X_RES 16u
 #define TILE_Y_RES 16u
@@ -48,111 +50,11 @@ namespace YumeRT
 		return 1.0f / (1.0f + Sqr(f));
 	}
 
-	// give sampled distance
-	__device__  bool SampleVolumeScattering(const Scene& scene, 
-																		 const Ray& ray,
-																		 const float t_max, 
-																		 glm::vec3 *tr_weight, 
-																		 float *sampled_distance, 
-																		 RandomSampler &sampler)
-	{
-		*tr_weight = glm::vec3(1.0f);
-		if (scene.volumes == nullptr || scene.volume_count == 0) { return false; }
-		if (ray.volume_idx < 0 || ray.volume_idx > scene.volume_count - 1) { return false; }
-		
-		auto random = [&]()->float {return sampler.Random1D(); };
 
-		const Volume &vol = scene.volumes[ray.volume_idx];
-
-		glm::vec3 sigma_t = vol.sigma_a + vol.sigma_s;
-		float channel_sum = sigma_t.x + sigma_t.y + sigma_t.z;
-		glm::vec3 channel_weight = channel_sum > 0.0f? (sigma_t / channel_sum) : glm::vec3(1.0f / 3.0f);
-
-		const float u0 = random();
-		const float u1 = random();
-		int channel = 0;
-		if (u0 < channel_weight[0]) 
-		{
-			channel = 0;
-		}
-		else if (u0 < channel_weight[0] + channel_weight[1])
-		{
-			channel = 1;
-		}
-		else 
-		{
-			channel = 2;
-		}
-
-		float free_path_length = sigma_t[channel] > 0.0f? (-glm::log(1.0f - u1) / sigma_t[channel]) : 1E36f;
-		bool volume_scatter = free_path_length < t_max;
-		glm::vec3 tr = glm::exp(-sigma_t * glm::min(t_max, free_path_length));
-		float pdf = volume_scatter ?
-			(channel_weight.x * sigma_t.x * tr.x + channel_weight.y * sigma_t.y * tr.y + channel_weight.z * sigma_t.z * tr.z) :
-			(channel_weight.x * tr.x + channel_weight.y * tr.y + channel_weight.z * tr.z);
-		
-		if (glm::abs(pdf) == 0.0f) { return false; }
-
-		*tr_weight = volume_scatter? (tr * vol.sigma_s / pdf) : (tr / pdf);
-		*sampled_distance = free_path_length;
-		return volume_scatter;
-	}
-
-	__device__ glm::vec3 TraceTr(const Scene& scene, 
-												const Ray& ray,
-		RandomSampler &sampler)
-	{
-		glm::vec3 tr(1.0f);
-		if (scene.volumes == nullptr || scene.volume_count == 0) { return tr; }
-
-		// distance from position to light
-		Ray tr_ray = ray;
-		const float max_trace_distance = ray.t;
-		float traced_distance = TMIN;
-		while (traced_distance < max_trace_distance)
-		{
-			HitRecord hit_record;
-			bool hit_boundary = ClosestVolume(scene, tr_ray, &hit_record);
-
-			glm::vec3 sigma_t(1.0f);
-			bool ray_inside_volume = tr_ray.volume_idx >= 0 && tr_ray.volume_idx < scene.volume_count;
-			if (ray_inside_volume)
-			{
-				const Volume& vol = scene.volumes[tr_ray.volume_idx];
-				sigma_t = vol.sigma_a + vol.sigma_s;
-			}
-			
-			if (!hit_boundary)
-			{
-				tr *= ray_inside_volume? glm::exp(-sigma_t * glm::max(max_trace_distance - traced_distance, 0.0f)) : glm::vec3(1.0f);
-				break;
-			}
-			else 
-			{
-				tr *= ray_inside_volume? glm::exp(-sigma_t * hit_record.hit_t) : glm::vec3(1.0f);
-
-				traced_distance += hit_record.hit_t;
-
-				// trace forward the ray
-				const PrimitiveInstance &prim = scene.prim_instances[hit_record.hit_instance_idx];
-				glm::vec3 hit_position, hit_geometry_normal;
-				FetchGeometryNormal(scene, hit_record, &hit_position, &hit_geometry_normal);
-
-				glm::vec3 new_direction = tr_ray.direction;
-				bool front_side_bounce = glm::dot(hit_geometry_normal, new_direction) >= 0.0f;
-				glm::vec3 new_origin = OffsetRayOrigin(hit_position, front_side_bounce ? hit_geometry_normal : -hit_geometry_normal);
-
-				tr_ray = Ray(new_origin, 
-									new_direction, 
-									tr_ray.ray_ior, 
-									front_side_bounce ? prim.outer_volume_idx : prim.inner_volume_idx);
-			}
-		}
-		return tr;
-	}
 
 	__device__ glm::vec3 EvalDistantLight(const RenderSetting &render_setting,
 																const Scene &scene, 
+																const TextureManager& texture_manager,
 																UberBSDF &uber_bsdf, 
 																const glm::vec3 &ray_direction, 
 																const PrimitiveInstance& hit_prim,
@@ -204,7 +106,7 @@ namespace YumeRT
 													  1.0f,
 													  front_side_light ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
 						shadow_ray.t = TMAX;
-						tr = TraceTr(scene, shadow_ray, sampler);
+						tr = TraceTr(scene, texture_manager, shadow_ray, sampler);
 					}
 
 					float mis_weight = PowerHeuristic(light_sample_pdf, light_wi_pdf);
@@ -245,7 +147,7 @@ namespace YumeRT
 														  1.0f,
 														  front_side_light ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
 							shadow_ray.t = TMAX;
-							tr = TraceTr(scene, shadow_ray, sampler);
+							tr = TraceTr(scene, texture_manager, shadow_ray, sampler);
 						}
 
 						float mis_weight = PowerHeuristic(bsdf_sample_pdf, bsdf_wi_pdf);
@@ -262,6 +164,7 @@ namespace YumeRT
 
 	__device__ glm::vec3 EvalVolumeDistantLight(const RenderSetting &render_setting,
 																			 const Scene &scene,
+																			 const TextureManager& texture_manager,
 																			 const Volume &volume,
 																			 const Ray &ray,
 																			 const glm::vec3 &volume_hit_position,
@@ -296,7 +199,7 @@ namespace YumeRT
 												  1.0f,
 												  ray.volume_idx);
 					shadow_ray.t = TMAX;
-					glm::vec3 tr = TraceTr(scene, shadow_ray, sampler);
+					glm::vec3 tr = TraceTr(scene, texture_manager, shadow_ray, sampler);
 
 					float mis_weight = PowerHeuristic(light_sample_pdf, light_wi_pdf);
 					direct_lighting += mis_weight * tr * glm::min(phase_weight, 1E16f) * glm::min(Li, glm::vec3(1E16f));
@@ -330,7 +233,7 @@ namespace YumeRT
 													  1.0f,
 												 	  ray.volume_idx);
 						shadow_ray.t = TMAX;
-						glm::vec3 tr = TraceTr(scene, shadow_ray, sampler);
+						glm::vec3 tr = TraceTr(scene, texture_manager, shadow_ray, sampler);
 
 						float mis_weight = PowerHeuristic(phase_sample_pdf, phase_wi_pdf);
 						direct_lighting += mis_weight * tr * glm::min(phase_weight, 1E16f) * glm::min(Li, glm::vec3(1E16f));
@@ -345,6 +248,7 @@ namespace YumeRT
 
 	__device__ glm::vec3 EvalShapeLight(const RenderSetting &render_setting,
 																const Scene &scene,
+																const TextureManager& texture_manager,
 																UberBSDF &uber_bsdf,
 																const glm::vec3 &ray_direction,
 																const PrimitiveInstance &hit_prim,
@@ -401,7 +305,7 @@ namespace YumeRT
 													  1.0f, 
 													  front_side_light ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
 						shadow_ray.t = max_trace_distance;
-						tr = TraceTr(scene, shadow_ray, sampler);
+						tr = TraceTr(scene, texture_manager, shadow_ray, sampler);
 					}
 					// float mis_weight = 1.0f / (1.0f + Sqr(light_wi_pdf) / glm::min(1E24f, glm::max(Sqr(light_sample_pdf), 1E-16f)));
 					float mis_weight = PowerHeuristic(light_sample_pdf, light_wi_pdf);
@@ -447,7 +351,7 @@ namespace YumeRT
 														  1.0f, 
 														  front_side_light ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
 							shadow_ray.t = max_trace_distance;
-							tr = TraceTr(scene, shadow_ray, sampler);
+							tr = TraceTr(scene, texture_manager, shadow_ray, sampler);
 						}
 						// float mis_weight = 1.0f / (1.0f + Sqr(bsdf_wi_pdf) / glm::min(1E24f, glm::max(Sqr(bsdf_sample_pdf), 1E-16f)));
 						float mis_weight = PowerHeuristic(bsdf_sample_pdf, bsdf_wi_pdf);
@@ -463,6 +367,7 @@ namespace YumeRT
 
 	__device__ glm::vec3 EvalVolumeShapeLight(const RenderSetting &render_setting,
 																			const Scene &scene,
+																			const TextureManager& texture_manager,
 																			const Volume &volume,
 																			const Ray &ray,
 																			const glm::vec3 &volume_hit_position, 
@@ -502,7 +407,7 @@ namespace YumeRT
 												  1.0f,
 												  ray.volume_idx);
 					shadow_ray.t = max_trace_distance;
-					glm::vec3 tr = TraceTr(scene, shadow_ray, sampler);
+					glm::vec3 tr = TraceTr(scene, texture_manager, shadow_ray, sampler);
 					
 					float mis_weight = PowerHeuristic(light_sample_pdf, light_wi_pdf);
 					direct_lighting += mis_weight * tr * glm::min(phase_weight, 1E16f) * glm::min(Li, glm::vec3(1E16f));
@@ -539,7 +444,7 @@ namespace YumeRT
 													  1.0f,
 													  ray.volume_idx);
 						shadow_ray.t = max_trace_distance;
-						glm::vec3 tr = TraceTr(scene, shadow_ray, sampler);
+						glm::vec3 tr = TraceTr(scene, texture_manager, shadow_ray, sampler);
 						
 						float mis_weight = PowerHeuristic(phase_sample_pdf, phase_wi_pdf);
 						direct_lighting += mis_weight * tr * glm::min(phase_weight, 1E16f) * glm::min(Li, glm::vec3(1E16f));
@@ -636,7 +541,8 @@ namespace YumeRT
 				// volume scatter
 				glm::vec3 tr_weight(1.0f);
 				float sampled_distance = 0.0f;
-				if (render_setting.enable_volume_scattering && SampleVolumeScattering(scene, ray, hit_surface? hit_record.hit_t : TMAX, &tr_weight, &sampled_distance, sampler))
+				if (render_setting.enable_volume_scattering && 
+					SampleVolumeScattering(scene, texture_manager, ray, hit_surface? hit_record.hit_t : TMAX, &tr_weight, &sampled_distance, sampler))
 				{
 					const Volume &vol = scene.volumes[ray.volume_idx];
 
@@ -645,10 +551,10 @@ namespace YumeRT
 
 					if (render_setting.enable_distant_light)
 					{
-						L += throughput * EvalVolumeDistantLight(render_setting, scene, vol, ray, volume_hit_position, sampler);
+						L += throughput * EvalVolumeDistantLight(render_setting, scene, texture_manager, vol, ray, volume_hit_position, sampler);
 					}
 
-					L += throughput * EvalVolumeShapeLight(render_setting, scene, vol, ray, volume_hit_position, sampler);
+					L += throughput * EvalVolumeShapeLight(render_setting, scene, texture_manager, vol, ray, volume_hit_position, sampler);
 					
 					// sample phase function
 					// multiply phase weight
@@ -737,6 +643,7 @@ namespace YumeRT
 						{
 							L += throughput * EvalDistantLight(render_setting,
 								scene,
+								texture_manager,
 								uber_bsdf,
 								ray.direction,
 								prim,
@@ -749,6 +656,7 @@ namespace YumeRT
 						// TODO: sample table, light BVH...
 						L += throughput * EvalShapeLight(render_setting,
 							scene,
+							texture_manager, 
 							uber_bsdf,
 							ray.direction,
 							prim,
@@ -796,6 +704,7 @@ namespace YumeRT
 					break;
 				}
 			} // for depth
+			// if (render_setting.sampler_type == SOBOL) printf("per pixel dim:%d \n", sampler.sobol_sampler.GetDim());
 			col += L;
 		} // for sample_idx
 

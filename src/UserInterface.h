@@ -1090,7 +1090,12 @@ namespace YumeRT
 							noise_texture_fbm.child_texture_indices.texture_white = glm::clamp(noise_texture_fbm.child_texture_indices.texture_white, 0u, (uint32_t)max_allow_idx);
 							scene_manager->UpdateTexture(tex_idx);
 						}
-						if (ImGui::Checkbox("normalized", &noise_texture_fbm.normalized))
+						if (ImGui::InputFloat("amplitude", &noise_texture_fbm.amplitude))
+						{
+							noise_texture_fbm.amplitude = glm::max(noise_texture_fbm.amplitude, 0.0f);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("offset", &noise_texture_fbm.offset))
 						{
 							scene_manager->UpdateTexture(tex_idx);
 						}
@@ -1130,7 +1135,12 @@ namespace YumeRT
 							noise_texture_turbulence.child_texture_indices.texture_white = glm::clamp(noise_texture_turbulence.child_texture_indices.texture_white, 0u, (uint32_t)max_allow_idx);
 							scene_manager->UpdateTexture(tex_idx);
 						}
-						if (ImGui::Checkbox("normalized", &noise_texture_turbulence.normalized))
+						if (ImGui::InputFloat("amplitude", &noise_texture_turbulence.amplitude))
+						{
+							noise_texture_turbulence.amplitude = glm::max(noise_texture_turbulence.amplitude, 0.0f);
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("offset", &noise_texture_turbulence.offset))
 						{
 							scene_manager->UpdateTexture(tex_idx);
 						}
@@ -1171,6 +1181,18 @@ namespace YumeRT
 							scene_manager->UpdateTexture(tex_idx);
 						}
 						if (ImGui::InputFloat("variation", &noise_texture_marble.variation))
+						{
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::Checkbox("x turbulence", &noise_texture_marble.x_turb))
+						{
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::Checkbox("y turbulence", &noise_texture_marble.y_turb))
+						{
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::Checkbox("z turbulence", &noise_texture_marble.z_turb))
 						{
 							scene_manager->UpdateTexture(tex_idx);
 						}
