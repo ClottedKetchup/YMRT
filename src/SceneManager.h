@@ -1694,7 +1694,7 @@ namespace YumeRT
 		uint32_t cube_idx = AddQube("Cube"), sphere_idx = AddSphere("Sphere", 1.0f);
 		const uint32_t fog_tex_black = AddTexture("fog_tex_black", Texture().InitConstantTextureRGB(glm::vec3(0.04f)));
 		const uint32_t fog_tex_white = AddTexture("fog_tex_white", Texture().InitConstantTextureRGB(glm::vec3(0.96f)));
-		const uint32_t fog_tex = AddTexture("fog_tex", Texture().InitNoiseTextureMarble(fog_tex_black, fog_tex_white));
+		const uint32_t fog_tex = AddTexture("fog_tex", Texture().InitNoiseTextureTurbulence(fog_tex_black, fog_tex_white));
 		int world_volume_idx = -1;
 
 		glm::vec3 camera_from = glm::vec3(0.0f, 0.0f, 6.0f);

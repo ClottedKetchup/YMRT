@@ -526,6 +526,7 @@ namespace YumeRT
 			Ray ray = scene.camera->generateRay(float(px + pixel_offset.x) / float(width), float(py + pixel_offset.y) / float(height));
 
 			glm::vec3 L(0.0f), throughput(1.0f);
+			bool never_scatter = true;
 			for (int depth = 1;;)
 			{
 				if (depth > MAX_RAY_DEPTH) { break; }
@@ -572,6 +573,7 @@ namespace YumeRT
 					}
 
 					ray = Ray(volume_hit_position, wi, ray.ray_ior, ray.volume_idx);
+					never_scatter = false;
 					++depth;
 					continue;
 				}
@@ -606,7 +608,7 @@ namespace YumeRT
 
 					if (mtl.material_type == LIGHT_MTL)
 					{
-						if (depth == 1) { L += throughput * mtl.light_material.light_color * mtl.light_material.intensity; }
+						if (never_scatter) { L += throughput * mtl.light_material.light_color * mtl.light_material.intensity; }
 						break;
 					}
 
@@ -617,6 +619,7 @@ namespace YumeRT
 						glm::vec3 new_origin = OffsetRayOrigin(hit_position, front_side_bounce ? hit_geometry_normal : -hit_geometry_normal);
 
 						ray = Ray(new_origin, new_direction, ray.ray_ior, front_side_bounce ? prim.outer_volume_idx : prim.inner_volume_idx);
+						// keep never scatter unchanged
 						++depth;
 						continue;
 					}
@@ -695,6 +698,7 @@ namespace YumeRT
 									new_direction,
 									front_side_bounce? prim.external_ior : mtl.surface_material.ior_n, 
 									front_side_bounce? prim.outer_volume_idx : prim.inner_volume_idx);
+					never_scatter = false;
 					++depth;
 				}
 				else

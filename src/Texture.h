@@ -1022,11 +1022,31 @@ namespace YumeRT
 			}
 			else if (texture_type == SOLID_TEXTURE_FBM)
 			{
-				return (noise_texture_fbm.amplitude + noise_texture_fbm.offset) * SafeRcp(1.0f - noise_texture_fbm.gain);
+				float result = 0.0f;
+				float amplitude = noise_texture_fbm.amplitude;
+				float offset = noise_texture_fbm.offset;
+				float gain = noise_texture_fbm.gain;
+				for (int i = 0; i < noise_texture_fbm.layer_count; ++i) 
+				{
+					result += amplitude + offset;
+					amplitude *= gain;
+					offset *= gain;
+				}
+				return result;
 			}
 			else if (texture_type == SOLID_TEXTURE_TURBULENCE)
 			{
-				return (noise_texture_turbulence.amplitude + noise_texture_turbulence.offset) * SafeRcp(1.0f - noise_texture_turbulence.gain);
+				float result = 0.0f;
+				float amplitude = noise_texture_turbulence.amplitude;
+				float offset = noise_texture_turbulence.offset;
+				float gain = noise_texture_turbulence.gain;
+				for (int i = 0; i < noise_texture_turbulence.layer_count; ++i)
+				{
+					result += amplitude + offset;
+					amplitude *= gain;
+					offset *= gain;
+				}
+				return result;
 			}
 			else if (texture_type == SOLID_TEXTURE_MARBLE)
 			{

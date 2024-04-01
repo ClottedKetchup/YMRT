@@ -96,7 +96,11 @@ namespace YumeRT {
 		while (true) 
 		{
 			// we reach the limit, sample fail
-			if (iteration >= MAX_FREE_PATH_LENGTH) { break; }
+			if (iteration >= MAX_FREE_PATH_LENGTH)
+			{ 
+				printf("Max iteration reached at SampleTrHeterogeneous!\n");
+				break; 
+			}
 
 			float free_path_length = -glm::log(1.0f - random()) / sigma_m[channel];
 			if (accumulate_distance + free_path_length > t_max)
@@ -115,7 +119,7 @@ namespace YumeRT {
 			const TextureCoordinate texture_coordinate(glm::vec2(0.0f), 
 				ray.origin + ray.direction * accumulate_distance, 
 				ray_origin + ray_direction * accumulate_distance);
-			float density = TextureEval(density_texture, scene.textures, texture_manager, texture_coordinate).x;
+			float density = glm::max(TextureEval(density_texture, scene.textures, texture_manager, texture_coordinate).x, 0.0f);
 			glm::vec3 real_prob_channels;
 			real_prob_channels.x = glm::min(sigma_m.x > 0.0f ? sigma_t.x * density / sigma_m.x : 0.0f, 1.0f);
 			real_prob_channels.y = glm::min(sigma_m.y > 0.0f ? sigma_t.y * density / sigma_m.y : 0.0f, 1.0f);
@@ -216,7 +220,11 @@ namespace YumeRT {
 		int iteration = 0;
 		while(true)
 		{
-			if (iteration >= MAX_FREE_PATH_LENGTH) { break; }
+			if (iteration >= MAX_FREE_PATH_LENGTH)
+			{
+				printf("Max iteration reached at EvalTrHeterogeneous!\n");
+				break;
+			}
 
 			float free_path_length = -glm::log(1.0f - random()) / sigma_m[channel];
 			if (accumulate_distance + free_path_length > t_max) 
@@ -233,7 +241,7 @@ namespace YumeRT {
 			const TextureCoordinate texture_coordinate(glm::vec2(0.0f), 
 				ray.origin + ray.direction * accumulate_distance,
 				ray_origin + ray_direction * accumulate_distance);
-			float density = TextureEval(density_texture, scene.textures, texture_manager, texture_coordinate).x;
+			float density = glm::max(TextureEval(density_texture, scene.textures, texture_manager, texture_coordinate).x, 0.0f);
 			glm::vec3 real_prob_channels;
 			real_prob_channels.x = glm::min(sigma_m.x > 0.0f ? sigma_t.x * density / sigma_m.x : 0.0f, 1.0f);
 			real_prob_channels.y = glm::min(sigma_m.y > 0.0f ? sigma_t.y * density / sigma_m.y : 0.0f, 1.0f);
