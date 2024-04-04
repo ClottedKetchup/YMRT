@@ -40,11 +40,7 @@ namespace YumeRT
 					  uint32_t screen_width,
 					  uint32_t screen_height);
 
-		void DestroyResources()
-		{
-			glfwDestroyWindow(window);
-			glfwTerminate();
-		}
+		inline std::shared_ptr<SceneManager> GetSceneManager() { return scene_manager; }
 
 		void Run();
 
@@ -58,6 +54,12 @@ namespace YumeRT
 		std::shared_ptr<Renderer> rt_renderer = nullptr;
 
 		MainSystem() {}
+
+		inline void DestroyResources()
+		{
+			glfwDestroyWindow(window);
+			glfwTerminate();
+		}
 	};
 
 	void MainSystem::Init(const std::string &vs,
@@ -97,36 +99,37 @@ namespace YumeRT
 		empty_VAO.InitVAO();
 
 		scene_manager = SceneManager::GetInstance();
-		scene_manager->InitScene(screen_width, screen_height);
-
+		scene_manager->Init();
 		rt_renderer = Renderer::GetInstance();
 		rt_renderer->Init();
-
 		user_interface = UserInterface::GetInstance();
-		user_interface->Init(window, screen_width, screen_height, Renderer::GetInstance(), SceneManager::GetInstance());
-		user_interface->SetCallBack(window);
-		user_interface->SetCamera(scene_manager->GetCamera());
+		user_interface->Init(window, screen_width, screen_height, rt_renderer, scene_manager);
 	}
 
 	void MainSystem::Run() 
 	{
+		// first upload the scene resource
+		scene_manager->UploadSceneSetting();
+		// past scene setting to ui interface
+		user_interface->SetCamera(scene_manager->GetCamera());
+
 		while (!glfwWindowShouldClose(window))
 		{
-			float current_time = glfwGetTime();
-			uint32_t current_w = user_interface->GetWidth();
-			uint32_t current_h = user_interface->GetHeight();
-			if (rt_renderer->GetWidth() != current_w || rt_renderer->GetHeight() != current_h)
+			const float current_time = glfwGetTime();
+			const uint32_t current_width = user_interface->GetWidth();
+			const uint32_t current_height = user_interface->GetHeight();
+			if (rt_renderer->GetWidth() != current_width || rt_renderer->GetHeight() != current_height)
 			{
 				rt_renderer->SetRenderSettingChange(true);
-				rt_renderer->SetWidth(current_w);
-				rt_renderer->SetHeight(current_h);
+				rt_renderer->SetWidth(current_width);
+				rt_renderer->SetHeight(current_height);
 				rt_renderer->DestroyResources();
 				rt_renderer->PrepareResources();
 			}
 
 			user_interface->ProcessInput(window);
 
-			glViewport(0, 0, current_w, current_h);
+			glViewport(0, 0, current_width, current_height);
 			glClearColor(0.f, 0.f, 0.f, 1.f);
 			glClear(GL_COLOR_BUFFER_BIT);
 

@@ -80,22 +80,16 @@ namespace YumeRT
 	};
 
 	void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
-
 	void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
-
 	void CursorPosCallback(GLFWwindow* window, double xpos, double ypos);
-
 	void ScrollCallback(GLFWwindow *window, double xoffset, double yoffset);
 
 	class UserInterface
 	{
 	public:
 		friend void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
-
 		friend void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
-
 		friend void CursorPosCallback(GLFWwindow* window, double xpos, double ypos);
-
 		friend void ScrollCallback(GLFWwindow *window, double xoffset, double yoffset);
 
 		static std::shared_ptr<UserInterface> GetInstance()
@@ -146,26 +140,29 @@ namespace YumeRT
 		inline void RenderUI();
 
 	private:
-		static Trackball trackball;
-		static std::shared_ptr<Renderer> rt_renderer;
-		static std::shared_ptr<SceneManager> scene_manager;
-		static uint32_t m_width;
-		static uint32_t m_height;
-		static uint32_t m_display_aov_idx;
-		static bool m_lock_camera;
-		static bool m_mouse_on_GUI;
-		static uint32_t m_click_pixel_x, m_click_pixel_y;
-		static glm::vec4 m_click_color;
-		static uint32_t m_click_prim_idx;
 		
-		static bool m_show_move_control_menu;
-		static bool m_show_geometry_list;
-		static bool m_show_material_list;
-		static bool m_show_render_menu;
-		static bool m_show_camera_menu;
-		static bool m_show_light_menu;
-		static bool m_show_volume_menu;
-		static bool m_show_texture_menu;
+		Trackball trackball;
+		std::shared_ptr<Renderer> rt_renderer = nullptr;
+		std::shared_ptr<SceneManager> scene_manager = nullptr;
+		uint32_t m_width = 0;
+		uint32_t m_height = 0;
+		uint32_t m_display_aov_idx = 0;
+		bool m_mouse_on_GUI = false;
+		bool m_lock_camera = false;
+
+		uint32_t m_click_pixel_x = 0;
+		uint32_t m_click_pixel_y = 0;
+		uint32_t m_click_prim_idx = INVALID_UINT_32;
+		glm::vec4 m_click_color = glm::vec4(0.0f);
+		
+		bool m_show_move_control_menu = false;
+		bool m_show_geometry_list = false;
+		bool m_show_material_list = false;
+		bool m_show_render_menu = false;
+		bool m_show_camera_menu = false;
+		bool m_show_light_menu = false;
+		bool m_show_volume_menu = false;
+		bool m_show_texture_menu = false;
 
 		UserInterface() {}
 
@@ -194,34 +191,13 @@ namespace YumeRT
 		inline void ExitUI();
 	};
 
-	Trackball UserInterface::trackball;
-	std::shared_ptr<Renderer> UserInterface::rt_renderer = nullptr;
-	std::shared_ptr<SceneManager> UserInterface::scene_manager = nullptr;
-	uint32_t UserInterface::m_width = 0;
-	uint32_t UserInterface::m_height = 0;
-	uint32_t UserInterface::m_display_aov_idx = 0;
-	bool UserInterface::m_mouse_on_GUI = false;
-	bool UserInterface::m_lock_camera = false;
-
-	uint32_t UserInterface::m_click_pixel_x = 0;
-	uint32_t UserInterface::m_click_pixel_y = 0;
-	glm::vec4 UserInterface::m_click_color(0.0f);
-	uint32_t UserInterface::m_click_prim_idx = INVALID_UINT_32;
-
-	bool UserInterface::m_show_move_control_menu = false;
-	bool UserInterface::m_show_geometry_list = false;
-	bool UserInterface::m_show_material_list = false;
-	bool UserInterface::m_show_render_menu = false;
-	bool UserInterface::m_show_camera_menu = false;
-	bool UserInterface::m_show_light_menu = false;
-	bool UserInterface::m_show_volume_menu = false;
-	bool UserInterface::m_show_texture_menu = false;
-
 	void FramebufferSizeCallback(GLFWwindow* window, int width, int height)
 	{
-		UserInterface::m_width = glm::max(width, 1);
-		UserInterface::m_height = glm::max(height, 1);
-		UserInterface::trackball.camera.SetAspectRatio(float(width) / float(height));
+		UserInterface &user_interface = *((UserInterface*)glfwGetWindowUserPointer(window));
+
+		user_interface.m_width = glm::max(width, 1);
+		user_interface.m_height = glm::max(height, 1);
+		user_interface.trackball.camera.SetAspectRatio(float(width) / float(height));
 	}
 
 	void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
@@ -229,76 +205,82 @@ namespace YumeRT
 		double x_pos, y_pos;
 		glfwGetCursorPos(window, &x_pos, &y_pos);
 
+		UserInterface &user_interface = *((UserInterface*)glfwGetWindowUserPointer(window));
+
 		if (button == GLFW_MOUSE_BUTTON_LEFT)
 		{
 			if (action == GLFW_PRESS)
 			{
-				if (!UserInterface::m_mouse_on_GUI)
+				if (!user_interface.m_mouse_on_GUI)
 				{
-					UserInterface::m_click_pixel_x = (uint32_t)(x_pos - 0.5);
-					UserInterface::m_click_pixel_y = UserInterface::m_height - (uint32_t)(y_pos - 0.5) - 1;
+					user_interface.m_click_pixel_x = (uint32_t)(x_pos - 0.5);
+					user_interface.m_click_pixel_y = user_interface.m_height - (uint32_t)(y_pos - 0.5) - 1;
 
 					// read pixel from buffer
-					UserInterface::rt_renderer->ReadPixel(UserInterface::m_click_pixel_x,
-																				  UserInterface::m_click_pixel_y,
-																				  UserInterface::m_display_aov_idx,
-																			      &UserInterface::m_click_color,
-																			      &UserInterface::m_click_prim_idx);
+					user_interface.rt_renderer->ReadPixel(user_interface.m_click_pixel_x,
+						user_interface.m_click_pixel_y,
+						user_interface.m_display_aov_idx,
+																			      &user_interface.m_click_color,
+																			      &user_interface.m_click_prim_idx);
 				}
 
-				UserInterface::trackball.mouse_button = button;
-				UserInterface::trackball.start_tracking = true;
-				UserInterface::trackball.prev_pos_x = x_pos;
-				UserInterface::trackball.prev_pos_y = y_pos;
+				user_interface.trackball.mouse_button = button;
+				user_interface.trackball.start_tracking = true;
+				user_interface.trackball.prev_pos_x = x_pos;
+				user_interface.trackball.prev_pos_y = y_pos;
 			}
 			else if (action == GLFW_RELEASE)
 			{
-				UserInterface::trackball.mouse_button = -1;
-				UserInterface::trackball.start_tracking = false;
+				user_interface.trackball.mouse_button = -1;
+				user_interface.trackball.start_tracking = false;
 			}
 		}
 	}
 
 	void CursorPosCallback(GLFWwindow * window, double xpos, double ypos)
 	{
-		if (UserInterface::m_mouse_on_GUI) 
+		UserInterface &user_interface = *((UserInterface*)glfwGetWindowUserPointer(window));
+
+		if (user_interface.m_mouse_on_GUI)
 		{
 			return;
 		}
-		if (!UserInterface::m_lock_camera && UserInterface::trackball.start_tracking)
+		if (!user_interface.m_lock_camera && user_interface.trackball.start_tracking)
 		{
 			double x_pos, y_pos;
 			glfwGetCursorPos(window, &x_pos, &y_pos);
 
 			glm::vec3 pre_vec = Trackball::CalculTrackBallVec(
-				UserInterface::trackball.prev_pos_x, 
-				UserInterface::trackball.prev_pos_y,
-				UserInterface::m_width,
-				UserInterface::m_height);
+				user_interface.trackball.prev_pos_x,
+				user_interface.trackball.prev_pos_y,
+				user_interface.m_width,
+				user_interface.m_height);
 
 			glm::vec3 cur_vec = Trackball::CalculTrackBallVec(
 				float(x_pos), 
 				float(y_pos), 
-				UserInterface::m_width,
-				UserInterface::m_height);
+				user_interface.m_width,
+				user_interface.m_height);
 
 			if (glm::abs(glm::dot(pre_vec, cur_vec)) > 0.9999f) { return; }
 			glm::vec3 axis = glm::cross(pre_vec, cur_vec);
 
 			float angle = glm::acos(glm::min(glm::dot(pre_vec, cur_vec), 1.0f));
 
-			UserInterface::trackball.Rotate(angle, axis);
-			UserInterface::trackball.prev_pos_x = float(xpos);
-			UserInterface::trackball.prev_pos_y = float(ypos);
+			user_interface.trackball.Rotate(angle, axis);
+			user_interface.trackball.prev_pos_x = float(xpos);
+			user_interface.trackball.prev_pos_y = float(ypos);
 		}
 	}
 
 	void ScrollCallback(GLFWwindow * window, double xoffset, double yoffset)
 	{
-		if (UserInterface::m_lock_camera) { return; }
-		float fov = UserInterface::trackball.camera.GetFov();
+		UserInterface &user_interface = *((UserInterface*)glfwGetWindowUserPointer(window));
+
+		if (user_interface.m_lock_camera) { return; }
+		float fov = user_interface.trackball.camera.GetFov();
 		fov -= glm::radians(yoffset);
-		UserInterface::trackball.camera.SetFov(glm::clamp(fov, glm::radians(1.0f), glm::radians(90.0f)));
+		user_interface.trackball.camera.SetFov(glm::clamp(fov, glm::radians(1.0f), glm::radians(90.0f)));
 	}
 
 	void UserInterface::Init(GLFWwindow *window, 
@@ -311,6 +293,9 @@ namespace YumeRT
 		scene_manager = ptr_scene_manager;
 		m_width = width ;
 		m_height = height;
+
+		glfwSetWindowUserPointer(window, this);
+		SetCallBack(window);
 		InitUI(window);
 	}
 
@@ -335,19 +320,19 @@ namespace YumeRT
 		{
 			glfwSetWindowShouldClose(window, true);
 		}
-		else if (!UserInterface::m_lock_camera && glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+		else if (!m_lock_camera && glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
 		{
 			trackball.CameraMoveForward();
 		}
-		else if (!UserInterface::m_lock_camera && glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+		else if (!m_lock_camera && glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
 		{
 			trackball.CameraMoveBackward();
 		}
-		else if (!UserInterface::m_lock_camera && glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+		else if (!m_lock_camera && glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
 		{
 			trackball.CameraMoveLeft();
 		}
-		else if (!UserInterface::m_lock_camera && glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+		else if (!m_lock_camera && glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
 		{
 			trackball.CameraMoveRight();
 		}
@@ -476,22 +461,22 @@ namespace YumeRT
 	{
 		if (!m_show_camera_menu) { return; }
 		ImGui::Begin("Camera Setting");
-		if (ImGui::Checkbox("Lock Camera", &UserInterface::m_lock_camera)) {}
-		if (ImGui::InputFloat("Move Speed", &UserInterface::trackball.move_speed))
+		if (ImGui::Checkbox("Lock Camera", &m_lock_camera)) {}
+		if (ImGui::InputFloat("Move Speed", &trackball.move_speed))
 		{}
-		if (ImGui::InputFloat("Rotate Speed", &UserInterface::trackball.rotate_speed))
+		if (ImGui::InputFloat("Rotate Speed", &trackball.rotate_speed))
 		{}
 		static float camera_ior = trackball.camera.GetIOR();
 		if (ImGui::InputFloat("External IOR", &camera_ior))
 		{
 			camera_ior = glm::max(camera_ior, 0.001f);
-			UserInterface::GetCamera().SetIOR(camera_ior);
+			GetCamera().SetIOR(camera_ior);
 		}
 		static int camera_volume_idx = trackball.camera.GetVolumeIndex();
 		if (ImGui::InputInt("Volume Index", &camera_volume_idx))
 		{
 			// camera_volume_idx = glm::clamp(camera_volume_idx, 0, (int)(scene_manager->GetVolumes().size()) - 1);
-			UserInterface::GetCamera().SetVolumeIndex(camera_volume_idx);
+			GetCamera().SetVolumeIndex(camera_volume_idx);
 		}
 		ImGui::End();
 	}
@@ -1604,42 +1589,42 @@ namespace YumeRT
 
 		if (ImGui::CollapsingHeader("Render Setting"))
 		{
-			ImGui::Checkbox("Show Render Setting", &UserInterface::m_show_render_menu);
+			ImGui::Checkbox("Show Render Setting", &m_show_render_menu);
 		}
 
 		if (ImGui::CollapsingHeader("Camera Setting"))
 		{
-			ImGui::Checkbox("Show Camera Setting", &UserInterface::m_show_camera_menu);
+			ImGui::Checkbox("Show Camera Setting", &m_show_camera_menu);
 		}
 
 		if (ImGui::CollapsingHeader("Geometries"))
 		{
-			ImGui::Checkbox("Show Geometry List", &UserInterface::m_show_geometry_list);
+			ImGui::Checkbox("Show Geometry List", &m_show_geometry_list);
 		}
 
 		if (ImGui::CollapsingHeader("Materials"))
 		{
-			ImGui::Checkbox("Show Material List", &UserInterface::m_show_material_list);
+			ImGui::Checkbox("Show Material List", &m_show_material_list);
 		}
 
 		if (ImGui::CollapsingHeader("Instances"))
 		{
-			ImGui::Checkbox("Show Control Board", &UserInterface::m_show_move_control_menu);
+			ImGui::Checkbox("Show Control Board", &m_show_move_control_menu);
 		}
 
 		if (ImGui::CollapsingHeader("Light"))
 		{
-			ImGui::Checkbox("Show Light List", &UserInterface::m_show_light_menu);
+			ImGui::Checkbox("Show Light List", &m_show_light_menu);
 		}
 
 		if (ImGui::CollapsingHeader("Volume"))
 		{
-			ImGui::Checkbox("Show Volume List", &UserInterface::m_show_volume_menu);
+			ImGui::Checkbox("Show Volume List", &m_show_volume_menu);
 		}
 
 		if (ImGui::CollapsingHeader("Texture"))
 		{
-			ImGui::Checkbox("Show Texture List", &UserInterface::m_show_texture_menu);
+			ImGui::Checkbox("Show Texture List", &m_show_texture_menu);
 		}
 
 		ImGui::End();

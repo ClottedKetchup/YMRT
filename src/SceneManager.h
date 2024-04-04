@@ -98,13 +98,11 @@ namespace YumeRT
 		{
 			// the clear work is handled by MainSystem!
 		}
-		
-		void TestScene(int screen_width, int screen_height);
-		void CornellBox(int screen_width, int screen_height);
 
 		void DestroyResources();
 
-		void InitScene(int screen_width, int screen_height);
+		void Init();
+		void UploadSceneSetting();
 		void UpdateScene(const Camera &cam, uint32_t *highlight_prim_idx);
 
 		inline uint32_t AddQube(const std::string &name);
@@ -134,7 +132,8 @@ namespace YumeRT
 																 float ior_n = 1.3f, 
 																 float metalness = 0.0f,
 																 float specular_weight = 1.0f,
-																 float transmission_weight = 0.0f);
+																 float transmission_weight = 0.0f, 
+																 uint32_t diff_tex_idx = INVALID_UINT_32);
 		inline uint32_t RemoveMaterial(uint32_t material_idx);
 		inline void UpdateMaterial(uint32_t material_idx);
 		inline void AssignMaterialToPrim(uint32_t prim_idx, uint32_t material_idx); // you should use it when only the material change...
@@ -164,6 +163,7 @@ namespace YumeRT
 		inline void UpdateTexture(uint32_t texture_idx);
 
 		// a bunch of short function
+		inline Camera& GetCameraRef() { return camera; }
 		inline const Scene& GetScene() const { return scene; }
 		inline const TextureManager& GetTextureManager() const { return texture_manager; }
 		inline const Camera& GetCamera()const { return camera; }
@@ -563,12 +563,22 @@ namespace YumeRT
 		assert(scene.sampler_data.sobol_matrices == nullptr);
 	}
 
-	void SceneManager::InitScene(int screen_width, int screen_height)
+	void SceneManager::Init() 
 	{
 		InitHaltonPermuteTable();
 		InitSobolMatrices();
+	}
 
-		CornellBox(screen_width, screen_height);
+	void SceneManager::UploadSceneSetting()
+	{
+		ACBVHBuilder SceneBuilder(prim_instances.data(),
+													  (uint32_t)prim_instances.size(),
+													  transforms.data(),
+													  geometries.data(),
+													  bottom_nodes.data());
+		SceneBuilder.BuildSceneBVH(top_nodes, &top_BVH_time);
+
+		LoadShapeLights();
 
 		UPLOAD_TO_GPU(scene.camera, &camera, sizeof(Camera));
 
@@ -1326,7 +1336,8 @@ namespace YumeRT
 																				   float ior_n, 
 																				   float metalness,
 																				   float specular_weight,
-																				   float transmission_weight)
+																				   float transmission_weight, 
+																				   uint32_t diff_tex_idx)
 	{
 		Material mtl;
 		mtl.material_type = SURFACE_MTL_DEFAULT;
@@ -1338,8 +1349,7 @@ namespace YumeRT
 		mtl.surface_material.metalness = metalness;
 		mtl.surface_material.specular_weight = specular_weight;
 		mtl.surface_material.transmission_weight = transmission_weight;
-
-		mtl.surface_material.diffuse_albedo_tex = INVALID_UINT_32;
+		mtl.surface_material.diffuse_albedo_tex = diff_tex_idx;
 		
 		material_names.push_back(name);
 		material_reference_counters.push_back(0);
@@ -1642,191 +1652,5 @@ namespace YumeRT
 		CUDA_CHECK(cudaDeviceSynchronize());
 
 		AddSceneFlag(SCENECHANGE_FLAG::TEXTURE_CHANGE);
-	}
-
-	void SceneManager::TestScene(int screen_width, int screen_height)
-	{
-		AddSurfaceMaterial("default material", glm::vec3(0.0f));
-
-		uint32_t cube_idx = AddQube("Cube"), sphere_idx = AddSphere("Sphere", 1.0f);
-
-		AddPrimInstance(cube_idx,
-			AddTransform(glm::vec3(0.0f, 0.0f, -4.0f)),
-			AddSurfaceMaterial("green", glm::vec3(0.0f, 0.5f, 0.0f)));
-
-		AddPrimInstance(cube_idx,
-			AddTransform(glm::vec3(0.0f, 1.5f, -4.0f)),
-			AddSurfaceMaterial("red", glm::vec3(0.5f, 0.0f, 0.0f)));
-
-		AddPrimInstance(cube_idx,
-			AddTransform(glm::vec3(1.5f, 0.0f, -4.0f)),
-			AddSurfaceMaterial("purple", glm::vec3(0.5f, 0.0f, 0.5f)));
-
-		AddPrimInstance(cube_idx,
-			AddTransform(glm::vec3(-1.5f, 0.0f, -4.0f)),
-			AddSurfaceMaterial("blue", glm::vec3(0.0f, 0.0f, 0.5f)));
-
-		AddPrimInstance(cube_idx,
-			AddTransform(glm::vec3(0.0f, 4.0f, -3.5f), glm::vec3(0.6f, 0.05f, 0.6f)),
-			AddLightMaterial("Light", glm::vec3(1.0f), 3.0f));
-
-		AddPrimInstance(cube_idx,
-			AddTransform(glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(10000.0f, 0.1f, 10000.0f)),
-			AddSurfaceMaterial("Floor", glm::vec3(0.5f, 0.5f, 0.5f)));
-
-		AddPrimInstance(sphere_idx,
-			AddTransform(glm::vec3(0.0f, 0.05f, -1.0f)),
-			AddSurfaceMaterial("Sphere Mtl", glm::vec3(1.0f, 1.0f, 1.0f), glm::vec3(1.0f, 0.0f, 0.0f)));
-
-		ACBVHBuilder SceneBuilder(prim_instances.data(),
-			(uint32_t)prim_instances.size(),
-			transforms.data(),
-			geometries.data(),
-			bottom_nodes.data());
-		SceneBuilder.BuildSceneBVH(top_nodes, &top_BVH_time);
-
-		AddDistantLight("Distant Light", AddTransform(glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)), glm::vec3(1.0f), 2.0f, 8.0f);
-
-		LoadShapeLights();
-	}
-	void SceneManager::CornellBox(int screen_width, int screen_height)
-	{
-		uint32_t cube_idx = AddQube("Cube"), sphere_idx = AddSphere("Sphere", 1.0f);
-		const uint32_t fog_tex_black = AddTexture("fog_tex_black", Texture().InitConstantTextureRGB(glm::vec3(0.04f)));
-		const uint32_t fog_tex_white = AddTexture("fog_tex_white", Texture().InitConstantTextureRGB(glm::vec3(0.96f)));
-		const uint32_t fog_tex = AddTexture("fog_tex", Texture().InitNoiseTextureTurbulence(fog_tex_black, fog_tex_white));
-		int world_volume_idx = -1;
-
-		glm::vec3 camera_from = glm::vec3(0.0f, 0.0f, 6.0f);
-		glm::vec3 camera_look = glm::vec3(5.0f, 0.0f, 4.0f);
-		float camera_fov = glm::radians(45.0f);
-		float camera_aspect = float(screen_width) / float(screen_height);
-
-		camera.SetFov(camera_fov);
-		camera.SetAspectRatio(camera_aspect);
-		camera.SetPosition(camera_from);
-		camera.SetDir(camera_from - camera_look);
-		camera.SetIOR(1.0f);
-		camera.SetVolumeIndex(world_volume_idx);
-
-		uint32_t default_mtl = AddSurfaceMaterial("default material", glm::vec3(0.25f));
-
-		uint32_t bunny_inner_vol_idx_0 = AddVolume("bunny_inner_vol_0", AddTransform(), glm::vec3(0.085f), glm::vec3(0.001f));
-		uint32_t bunny_inner_vol_idx_1 = AddVolume("bunny_inner_vol_1", AddTransform(), glm::vec3(0.085f), glm::vec3(0.001f));
-
-		// fog bound
-		AddPrimInstance(cube_idx,
-			AddTransform(glm::vec3(0.0f, 9.0f, -5.0f), glm::vec3(150.0f)),
-			default_mtl,
-			1.0f,
-			-1, world_volume_idx, true);
-
-		// left
-		AddPrimInstance(cube_idx,
-			AddTransform(glm::vec3(-5.025f, 0.0f, -5.0f), glm::vec3(0.05f, 10.0f, 10.0f)),
-			AddSurfaceMaterial("left wall", glm::vec3(0.65f, 0.05f, 0.05f)), 
-			1.0f,
-			world_volume_idx, -1);
-		
-		// right
-		AddPrimInstance(cube_idx,
-			AddTransform(glm::vec3(5.025f, 0.0f, -5.0f), glm::vec3(0.05f, 10.0f, 10.0f)),
-			AddSurfaceMaterial("right wall", glm::vec3(0.15f, 0.55f, 0.15f)), 
-			1.0f,
-			world_volume_idx, -1);
-
-		// bottom
-		AddPrimInstance(cube_idx,
-			AddTransform(glm::vec3(0.0f, -5.025f, -5.0f), glm::vec3(10.0f, 0.05f, 10.0f)),
-			AddSurfaceMaterial("bottom wall", glm::vec3(0.75f, 0.75f, 0.75f)),
-			1.0f,
-			world_volume_idx, -1);
-
-		// test basic texture op
-		const uint32_t tex_black_idx = AddTexture("tex_black", Texture().InitConstantTextureRGB(glm::vec3(0.01f)));
-		const uint32_t tex_white_idx = AddTexture("tex_white", Texture().InitConstantTextureRGB(glm::vec3(0.99f)));
-		const uint32_t tex_checkerboard = AddTexture("CheckerBoard_0", Texture().InitCheckerBoardTexture(tex_black_idx, tex_white_idx, 64.0f));
-		materials.back().surface_material.diffuse_albedo_tex = tex_checkerboard;
-
-		// top
-		AddPrimInstance(cube_idx,
-			AddTransform(glm::vec3(0.0f, 5.025f, -5.0f), glm::vec3(10.0f, 0.05f, 10.0f)),
-			AddSurfaceMaterial("top wall", glm::vec3(0.75f, 0.75f, 0.75f)),
-			1.0f,
-			world_volume_idx, -1);
-
-		// back
-		AddPrimInstance(cube_idx,
-			AddTransform(glm::vec3(0.0f, 0.0f, -10.025f), glm::vec3(10.0f, 10.0f, 0.05f)),
-			AddSurfaceMaterial("back wall", glm::vec3(0.75f, 0.75f, 0.75f)), 
-			1.0f,
-			world_volume_idx, -1);
-
-		AddPrimInstance(cube_idx,
-			AddTransform(glm::vec3(-3.0f, -3.0f, -5.0f), glm::vec3(2.15f, 4.0f, 2.15f)),
-			AddSurfaceMaterial("cube left", glm::vec3(0.75f, 0.75f, 0.75f)),
-			1.0f,
-			world_volume_idx, -1);
-
-		AddPrimInstance(cube_idx,
-			AddTransform(glm::vec3(0.0f, -3.0f, -5.0f), glm::vec3(2.15f, 4.0f, 2.15f)),
-			AddSurfaceMaterial("cube mid", glm::vec3(0.75f, 0.75f, 0.75f)),
-			1.0f,
-			world_volume_idx, -1);
-
-		AddPrimInstance(cube_idx,
-			AddTransform(glm::vec3(3.0f, -3.0f, -5.0f), glm::vec3(2.15f, 4.0f, 2.15f)),
-			AddSurfaceMaterial("cube right", glm::vec3(0.75f, 0.75f, 0.75f)),
-			1.0f,
-			world_volume_idx, -1);
-
-		//// light
-		//AddPrimInstance(cube_idx,
-		//	AddTransform(glm::vec3(-3.0f, 4.15f, -5.0f), glm::vec3(0.3, 0.3f, 0.3)),
-		//	AddLightMaterial("ceil light", glm::vec3(1.0f), 150.0f),
-		//	1.0f,
-		//	world_volume_idx, -1);
-
-		//// sphere light
-		//AddPrimInstance(sphere_idx,
-		//	AddTransform(glm::vec3(3.0f, 4.15f, -5.0f), glm::vec3(0.15f, 0.15f, 0.15f)),
-		//	AddLightMaterial("sphere light", glm::vec3(1.0f), 300.0f),
-		//	1.0f,
-		//	world_volume_idx, -1);
-
-		// ground
-		AddPrimInstance(cube_idx,
-			AddTransform(glm::vec3(0.0f, -5.55f, 0.0f), glm::vec3(135.0, 1.0f, 135.0f)),
-			AddSurfaceMaterial("ground", glm::vec3(0.55f, 0.55f, 0.55f), glm::vec3(0.0f), 0.2, 0.2, 1.3, 0.0f, 0.0f, 0.0f),
-			1.0f,
-			world_volume_idx, -1);
-
-		AddPrimInstance(cube_idx,
-			AddTransform(glm::vec3(5.8f, -2.55f, 5.8f), glm::vec3(4.0f, 4.0f, 4.0f)),
-			AddSurfaceMaterial("extra cube", glm::vec3(0.55f, 0.55f, 0.55f), glm::vec3(0.0f), 0.2, 0.2, 1.3, 0.0f, 0.0f, 0.0f),
-			1.0f,
-			world_volume_idx, -1);
-
-		const uint32_t tex_perlin_noise = AddTexture("Noise_0", Texture().InitNoiseTextureMarble(tex_black_idx, tex_white_idx));
-		materials.back().surface_material.diffuse_albedo_tex = tex_perlin_noise;
-
-		uint32_t cube_volume = AddVolume("cube volume", AddTransform(), glm::vec3(0.085f), glm::vec3(0.001f), 0.0f, fog_tex);
-		AddPrimInstance(cube_idx,
-			AddTransform(glm::vec3(0.0f, 9.0f, 0.0f), glm::vec3(15.0f, 2.0f, 15.0f)),
-			AddSurfaceMaterial("extra cube"),
-			1.0f,
-			world_volume_idx, cube_volume, true);
-
-
-		ACBVHBuilder SceneBuilder(prim_instances.data(),
-			(uint32_t)prim_instances.size(),
-			transforms.data(),
-			geometries.data(),
-			bottom_nodes.data());
-		SceneBuilder.BuildSceneBVH(top_nodes, &top_BVH_time);
-
-		AddDistantLight("Distant Light", AddTransform(glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)), glm::vec3(1.0f), 2.0f, 8.0f);
-
-		LoadShapeLights();
 	}
 };

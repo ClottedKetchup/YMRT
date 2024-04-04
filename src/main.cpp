@@ -5,6 +5,135 @@
 #include "MainSystem.h"
 #include "MathCommon.h"
 
+void TestScene_CornellBox(std::shared_ptr<YumeRT::SceneManager> scene_manager, int screen_width, int screen_height)
+{
+	uint32_t cube_idx = scene_manager->AddQube("Cube"), sphere_idx = scene_manager->AddSphere("Sphere", 1.0f);
+	const uint32_t fog_tex_black = scene_manager->AddTexture("fog_tex_black", YumeRT::Texture().InitConstantTextureRGB(glm::vec3(0.04f)));
+	const uint32_t fog_tex_white = scene_manager->AddTexture("fog_tex_white", YumeRT::Texture().InitConstantTextureRGB(glm::vec3(0.96f)));
+	const uint32_t fog_tex = scene_manager->AddTexture("fog_tex", YumeRT::Texture().InitNoiseTextureTurbulence(fog_tex_black, fog_tex_white));
+	int world_volume_idx = -1;
+
+	glm::vec3 camera_from = glm::vec3(0.0f, 0.0f, 6.0f);
+	glm::vec3 camera_look = glm::vec3(5.0f, 0.0f, 4.0f);
+	float camera_fov = glm::radians(45.0f);
+	float camera_aspect = float(screen_width) / float(screen_height);
+
+	scene_manager->GetCameraRef().SetFov(camera_fov);
+	scene_manager->GetCameraRef().SetAspectRatio(camera_aspect);
+	scene_manager->GetCameraRef().SetPosition(camera_from);
+	scene_manager->GetCameraRef().SetDir(camera_from - camera_look);
+	scene_manager->GetCameraRef().SetIOR(1.0f);
+	scene_manager->GetCameraRef().SetVolumeIndex(world_volume_idx);
+
+	uint32_t default_mtl = scene_manager->AddSurfaceMaterial("default material", glm::vec3(0.25f));
+
+	uint32_t bunny_inner_vol_idx_0 = scene_manager->AddVolume("bunny_inner_vol_0", scene_manager->AddTransform(), glm::vec3(0.085f), glm::vec3(0.001f));
+	uint32_t bunny_inner_vol_idx_1 = scene_manager->AddVolume("bunny_inner_vol_1", scene_manager->AddTransform(), glm::vec3(0.085f), glm::vec3(0.001f));
+
+	// fog bound
+	scene_manager->AddPrimInstance(cube_idx,
+		scene_manager->AddTransform(glm::vec3(0.0f, 9.0f, -5.0f), glm::vec3(150.0f)),
+		default_mtl,
+		1.0f,
+		-1, world_volume_idx, true);
+
+	// left
+	scene_manager->AddPrimInstance(cube_idx,
+		scene_manager->AddTransform(glm::vec3(-5.025f, 0.0f, -5.0f), glm::vec3(0.05f, 10.0f, 10.0f)),
+		scene_manager->AddSurfaceMaterial("left wall", glm::vec3(0.65f, 0.05f, 0.05f)),
+		1.0f,
+		world_volume_idx, -1);
+
+	// right
+	scene_manager->AddPrimInstance(cube_idx,
+		scene_manager->AddTransform(glm::vec3(5.025f, 0.0f, -5.0f), glm::vec3(0.05f, 10.0f, 10.0f)),
+		scene_manager->AddSurfaceMaterial("right wall", glm::vec3(0.15f, 0.55f, 0.15f)),
+		1.0f,
+		world_volume_idx, -1);
+
+	// test basic texture op
+	const uint32_t tex_black_idx = scene_manager->AddTexture("tex_black", YumeRT::Texture().InitConstantTextureRGB(glm::vec3(0.01f)));
+	const uint32_t tex_white_idx = scene_manager->AddTexture("tex_white", YumeRT::Texture().InitConstantTextureRGB(glm::vec3(0.99f)));
+	const uint32_t tex_checkerboard = scene_manager->AddTexture("CheckerBoard_0", YumeRT::Texture().InitCheckerBoardTexture(tex_black_idx, tex_white_idx, 64.0f));
+
+	// bottom
+	scene_manager->AddPrimInstance(cube_idx,
+		scene_manager->AddTransform(glm::vec3(0.0f, -5.025f, -5.0f), glm::vec3(10.0f, 0.05f, 10.0f)),
+		scene_manager->AddSurfaceMaterial("bottom wall", glm::vec3(0.75f, 0.75f, 0.75f), glm::vec3(1.0f), 0.15, 0.15, 1.45, 0.0f, 1.0f, 0.0f, tex_checkerboard),
+		1.0f,
+		world_volume_idx, -1);
+
+	// top
+	scene_manager->AddPrimInstance(cube_idx,
+		scene_manager->AddTransform(glm::vec3(0.0f, 5.025f, -5.0f), glm::vec3(10.0f, 0.05f, 10.0f)),
+		scene_manager->AddSurfaceMaterial("top wall", glm::vec3(0.75f, 0.75f, 0.75f)),
+		1.0f,
+		world_volume_idx, -1);
+
+	// back
+	scene_manager->AddPrimInstance(cube_idx,
+		scene_manager->AddTransform(glm::vec3(0.0f, 0.0f, -10.025f), glm::vec3(10.0f, 10.0f, 0.05f)),
+		scene_manager->AddSurfaceMaterial("back wall", glm::vec3(0.75f, 0.75f, 0.75f)),
+		1.0f,
+		world_volume_idx, -1);
+
+	scene_manager->AddPrimInstance(cube_idx,
+		scene_manager->AddTransform(glm::vec3(-3.0f, -3.0f, -5.0f), glm::vec3(2.15f, 4.0f, 2.15f)),
+		scene_manager->AddSurfaceMaterial("cube left", glm::vec3(0.75f, 0.75f, 0.75f)),
+		1.0f,
+		world_volume_idx, -1);
+
+	scene_manager->AddPrimInstance(cube_idx,
+		scene_manager->AddTransform(glm::vec3(0.0f, -3.0f, -5.0f), glm::vec3(2.15f, 4.0f, 2.15f)),
+		scene_manager->AddSurfaceMaterial("cube mid", glm::vec3(0.75f, 0.75f, 0.75f)),
+		1.0f,
+		world_volume_idx, -1);
+
+	scene_manager->AddPrimInstance(cube_idx,
+		scene_manager->AddTransform(glm::vec3(3.0f, -3.0f, -5.0f), glm::vec3(2.15f, 4.0f, 2.15f)),
+		scene_manager->AddSurfaceMaterial("cube right", glm::vec3(0.75f, 0.75f, 0.75f)),
+		1.0f,
+		world_volume_idx, -1);
+
+	//// light
+	//AddPrimInstance(cube_idx,
+	//	AddTransform(glm::vec3(-3.0f, 4.15f, -5.0f), glm::vec3(0.3, 0.3f, 0.3)),
+	//	AddLightMaterial("ceil light", glm::vec3(1.0f), 150.0f),
+	//	1.0f,
+	//	world_volume_idx, -1);
+
+	// sphere light
+	scene_manager->AddPrimInstance(sphere_idx,
+		scene_manager->AddTransform(glm::vec3(3.0f, 4.15f, -5.0f), glm::vec3(0.15f, 0.15f, 0.15f)),
+		scene_manager->AddLightMaterial("sphere light", glm::vec3(1.0f), 300.0f),
+		1.0f,
+		world_volume_idx, -1);
+
+	// ground
+	scene_manager->AddPrimInstance(cube_idx,
+		scene_manager->AddTransform(glm::vec3(0.0f, -5.55f, 0.0f), glm::vec3(135.0, 1.0f, 135.0f)),
+		scene_manager->AddSurfaceMaterial("ground", glm::vec3(0.55f, 0.55f, 0.55f), glm::vec3(0.0f), 0.2, 0.2, 1.3, 0.0f, 0.0f, 0.0f),
+		1.0f,
+		world_volume_idx, -1);
+
+	const uint32_t tex_perlin_noise = scene_manager->AddTexture("Noise_0", YumeRT::Texture().InitNoiseTextureMarble(tex_black_idx, tex_white_idx));
+
+	scene_manager->AddPrimInstance(cube_idx,
+		scene_manager->AddTransform(glm::vec3(5.8f, -2.55f, 5.8f), glm::vec3(4.0f, 4.0f, 4.0f)),
+		scene_manager->AddSurfaceMaterial("extra cube", glm::vec3(0.55f, 0.55f, 0.55f), glm::vec3(0.0f), 0.2, 0.2, 1.3, 0.0f, 0.0f, 0.0f, tex_perlin_noise),
+		1.0f,
+		world_volume_idx, -1);
+
+	uint32_t cube_volume = scene_manager->AddVolume("cube volume", scene_manager->AddTransform(), glm::vec3(0.085f), glm::vec3(0.001f), 0.0f, fog_tex);
+	scene_manager->AddPrimInstance(cube_idx,
+		scene_manager->AddTransform(glm::vec3(0.0f, 9.0f, 0.0f), glm::vec3(15.0f, 2.0f, 15.0f)),
+		scene_manager->AddSurfaceMaterial("extra cube"),
+		1.0f,
+		world_volume_idx, cube_volume, true);
+
+	scene_manager->AddDistantLight("Distant Light", scene_manager->AddTransform(glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)), glm::vec3(1.0f), 2.0f, 8.0f);
+}
+
 int main(int argc, char *argv[])
 {
 	try
@@ -17,50 +146,22 @@ int main(int argc, char *argv[])
 
 		std::shared_ptr<YumeRT::MainSystem> ptr = 
 			YumeRT::MainSystem::GetInstance();
+
+		const int width = 1024, height = 800;
+
 		ptr->Init(vert_path,
 			frag_path,
 			model_path,
-			1024,
-			800);
+			width,
+			height);
+
+		TestScene_CornellBox(ptr->GetSceneManager(), width, height);
+
 		ptr->Run();
 	}
 	catch (const std::exception& err)
 	{
 		std::cout << err.what() << std::endl;
 	}
-
-	/*int table_size = 256;
-	std::vector<int> permute_x(table_size);
-	std::vector<int> permute_y(table_size);
-	std::vector<int> permute_z(table_size);
-
-	for (int i = 0; i < table_size; ++i) 
-	{
-		permute_x[i] = i;
-		permute_y[i] = i;
-		permute_z[i] = i;
-	}
-
-	std::mt19937 rng(19980726u);
-	std::shuffle(permute_x.begin(), permute_x.end(), rng);
-	std::shuffle(permute_y.begin(), permute_y.end(), rng);
-	std::shuffle(permute_z.begin(), permute_z.end(), rng);
-	
-	auto print_vec = [](const std::vector<int>& vec) 
-	{
-		int i = 0;
-		for (const auto &num : vec) 
-		{
-			std::cout << num << ", ";
-			++i;
-			if (i == 16) 
-			{
-				i = 0;
-				std::cout << "\n";
-			}
-		}
-		std::cout << std::endl;
-	};
-	print_vec(permute_x);*/
 	return 0;
 }
