@@ -432,9 +432,9 @@ namespace YumeRT
 	{
 		BSDF bsdfs[4];
 		float weights[4];
-		int count;
+		int bsdf_count;
 
-		__device__ __host__ DefaultMtlBSDF() : weights{ 0.0f, 0.0f, 0.0f, 0.0f }, count(0){}
+		__device__ __host__ DefaultMtlBSDF() : weights{ 0.0f, 0.0f, 0.0f, 0.0f }, bsdf_count(0){}
 		__device__ __host__ inline void InitBSDFSettings(const Material &mtl,
 			const Texture *textures,
 			const TextureManager &texture_manager,
@@ -444,10 +444,11 @@ namespace YumeRT
 			int hit_back,
 			float prim_outer_ior) 
 		{
+			// printf("Init Begin.\n");
 			const DefaultMtl& default_mtl = mtl.default_mtl;
 			const float metalness = default_mtl.metalness;
-			const float alpha_x = Sqr(glm::clamp(default_mtl.alpha_x, 0.001f, 0.98f));
-			const float alpha_y = Sqr(glm::clamp(default_mtl.alpha_y, 0.001f, 0.98f));
+			const float alpha_x = Sqr(glm::clamp(default_mtl.alpha_x, 0.001f, 0.999f));
+			const float alpha_y = Sqr(glm::clamp(default_mtl.alpha_y, 0.001f, 0.999f));
 			const float i_ior = glm::max(ray_in.ray_ior, 0.0001f);
 			const float o_ior = glm::max(hit_back ? prim_outer_ior : default_mtl.ior_n, 0.0001f);
 			const float eta = o_ior * SafeRcp(i_ior);
@@ -457,77 +458,81 @@ namespace YumeRT
 			const glm::vec3 diffuse_albedo = default_mtl.diffuse_albedo_tex != INVALID_UINT_32 ? 
 				TextureEval(textures[default_mtl.diffuse_albedo_tex], textures, texture_manager, texture_coordinate) : default_mtl.diffuse_albedo;
 			
-			assert(count == 0);
+			assert(bsdf_count == 0);
+
+			bsdf_count = 0;
 			const float weight_0 = metalness;
 			if (weight_0 > 0.0f)
 			{
 				glm::vec3 metal_n, metal_k;
 				EdgeTintToConductiveFresnel(diffuse_albedo, default_mtl.specular_albedo, &metal_n, &metal_k);
-				assert(count == 0);
-				bsdfs[count].bsdf_type = MICROFACET_REFLECTION;
-				bsdfs[count].microfacet_reflect.specular_albedo = glm::vec3(1.0f);
-				bsdfs[count].microfacet_reflect.alpha_x = alpha_x;
-				bsdfs[count].microfacet_reflect.alpha_y = alpha_y;
-				bsdfs[count].microfacet_reflect.nt = metal_n;
-				bsdfs[count].microfacet_reflect.kt = metal_k;
-				bsdfs[count].microfacet_reflect.ni = i_ior;
-				bsdfs[count].microfacet_reflect.is_metal = (int)true;
+				bsdfs[bsdf_count].bsdf_type = MICROFACET_REFLECTION;
+				bsdfs[bsdf_count].microfacet_reflect.specular_albedo = glm::vec3(1.0f);
+				bsdfs[bsdf_count].microfacet_reflect.alpha_x = alpha_x;
+				bsdfs[bsdf_count].microfacet_reflect.alpha_y = alpha_y;
+				bsdfs[bsdf_count].microfacet_reflect.nt = metal_n;
+				bsdfs[bsdf_count].microfacet_reflect.kt = metal_k;
+				bsdfs[bsdf_count].microfacet_reflect.ni = i_ior;
+				bsdfs[bsdf_count].microfacet_reflect.is_metal = (int)true;
 				
-				weights[count] = weight_0;
-				++count;
+				weights[bsdf_count] = weight_0;
+				++bsdf_count;
 			}
 
 			const float weight_1 = (1.0f - metalness) * fr * specular_weight;
 			if (weight_1 > 0.0f)
 			{
-				bsdfs[count].bsdf_type = MICROFACET_REFLECTION;
-				bsdfs[count].microfacet_reflect.specular_albedo = default_mtl.specular_albedo;
-				bsdfs[count].microfacet_reflect.alpha_x = alpha_x;
-				bsdfs[count].microfacet_reflect.alpha_y = alpha_y;
-				bsdfs[count].microfacet_reflect.nt = glm::vec3(o_ior);
-				bsdfs[count].microfacet_reflect.kt = glm::vec3(0.0f);
-				bsdfs[count].microfacet_reflect.ni = i_ior;
-				bsdfs[count].microfacet_reflect.is_metal = (int)false;
+				bsdfs[bsdf_count].bsdf_type = MICROFACET_REFLECTION;
+				bsdfs[bsdf_count].microfacet_reflect.specular_albedo = default_mtl.specular_albedo;
+				bsdfs[bsdf_count].microfacet_reflect.alpha_x = alpha_x;
+				bsdfs[bsdf_count].microfacet_reflect.alpha_y = alpha_y;
+				bsdfs[bsdf_count].microfacet_reflect.nt = glm::vec3(o_ior);
+				bsdfs[bsdf_count].microfacet_reflect.kt = glm::vec3(0.0f);
+				bsdfs[bsdf_count].microfacet_reflect.ni = i_ior;
+				bsdfs[bsdf_count].microfacet_reflect.is_metal = (int)false;
 
-				weights[count] = weight_1;
-				++count;
+				weights[bsdf_count] = weight_1;
+				++bsdf_count;
 			}
 
 			const float weight_2 = (1.0f - metalness) * (1.0 - fr * specular_weight) * transmission_weight;
 			if (weight_2 > 0.0f) 
 			{
-				bsdfs[count].bsdf_type = MICROFACET_TRANSMISSION;
-				bsdfs[count].microfacet_transmit.transmission_albedo = mtl.default_mtl.specular_albedo;
-				bsdfs[count].microfacet_transmit.alpha_x = alpha_x;
-				bsdfs[count].microfacet_transmit.alpha_y = alpha_y;
-				bsdfs[count].microfacet_transmit.ni = i_ior;
-				bsdfs[count].microfacet_transmit.nt = o_ior;
+				bsdfs[bsdf_count].bsdf_type = MICROFACET_TRANSMISSION;
+				bsdfs[bsdf_count].microfacet_transmit.transmission_albedo = mtl.default_mtl.specular_albedo;
+				bsdfs[bsdf_count].microfacet_transmit.alpha_x = alpha_x;
+				bsdfs[bsdf_count].microfacet_transmit.alpha_y = alpha_y;
+				bsdfs[bsdf_count].microfacet_transmit.ni = i_ior;
+				bsdfs[bsdf_count].microfacet_transmit.nt = o_ior;
 
-				weights[count] = weight_2;
-				++count;
+				weights[bsdf_count] = weight_2;
+				++bsdf_count;
 			}
 
 			const float weight_3 = (1.0f - metalness) * (1.0 - fr * specular_weight) *(1.0f - transmission_weight);
 			if (weight_3 > 0.0f)
 			{
-				bsdfs[count].bsdf_type = LAMBERT;
-				bsdfs[count].lambert.diffuse_albedo = diffuse_albedo;
+				bsdfs[bsdf_count].bsdf_type = LAMBERT;
+				bsdfs[bsdf_count].lambert.diffuse_albedo = diffuse_albedo;
 				
-				weights[count] = weight_3;
-				++count;
+				weights[bsdf_count] = weight_3;
+				++bsdf_count;
 			}
+			// printf("Init End. count = %d\n", count);
 		}
 		__device__ __host__ inline glm::vec3 EvalWi(const glm::vec3 &wo, const glm::vec3 &wi, float *pdf)
 		{
+			// printf("Eval begin.\n");
 			glm::vec3 mix_bsdf_weight(0.0f);
 			float mix_pdf = 0.0f;
-			for (int i = 0; i < count; ++i) 
+			for (int i = 0; i < bsdf_count; ++i) 
 			{
 				float sample_pdf = 0.0f;
 				mix_bsdf_weight += weights[i] * bsdfs[i].Eval(wo, wi, &sample_pdf);
 				mix_pdf += weights[i] * sample_pdf;
 			}
 			*pdf = mix_pdf;
+			// printf("Eval end.\n");
 			return mix_bsdf_weight;
 		}
 		__device__ __host__ inline bool SampleWi(const glm::vec3 &wo,
@@ -536,9 +541,10 @@ namespace YumeRT
 			float *pdf,
 			float u0, float u1, float u2)
 		{
+			// printf("Sample begin.\n");
 			float cdf = 0.0f;
 			int selected_bsdf_idx = -1;
-			for (int i = 0; i < count; ++i)
+			for (int i = 0; i < bsdf_count; ++i)
 			{
 				if (u0 < cdf + weights[i])
 				{
@@ -547,7 +553,8 @@ namespace YumeRT
 				}
 				cdf += weights[i];
 			}
-			if (selected_bsdf_idx == -1) { selected_bsdf_idx = count - 1; }
+			if (selected_bsdf_idx == -1) { selected_bsdf_idx = bsdf_count - 1; }
+			if (selected_bsdf_idx == -1) { return false; }
 
 			float bsdf_wi_pdf = 0.0f;
 			bool sample_valid = bsdfs[selected_bsdf_idx].Sample(u1, u2, wo, weight, wi, &bsdf_wi_pdf);
@@ -556,7 +563,7 @@ namespace YumeRT
 			float deno = SafeRcp(bsdf_wi_pdf * weights[selected_bsdf_idx]);
 
 			float mix_pdf = 1.0f;
-			for (int i = 0; i < count; ++i)
+			for (int i = 0; i < bsdf_count; ++i)
 			{
 				if (i == selected_bsdf_idx) { continue; }
 				BSDF &bsdf = bsdfs[i];
@@ -567,6 +574,7 @@ namespace YumeRT
 
 			*pdf = SafeRcp(mix_pdf * bsdf_wi_pdf * weights[selected_bsdf_idx]);
 			*weight *= SafeRcp(mix_pdf);
+			// printf("Sample end.\n");
 			return true;
 		}
 	};
@@ -582,7 +590,7 @@ namespace YumeRT
 			DefaultMtlBSDF default_mtl_bsdf;
 		};
 
-		__device__ __host__ MaterialBSDF() {}
+		__device__ __host__ MaterialBSDF(): material_type(INVALID_UINT_32){}
 		__device__ __host__ inline void InitShadingSpace(const glm::vec3 &hit_normal, const glm::vec3 &hit_tangent)
 		{
 			normal = hit_normal;
@@ -605,6 +613,9 @@ namespace YumeRT
 			int hit_back,
 			float prim_outer_ior) 
 		{
+			material_type = mtl.material_type;
+			
+			assert(material_type != INVALID_UINT_32);
 			if (material_type == DEFAULT_MTL) 
 			{
 				default_mtl_bsdf.InitBSDFSettings(mtl, textures, texture_manager, texture_coordinate, ray_in, normal, hit_back, prim_outer_ior);
@@ -620,6 +631,7 @@ namespace YumeRT
 		}
 		__device__ __host__ inline glm::vec3 EvalWi(const glm::vec3 &wo, const glm::vec3 &wi, float *pdf)
 		{
+			assert(material_type != INVALID_UINT_32);
 			if (material_type == DEFAULT_MTL)
 			{
 				return default_mtl_bsdf.EvalWi(wo, wi, pdf);
@@ -639,6 +651,7 @@ namespace YumeRT
 			float *pdf,
 			float u0, float u1, float u2) 
 		{
+			assert(material_type != INVALID_UINT_32);
 			if (material_type == DEFAULT_MTL)
 			{
 				return default_mtl_bsdf.SampleWi(wo, weight, wi, pdf, u0, u1, u2);
@@ -690,29 +703,23 @@ namespace YumeRT
 		{
 			back_side = hit_back;
 
-			float metalness = mtl.default_mtl.metalness;
-			float transmission_weight = mtl.default_mtl.transmission_weight;
-			float specular_weight = mtl.default_mtl.specular_weight;
-
-			float i_ior = glm::max(ray_in.ray_ior, 0.001f);
-			float o_ior = glm::max(hit_back? prim_outer_ior : mtl.default_mtl.ior_n, 0.001f);
-
-			float alpha_x = Sqr(glm::clamp(mtl.default_mtl.alpha_x, 0.001f, 0.98f));
-			float alpha_y = Sqr(glm::clamp(mtl.default_mtl.alpha_y, 0.001f, 0.98f));
-
-			float eta = o_ior * SafeRcp(i_ior);
-			float fr = FresnelDielectricDielectric(eta, glm::max(glm::dot(normal, -ray_in.direction), 0.0f));
+			const DefaultMtl& default_mtl = mtl.default_mtl;
+			const float metalness = default_mtl.metalness;
+			const float alpha_x = Sqr(glm::clamp(default_mtl.alpha_x, 0.001f, 0.98f));
+			const float alpha_y = Sqr(glm::clamp(default_mtl.alpha_y, 0.001f, 0.98f));
+			const float i_ior = glm::max(ray_in.ray_ior, 0.0001f);
+			const float o_ior = glm::max(hit_back ? prim_outer_ior : default_mtl.ior_n, 0.0001f);
+			const float eta = o_ior * SafeRcp(i_ior);
+			const float fr = FresnelDielectricDielectric(eta, glm::max(glm::dot(normal, -ray_in.direction), 0.0f));
+			const float specular_weight = default_mtl.specular_weight;
+			const float transmission_weight = default_mtl.transmission_weight;
+			const glm::vec3 diffuse_albedo = default_mtl.diffuse_albedo_tex != INVALID_UINT_32 ?
+				TextureEval(textures[default_mtl.diffuse_albedo_tex], textures, texture_manager, texture_coordinate) : default_mtl.diffuse_albedo;
 			
-			fr *= mtl.default_mtl.specular_weight;
-			// TO verify: is this right?
 			weights[0] = metalness;
-			weights[1] = (1.0f - metalness) * fr;
-			weights[2] = (1.0f - metalness) * (1.0 - fr) * transmission_weight;
-			weights[3] = (1.0f - metalness) * (1.0 - fr) * (1.0f - transmission_weight);
-
-			const glm::vec3 diffuse_albedo = mtl.default_mtl.diffuse_albedo_tex != INVALID_UINT_32?
-				TextureEval(textures[mtl.default_mtl.diffuse_albedo_tex], textures, texture_manager, texture_coordinate):
-				mtl.default_mtl.diffuse_albedo;
+			weights[1] = (1.0f - metalness) * fr * specular_weight;
+			weights[2] = (1.0f - metalness) * (1.0 - fr * specular_weight) * transmission_weight;
+			weights[3] = (1.0f - metalness) * (1.0 - fr * specular_weight) * (1.0f - transmission_weight);
 
 			if (weights[0] > 0.0f)
 			{
@@ -773,6 +780,80 @@ namespace YumeRT
 		__device__ __host__ inline glm::vec3 WorldToShading(const glm::vec3 &w)
 		{
 			return glm::vec3(glm::dot(w, tangent), glm::dot(w, bitangent), glm::dot(w, normal));
+		}
+
+		__device__ __host__ inline glm::vec3 EvalWi(const glm::vec3 &wo, const glm::vec3 &wi, float *pdf)
+		{
+			glm::vec3 mix_bsdf_weight(0.0f);
+			float mix_pdf = 0.0f;
+			for (int i = 0; i < 4; ++i)
+			{
+				if (!component_inited[i]) { continue; }
+				float sample_pdf = 0.0f;
+				mix_bsdf_weight += weights[i] * bsdfs[i].Eval(wo, wi, &sample_pdf);
+				mix_pdf += weights[i] * sample_pdf;
+			}
+			*pdf = mix_pdf;
+			return mix_bsdf_weight;
+		}
+
+		__device__ __host__ inline bool SampleWi(float u0, float u1, float u2,
+			const glm::vec3 &wo,
+			glm::vec3 *weight,
+			glm::vec3 *wi,
+			float *pdf)
+		{
+			int selected_bsdf_idx = -1;
+			float bsdf_select_weight = 0.0f;
+
+			if (u0 < weights[0])
+			{
+				u0 = u0 / weights[0];
+				bsdf_select_weight = weights[0];
+				selected_bsdf_idx = component_inited[0] ? 0 : -1;
+			}
+			else if (u0 < weights[0] + weights[1])
+			{
+				u0 = (u0 - weights[0]) / weights[1];
+				bsdf_select_weight = weights[1];
+				selected_bsdf_idx = component_inited[1] ? 1 : -1;
+			}
+			else if (u0 < weights[0] + weights[1] + weights[2])
+			{
+				u0 = (u0 - weights[0] - weights[1]) / weights[2];
+				bsdf_select_weight = weights[2];
+				selected_bsdf_idx = component_inited[2] ? 2 : -1;
+			}
+			else
+			{
+				u0 = (u0 - weights[0] - weights[1] - weights[2]) / weights[3];
+				bsdf_select_weight = weights[3];
+				selected_bsdf_idx = component_inited[3] ? 3 : -1;
+			}
+
+			if (selected_bsdf_idx == -1) { return false; }
+
+			float bsdf_wi_pdf = 0.0f;
+			bool sample_valid = bsdfs[selected_bsdf_idx].Sample(u1, u2, wo, weight, wi, &bsdf_wi_pdf);
+			if (!sample_valid || (bsdf_wi_pdf * bsdf_select_weight) == 0.0f) { return false; }
+
+			float deno = SafeRcp(bsdf_wi_pdf * bsdf_select_weight);
+
+			float mix_pdf = 1.0f;
+			for (int i = 0; i < 4; ++i)
+			{
+				if (component_inited[i] && i != selected_bsdf_idx)
+				{
+					BSDF &bsdf = bsdfs[i];
+					float pdf = bsdf.PDF(wo, *wi);
+					mix_pdf += weights[i] * pdf * deno;
+				}
+			}
+			if (glm::abs(mix_pdf) == 0.0f) { return false; }
+
+			*pdf = SafeRcp(mix_pdf * bsdf_wi_pdf * bsdf_select_weight);
+			*weight /= mix_pdf;
+			return true;
 		}
 
 		__device__ __host__ inline BSDF* SampleOneBSDF(float u0, float *pdf)

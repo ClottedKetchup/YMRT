@@ -261,12 +261,7 @@ namespace YumeRT
 		auto random = [&]()->float {return sampler.Random1D(); };
 
 		glm::vec3 direct_lighting(0.0f);
-
 		glm::vec3 wo = uber_bsdf.WorldToShading(-ray_direction);
-
-		float bsdf_select_pdf = 0.0f;
-		int selected_bsdf_idx = uber_bsdf.SelectSingleBSDF(random(), &bsdf_select_pdf);
-		if (selected_bsdf_idx == -1 || bsdf_select_pdf == 0.0f) { return glm::vec3(0.0f); }
 
 		float light_select_pdf = 0.0f;
 		int light_idx = SampleLightPower(scene, random(), &light_select_pdf);
@@ -281,7 +276,7 @@ namespace YumeRT
 
 			glm::vec3 light_wi = uber_bsdf.WorldToShading(light_dir);
 			float light_wi_pdf = 0.0f;
-			const glm::vec3 bsdf_weight = uber_bsdf.EvalSingleBSDF(selected_bsdf_idx, wo, light_wi, &light_wi_pdf) * bsdf_select_pdf;
+			const glm::vec3 bsdf_weight = uber_bsdf.EvalWi(wo, light_wi, &light_wi_pdf);
 
 			if (bsdf_weight.x + bsdf_weight.y + bsdf_weight.z > 1E-16f)
 			{
@@ -307,7 +302,7 @@ namespace YumeRT
 						shadow_ray.t = max_trace_distance;
 						tr = TraceTr(scene, texture_manager, shadow_ray, sampler);
 					}
-					// float mis_weight = 1.0f / (1.0f + Sqr(light_wi_pdf) / glm::min(1E24f, glm::max(Sqr(light_sample_pdf), 1E-16f)));
+					
 					float mis_weight = PowerHeuristic(light_sample_pdf, light_wi_pdf);
 					direct_lighting += mis_weight * tr * glm::min(bsdf_weight, glm::vec3(1E16f)) * glm::min(Li, glm::vec3(1E16f));
 				}
@@ -318,9 +313,7 @@ namespace YumeRT
 		{
 			glm::vec3 bsdf_weight, bsdf_wi;
 			float bsdf_sample_pdf = 0.0f;
-			bool sample_valid = uber_bsdf.SampleSingleBSDF(selected_bsdf_idx, random(), random(), wo, &bsdf_weight, &bsdf_wi, &bsdf_sample_pdf);
-
-			bsdf_weight *= bsdf_select_pdf;
+			bool sample_valid = uber_bsdf.SampleWi(random(), random(), random(), wo, &bsdf_weight, &bsdf_wi, &bsdf_sample_pdf);
 
 			if (sample_valid)
 			{
@@ -362,7 +355,7 @@ namespace YumeRT
 		}
 		
 		// todo: eval shape light contrib 
-		return   (bsdf_select_pdf * light_select_pdf)  < 1E-10f?  glm::vec3(0.0f) : (direct_lighting / (bsdf_select_pdf * light_select_pdf));
+		return   light_select_pdf  < 1E-10f?  glm::vec3(0.0f) : (direct_lighting / light_select_pdf);
 	}
 
 	__device__ glm::vec3 EvalVolumeShapeLight(const RenderSetting &render_setting,
@@ -674,7 +667,7 @@ namespace YumeRT
 					glm::vec3 wo = uber_bsdf.WorldToShading(-ray.direction), wi(0.0f), bsdf_weight(0.0f);
 					float pdf = 0.0f;
 					
-					bool sample_valid = uber_bsdf.SampleIndirectMix(sampler.Random1D(), sampler.Random1D(), wo, &bsdf_weight, &wi, &pdf);
+					bool sample_valid = uber_bsdf.SampleWi(sampler.Random1D(), sampler.Random1D(), sampler.Random1D(), wo, &bsdf_weight, &wi, &pdf);
 					assert(!glm::isnan(bsdf_weight.x) && !glm::isnan(bsdf_weight.y) && !glm::isnan(bsdf_weight.z));
 					if (!sample_valid) { break; }
 
