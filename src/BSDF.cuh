@@ -444,7 +444,6 @@ namespace YumeRT
 			int hit_back,
 			float prim_outer_ior) 
 		{
-			// printf("Init Begin.\n");
 			const DefaultMtl& default_mtl = mtl.default_mtl;
 			const float metalness = default_mtl.metalness;
 			const float alpha_x = Sqr(glm::clamp(default_mtl.alpha_x, 0.001f, 0.999f));
@@ -518,11 +517,9 @@ namespace YumeRT
 				weights[bsdf_count] = weight_3;
 				++bsdf_count;
 			}
-			// printf("Init End. count = %d\n", count);
 		}
 		__device__ __host__ inline glm::vec3 EvalWi(const glm::vec3 &wo, const glm::vec3 &wi, float *pdf)
 		{
-			// printf("Eval begin.\n");
 			glm::vec3 mix_bsdf_weight(0.0f);
 			float mix_pdf = 0.0f;
 			for (int i = 0; i < bsdf_count; ++i) 
@@ -532,7 +529,6 @@ namespace YumeRT
 				mix_pdf += weights[i] * sample_pdf;
 			}
 			*pdf = mix_pdf;
-			// printf("Eval end.\n");
 			return mix_bsdf_weight;
 		}
 		__device__ __host__ inline bool SampleWi(const glm::vec3 &wo,
@@ -541,7 +537,6 @@ namespace YumeRT
 			float *pdf,
 			float u0, float u1, float u2)
 		{
-			// printf("Sample begin.\n");
 			float cdf = 0.0f;
 			int selected_bsdf_idx = -1;
 			for (int i = 0; i < bsdf_count; ++i)
@@ -558,7 +553,7 @@ namespace YumeRT
 
 			float bsdf_wi_pdf = 0.0f;
 			bool sample_valid = bsdfs[selected_bsdf_idx].Sample(u1, u2, wo, weight, wi, &bsdf_wi_pdf);
-			if (!sample_valid || (bsdf_wi_pdf * weights[selected_bsdf_idx]) == 0.0f) { return false; }
+			if (!sample_valid || !(bsdf_wi_pdf * weights[selected_bsdf_idx] > 0.0f)) { return false; }
 
 			float deno = SafeRcp(bsdf_wi_pdf * weights[selected_bsdf_idx]);
 
@@ -574,7 +569,6 @@ namespace YumeRT
 
 			*pdf = SafeRcp(mix_pdf * bsdf_wi_pdf * weights[selected_bsdf_idx]);
 			*weight *= SafeRcp(mix_pdf);
-			// printf("Sample end.\n");
 			return true;
 		}
 	};
@@ -666,335 +660,4 @@ namespace YumeRT
 			}
 		}
 	};
-
-	struct UberBSDF
-	{
-		glm::vec3 tangent, bitangent, normal;
-
-		BSDF bsdfs[4];
-
-		int back_side;
-		float weights[4];
-		bool component_inited[4];
-
-		__device__ __host__ UberBSDF()
-		{
-			component_inited[0] = false;
-			component_inited[1] = false;
-			component_inited[2] = false;
-			component_inited[3] = false;
-		}
-
-
-		__device__ __host__ inline void InitShadingSpace(const glm::vec3 &hit_normal, const glm::vec3 &hit_tangent)
-		{
-			normal = hit_normal;
-			tangent = glm::normalize(hit_tangent - normal * glm::dot(hit_tangent, normal));
-			bitangent = glm::cross(normal, tangent);
-		}
-
-		__device__ __host__ inline void InitBSDFSettings(const Material &mtl, 
-			const Texture *textures, 
-			const TextureManager &texture_manager,
-			const TextureCoordinate &texture_coordinate, 
-			const Ray &ray_in, 
-			int hit_back,
-			float prim_outer_ior)
-		{
-			back_side = hit_back;
-
-			const DefaultMtl& default_mtl = mtl.default_mtl;
-			const float metalness = default_mtl.metalness;
-			const float alpha_x = Sqr(glm::clamp(default_mtl.alpha_x, 0.001f, 0.98f));
-			const float alpha_y = Sqr(glm::clamp(default_mtl.alpha_y, 0.001f, 0.98f));
-			const float i_ior = glm::max(ray_in.ray_ior, 0.0001f);
-			const float o_ior = glm::max(hit_back ? prim_outer_ior : default_mtl.ior_n, 0.0001f);
-			const float eta = o_ior * SafeRcp(i_ior);
-			const float fr = FresnelDielectricDielectric(eta, glm::max(glm::dot(normal, -ray_in.direction), 0.0f));
-			const float specular_weight = default_mtl.specular_weight;
-			const float transmission_weight = default_mtl.transmission_weight;
-			const glm::vec3 diffuse_albedo = default_mtl.diffuse_albedo_tex != INVALID_UINT_32 ?
-				TextureEval(textures[default_mtl.diffuse_albedo_tex], textures, texture_manager, texture_coordinate) : default_mtl.diffuse_albedo;
-			
-			weights[0] = metalness;
-			weights[1] = (1.0f - metalness) * fr * specular_weight;
-			weights[2] = (1.0f - metalness) * (1.0 - fr * specular_weight) * transmission_weight;
-			weights[3] = (1.0f - metalness) * (1.0 - fr * specular_weight) * (1.0f - transmission_weight);
-
-			if (weights[0] > 0.0f)
-			{
-				glm::vec3 metal_n, metal_k;
-				EdgeTintToConductiveFresnel(diffuse_albedo, mtl.default_mtl.specular_albedo, &metal_n, &metal_k);
-
-				bsdfs[0].bsdf_type = MICROFACET_REFLECTION;
-				bsdfs[0].microfacet_reflect.specular_albedo = glm::vec3(1.0f);
-				bsdfs[0].microfacet_reflect.alpha_x = alpha_x;
-				bsdfs[0].microfacet_reflect.alpha_y = alpha_y;
-				bsdfs[0].microfacet_reflect.nt = metal_n;
-				bsdfs[0].microfacet_reflect.kt = metal_k;
-				bsdfs[0].microfacet_reflect.ni = i_ior;
-				bsdfs[0].microfacet_reflect.is_metal = (int)true;
-
-				component_inited[0] = true;
-			}
-
-			if (weights[1] > 0.0f)
-			{
-				bsdfs[1].bsdf_type = MICROFACET_REFLECTION;
-				bsdfs[1].microfacet_reflect.specular_albedo = mtl.default_mtl.specular_albedo;
-				bsdfs[1].microfacet_reflect.alpha_x = alpha_x;
-				bsdfs[1].microfacet_reflect.alpha_y = alpha_y;
-				bsdfs[1].microfacet_reflect.nt = glm::vec3(o_ior);
-				bsdfs[1].microfacet_reflect.kt = glm::vec3(0.0f);
-				bsdfs[1].microfacet_reflect.ni = i_ior;
-				bsdfs[1].microfacet_reflect.is_metal = (int)false;
-
-				component_inited[1] = true;
-			}
-
-			if (weights[2] > 0.0f)
-			{
-				bsdfs[2].bsdf_type = MICROFACET_TRANSMISSION;
-				bsdfs[2].microfacet_transmit.transmission_albedo = mtl.default_mtl.specular_albedo;
-				bsdfs[2].microfacet_transmit.alpha_x = alpha_x;
-				bsdfs[2].microfacet_transmit.alpha_y = alpha_y;
-				bsdfs[2].microfacet_transmit.ni = i_ior;
-				bsdfs[2].microfacet_transmit.nt = o_ior;
-				
-				component_inited[2] = true;
-			}
-
-			if (weights[3] > 0.0f)
-			{
-				bsdfs[3].bsdf_type = LAMBERT;
-				bsdfs[3].lambert.diffuse_albedo = diffuse_albedo;
-				component_inited[3] = true;
-			}
-		}
-
-		__device__ __host__ inline glm::vec3 ShadingToWorld(const glm::vec3 &w)
-		{
-			return w.x * tangent + w.y * bitangent + w.z * normal;
-		}
-
-		__device__ __host__ inline glm::vec3 WorldToShading(const glm::vec3 &w)
-		{
-			return glm::vec3(glm::dot(w, tangent), glm::dot(w, bitangent), glm::dot(w, normal));
-		}
-
-		__device__ __host__ inline glm::vec3 EvalWi(const glm::vec3 &wo, const glm::vec3 &wi, float *pdf)
-		{
-			glm::vec3 mix_bsdf_weight(0.0f);
-			float mix_pdf = 0.0f;
-			for (int i = 0; i < 4; ++i)
-			{
-				if (!component_inited[i]) { continue; }
-				float sample_pdf = 0.0f;
-				mix_bsdf_weight += weights[i] * bsdfs[i].Eval(wo, wi, &sample_pdf);
-				mix_pdf += weights[i] * sample_pdf;
-			}
-			*pdf = mix_pdf;
-			return mix_bsdf_weight;
-		}
-
-		__device__ __host__ inline bool SampleWi(float u0, float u1, float u2,
-			const glm::vec3 &wo,
-			glm::vec3 *weight,
-			glm::vec3 *wi,
-			float *pdf)
-		{
-			int selected_bsdf_idx = -1;
-			float bsdf_select_weight = 0.0f;
-
-			if (u0 < weights[0])
-			{
-				u0 = u0 / weights[0];
-				bsdf_select_weight = weights[0];
-				selected_bsdf_idx = component_inited[0] ? 0 : -1;
-			}
-			else if (u0 < weights[0] + weights[1])
-			{
-				u0 = (u0 - weights[0]) / weights[1];
-				bsdf_select_weight = weights[1];
-				selected_bsdf_idx = component_inited[1] ? 1 : -1;
-			}
-			else if (u0 < weights[0] + weights[1] + weights[2])
-			{
-				u0 = (u0 - weights[0] - weights[1]) / weights[2];
-				bsdf_select_weight = weights[2];
-				selected_bsdf_idx = component_inited[2] ? 2 : -1;
-			}
-			else
-			{
-				u0 = (u0 - weights[0] - weights[1] - weights[2]) / weights[3];
-				bsdf_select_weight = weights[3];
-				selected_bsdf_idx = component_inited[3] ? 3 : -1;
-			}
-
-			if (selected_bsdf_idx == -1) { return false; }
-
-			float bsdf_wi_pdf = 0.0f;
-			bool sample_valid = bsdfs[selected_bsdf_idx].Sample(u1, u2, wo, weight, wi, &bsdf_wi_pdf);
-			if (!sample_valid || (bsdf_wi_pdf * bsdf_select_weight) == 0.0f) { return false; }
-
-			float deno = SafeRcp(bsdf_wi_pdf * bsdf_select_weight);
-
-			float mix_pdf = 1.0f;
-			for (int i = 0; i < 4; ++i)
-			{
-				if (component_inited[i] && i != selected_bsdf_idx)
-				{
-					BSDF &bsdf = bsdfs[i];
-					float pdf = bsdf.PDF(wo, *wi);
-					mix_pdf += weights[i] * pdf * deno;
-				}
-			}
-			if (glm::abs(mix_pdf) == 0.0f) { return false; }
-
-			*pdf = SafeRcp(mix_pdf * bsdf_wi_pdf * bsdf_select_weight);
-			*weight /= mix_pdf;
-			return true;
-		}
-
-		__device__ __host__ inline BSDF* SampleOneBSDF(float u0, float *pdf)
-		{
-			if (u0 < weights[0])
-			{
-				*pdf = weights[0];
-				return GetMetalReflection();
-			}
-			else if (u0 < weights[0] + weights[1])
-			{
-				*pdf = weights[1];
-				return GetSpecularReflection();
-			}
-			else if (u0 < weights[0] + weights[1] + weights[2])
-			{
-				*pdf = weights[2];
-				return GetSpecularTransmission();
-			}
-			else 
-			{
-				*pdf = weights[3];
-				return GetDiffuse();
-			}
-		}
-
-		// this function is for direct lighting
-		__device__ __host__ inline int SelectSingleBSDF(float u0, float *pdf)
-		{
-			if (u0 < weights[0])
-			{
-				*pdf = weights[0];
-				return component_inited[0] ? 0 : -1;
-			}
-			else if (u0 < weights[0] + weights[1])
-			{
-				*pdf = weights[1];
-				return component_inited[1] ? 1 : -1;
-			}
-			else if (u0 < weights[0] + weights[1] + weights[2])
-			{
-				*pdf = weights[2];
-				return component_inited[2] ? 2 : -1;
-			}
-			else
-			{
-				*pdf = weights[3];
-				return component_inited[3] ? 3 : -1;
-			}
-		}
-
-		__device__ __host__ inline glm::vec3 EvalSingleBSDF(int selected_bsdf_idx, const glm::vec3 &wo, const glm::vec3 &wi, float *pdf)
-		{
-			glm::vec3 bsdf_weight = bsdfs[selected_bsdf_idx].Eval(wo, wi, pdf);
-			return bsdf_weight;
-		}
-
-		__device__ __host__ inline bool SampleSingleBSDF(int selected_bsdf_idx, float u0, float u1, const glm::vec3 &wo, glm::vec3 *weight, glm::vec3 *wi, float *pdf)
-		{
-			bool sample_valid = bsdfs[selected_bsdf_idx].Sample(u0, u1, wo, weight, wi, pdf);
-			return sample_valid;
-		}
-
-		__device__ __host__ inline bool SampleIndirectMix(float u0, float u1,
-			const glm::vec3 &wo,
-			glm::vec3 *weight,
-			glm::vec3 *wi,
-			float *pdf)
-		{
-			int selected_bsdf_idx = -1;
-			float bsdf_select_weight = 0.0f;
-
-			if (u0 < weights[0])
-			{
-				u0 = u0 / weights[0];
-				bsdf_select_weight = weights[0];
-				selected_bsdf_idx = component_inited[0] ? 0 : -1;
-			}
-			else if (u0 < weights[0] + weights[1])
-			{
-				u0 = (u0 - weights[0]) / weights[1];
-				bsdf_select_weight = weights[1];
-				selected_bsdf_idx = component_inited[1] ? 1 : -1;
-			}
-			else if (u0 < weights[0] + weights[1] + weights[2])
-			{
-				u0 = (u0 - weights[0] - weights[1]) / weights[2];
-				bsdf_select_weight = weights[2];
-				selected_bsdf_idx = component_inited[2] ? 2 : -1;
-			}
-			else
-			{
-				u0 = (u0 - weights[0] - weights[1] - weights[2]) / weights[3];
-				bsdf_select_weight = weights[3];
-				selected_bsdf_idx = component_inited[3] ? 3 : -1;
-			}
-
-			if (selected_bsdf_idx == -1) { return false; }
-
-			float bsdf_wi_pdf = 0.0f;
-			bool sample_valid = SampleSingleBSDF(selected_bsdf_idx, u0, u1, wo, weight, wi, &bsdf_wi_pdf);
-			if (!sample_valid || (bsdf_wi_pdf * bsdf_select_weight) == 0.0f) { return false; }
-
-			float deno = 1.0f / (bsdf_wi_pdf * bsdf_select_weight);
-
-			float mix_pdf = 1.0f;
-			for (int i = 0; i < 4; ++i)
-			{
-				if (component_inited[i] && i != selected_bsdf_idx)
-				{
-					BSDF &bsdf = bsdfs[i];
-					float pdf = bsdf.PDF(wo, *wi);
-					mix_pdf += weights[i] * pdf * deno;
-				}
-			}
-			if (glm::abs(mix_pdf) == 0.0f) { return false; }
-
-			*pdf = 1.0f / (mix_pdf * bsdf_wi_pdf * bsdf_select_weight);
-			*weight /= mix_pdf;
-			return true;
-		}
-
-		__device__ __host__ inline BSDF* GetMetalReflection()
-		{
-			return component_inited[0] ? (&bsdfs[0]) : nullptr;
-		}
-
-		__device__ __host__ inline BSDF* GetSpecularReflection()
-		{
-			return component_inited[1] ? (&bsdfs[1]) : nullptr;
-		}
-
-		__device__ __host__ inline BSDF* GetSpecularTransmission()
-		{
-			return component_inited[2] ? (&bsdfs[2]) : nullptr;
-		}
-
-		__device__ __host__ inline BSDF* GetDiffuse()
-		{
-			return component_inited[3] ? (&bsdfs[3]) : nullptr;
-		}
-	};
-
 };

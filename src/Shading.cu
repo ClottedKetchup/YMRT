@@ -55,7 +55,7 @@ namespace YumeRT
 	__device__ glm::vec3 EvalDistantLight(const RenderSetting &render_setting,
 																const Scene &scene, 
 																const TextureManager& texture_manager,
-																UberBSDF &uber_bsdf, 
+																MaterialBSDF &material_bsdf,
 																const glm::vec3 &ray_direction, 
 																const PrimitiveInstance& hit_prim,
 																const glm::vec3 &hit_position, 
@@ -68,15 +68,10 @@ namespace YumeRT
 		auto random = [&]()->float {return sampler.Random1D(); };
 		
 		glm::vec3 direct_lighting(0.0f);
-
-		glm::vec3 wo = uber_bsdf.WorldToShading(-ray_direction);
+		const glm::vec3 wo = material_bsdf.WorldToShading(-ray_direction);
 
 		float distant_light_select_pdf = 1.0f / float(scene.distant_light_count);
 		int selected_distant_light_idx = glm::max(glm::min((int)(random() * scene.distant_light_count), (int)scene.distant_light_count - 1), 0);
-
-		float bsdf_select_pdf = 0.0f;
-		int selected_bsdf_idx = uber_bsdf.SelectSingleBSDF(random(), &bsdf_select_pdf);
-		if (selected_bsdf_idx == -1) { return glm::vec3(0.0f); }
 
 		// sample from light
 		{
@@ -84,9 +79,9 @@ namespace YumeRT
 			float light_sample_pdf;
 			glm::vec3 Li = scene.distant_lights[selected_distant_light_idx].SampleLi(scene, hit_position, random(), random(), &light_dir, &light_pos, &light_sample_pdf);
 
-			glm::vec3 light_wi = uber_bsdf.WorldToShading(light_dir);
+			glm::vec3 light_wi = material_bsdf.WorldToShading(light_dir);
 			float light_wi_pdf = 0.0f;
-			const glm::vec3 bsdf_weight = uber_bsdf.EvalSingleBSDF(selected_bsdf_idx, wo, light_wi, &light_wi_pdf) * bsdf_select_pdf;
+			const glm::vec3 bsdf_weight = material_bsdf.EvalWi(wo, light_wi, &light_wi_pdf);
 
 			if (bsdf_weight.x + bsdf_weight.y + bsdf_weight.z > 1E-16f)
 			{
@@ -101,9 +96,7 @@ namespace YumeRT
 					if (render_setting.enable_volume_scattering)
 					{
 						// don't need ior, set it arbitrary value.
-						shadow_ray = Ray(shadow_ray_origin,
-													  light_dir,
-													  1.0f,
+						shadow_ray = Ray(shadow_ray_origin, light_dir, 1.0f,
 													  front_side_light ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
 						shadow_ray.t = TMAX;
 						tr = TraceTr(scene, texture_manager, shadow_ray, sampler);
@@ -119,13 +112,11 @@ namespace YumeRT
 		{
 			glm::vec3 bsdf_weight, bsdf_wi;
 			float bsdf_sample_pdf = 0.0f;
-			bool sample_valid = uber_bsdf.SampleSingleBSDF(selected_bsdf_idx, random(), random(), wo, &bsdf_weight, &bsdf_wi, &bsdf_sample_pdf);
-
-			bsdf_weight *= bsdf_select_pdf;
+			bool sample_valid = material_bsdf.SampleWi(wo, &bsdf_weight, &bsdf_wi, &bsdf_sample_pdf, random(), random(), random());
 
 			if (sample_valid)
 			{
-				const glm::vec3 light_dir = uber_bsdf.ShadingToWorld(bsdf_wi);
+				const glm::vec3 light_dir = material_bsdf.ShadingToWorld(bsdf_wi);
 				float bsdf_wi_pdf = 0.0f;
 				glm::vec3 Li = scene.distant_lights[selected_distant_light_idx].EvalLi(scene, light_dir, &bsdf_wi_pdf);
 
@@ -142,9 +133,7 @@ namespace YumeRT
 						if (render_setting.enable_volume_scattering)
 						{
 							// don't need ior, set it arbitrary value.
-							shadow_ray = Ray(shadow_ray_origin,
-														  light_dir,
-														  1.0f,
+							shadow_ray = Ray(shadow_ray_origin, light_dir, 1.0f,
 														  front_side_light ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
 							shadow_ray.t = TMAX;
 							tr = TraceTr(scene, texture_manager, shadow_ray, sampler);
@@ -157,7 +146,7 @@ namespace YumeRT
 			}
 		}
 		assert(!glm::isnan(direct_lighting.x) && !glm::isnan(direct_lighting.y) && !glm::isnan(direct_lighting.z));
-		return  bsdf_select_pdf == 0.0f ? glm::vec3(0.0f) : direct_lighting / (bsdf_select_pdf * distant_light_select_pdf);
+		return  direct_lighting / distant_light_select_pdf;
 	}
 
 
@@ -194,10 +183,7 @@ namespace YumeRT
 				if (!BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
 				{
 					// don't need ior, set it arbitrary value.
-					shadow_ray = Ray(volume_hit_position,
-												  light_dir,
-												  1.0f,
-												  ray.volume_idx);
+					shadow_ray = Ray(volume_hit_position, light_dir, 1.0f, ray.volume_idx);
 					shadow_ray.t = TMAX;
 					glm::vec3 tr = TraceTr(scene, texture_manager, shadow_ray, sampler);
 
@@ -228,10 +214,7 @@ namespace YumeRT
 					if (!BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
 					{
 						// don't need ior, set it arbitrary value.
-						shadow_ray = Ray(volume_hit_position,
-													  light_dir,
-													  1.0f,
-												 	  ray.volume_idx);
+						shadow_ray = Ray(volume_hit_position, light_dir, 1.0f, ray.volume_idx);
 						shadow_ray.t = TMAX;
 						glm::vec3 tr = TraceTr(scene, texture_manager, shadow_ray, sampler);
 
@@ -249,7 +232,7 @@ namespace YumeRT
 	__device__ glm::vec3 EvalShapeLight(const RenderSetting &render_setting,
 																const Scene &scene,
 																const TextureManager& texture_manager,
-																UberBSDF &uber_bsdf,
+																MaterialBSDF &material_bsdf,
 																const glm::vec3 &ray_direction,
 																const PrimitiveInstance &hit_prim,
 																const glm::vec3 &hit_position,
@@ -261,7 +244,7 @@ namespace YumeRT
 		auto random = [&]()->float {return sampler.Random1D(); };
 
 		glm::vec3 direct_lighting(0.0f);
-		glm::vec3 wo = uber_bsdf.WorldToShading(-ray_direction);
+		const glm::vec3 wo = material_bsdf.WorldToShading(-ray_direction);
 
 		float light_select_pdf = 0.0f;
 		int light_idx = SampleLightPower(scene, random(), &light_select_pdf);
@@ -274,9 +257,9 @@ namespace YumeRT
 			float light_sample_pdf;
 			glm::vec3 Li = shape_light.SampleLi(scene, hit_position, random(), random(), &light_dir, &light_pos, &light_geo_normal, &light_sample_pdf);
 
-			glm::vec3 light_wi = uber_bsdf.WorldToShading(light_dir);
+			glm::vec3 light_wi = material_bsdf.WorldToShading(light_dir);
 			float light_wi_pdf = 0.0f;
-			const glm::vec3 bsdf_weight = uber_bsdf.EvalWi(wo, light_wi, &light_wi_pdf);
+			const glm::vec3 bsdf_weight = material_bsdf.EvalWi(wo, light_wi, &light_wi_pdf);
 
 			if (bsdf_weight.x + bsdf_weight.y + bsdf_weight.z > 1E-16f)
 			{
@@ -295,9 +278,7 @@ namespace YumeRT
 					if (render_setting.enable_volume_scattering) 
 					{
 						// don't need ior, set it arbitrary value.
-						shadow_ray = Ray(shadow_ray_origin, 
-													  light_dir, 
-													  1.0f, 
+						shadow_ray = Ray(shadow_ray_origin, light_dir, 1.0f, 
 													  front_side_light ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
 						shadow_ray.t = max_trace_distance;
 						tr = TraceTr(scene, texture_manager, shadow_ray, sampler);
@@ -313,11 +294,11 @@ namespace YumeRT
 		{
 			glm::vec3 bsdf_weight, bsdf_wi;
 			float bsdf_sample_pdf = 0.0f;
-			bool sample_valid = uber_bsdf.SampleWi(random(), random(), random(), wo, &bsdf_weight, &bsdf_wi, &bsdf_sample_pdf);
+			bool sample_valid = material_bsdf.SampleWi(wo, &bsdf_weight, &bsdf_wi, &bsdf_sample_pdf, random(), random(), random());
 
 			if (sample_valid)
 			{
-				glm::vec3 light_dir = uber_bsdf.ShadingToWorld(bsdf_wi);
+				glm::vec3 light_dir = material_bsdf.ShadingToWorld(bsdf_wi);
 				glm::vec3 light_pos, light_geo_normal;
 				float bsdf_wi_pdf = 0.0f;
 				glm::vec3 Li = shape_light.EvalLi(scene, hit_position, light_dir, &light_pos, &light_geo_normal, &bsdf_wi_pdf);
@@ -339,14 +320,12 @@ namespace YumeRT
 						if (render_setting.enable_volume_scattering)
 						{
 							// don't need ior, set it arbitrary value.
-							shadow_ray = Ray(shadow_ray_origin, 
-														  light_dir, 
-														  1.0f, 
+							shadow_ray = Ray(shadow_ray_origin, light_dir, 1.0f, 
 														  front_side_light ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
 							shadow_ray.t = max_trace_distance;
 							tr = TraceTr(scene, texture_manager, shadow_ray, sampler);
 						}
-						// float mis_weight = 1.0f / (1.0f + Sqr(bsdf_wi_pdf) / glm::min(1E24f, glm::max(Sqr(bsdf_sample_pdf), 1E-16f)));
+						
 						float mis_weight = PowerHeuristic(bsdf_sample_pdf, bsdf_wi_pdf);
 						direct_lighting += mis_weight * tr * glm::min(bsdf_weight, glm::vec3(1E16f)) * glm::min(Li, glm::vec3(1E16f));
 					}
@@ -355,7 +334,7 @@ namespace YumeRT
 		}
 		
 		// todo: eval shape light contrib 
-		return   light_select_pdf  < 1E-10f?  glm::vec3(0.0f) : (direct_lighting / light_select_pdf);
+		return   direct_lighting * SafeRcp(light_select_pdf);
 	}
 
 	__device__ glm::vec3 EvalVolumeShapeLight(const RenderSetting &render_setting,
@@ -618,12 +597,12 @@ namespace YumeRT
 					}
 
 					// indirect light
-					UberBSDF uber_bsdf;
-					uber_bsdf.InitShadingSpace(hit_record.hit_back? -hit_shading_normal : hit_shading_normal,
+					MaterialBSDF material_bsdf;
+					material_bsdf.InitShadingSpace(hit_record.hit_back? -hit_shading_normal : hit_shading_normal,
 																  hit_record.hit_back? -hit_dpdu: hit_dpdu);
 					// instance's internal ior is implicitly specified by its material
 					TextureCoordinate texture_coordinate(hit_uv, hit_position, hit_position_object_space);
-					uber_bsdf.InitBSDFSettings(mtl, 
+					material_bsdf.InitBSDFSettings(mtl,
 																scene.textures, 
 																texture_manager,
 																texture_coordinate,
@@ -640,7 +619,7 @@ namespace YumeRT
 							L += throughput * EvalDistantLight(render_setting,
 								scene,
 								texture_manager,
-								uber_bsdf,
+								material_bsdf,
 								ray.direction,
 								prim,
 								hit_position,
@@ -653,7 +632,7 @@ namespace YumeRT
 						L += throughput * EvalShapeLight(render_setting,
 							scene,
 							texture_manager, 
-							uber_bsdf,
+							material_bsdf,
 							ray.direction,
 							prim,
 							hit_position,
@@ -664,10 +643,10 @@ namespace YumeRT
 
 					// current a bunch noise are from indirect light!
 					// indirect lighting
-					glm::vec3 wo = uber_bsdf.WorldToShading(-ray.direction), wi(0.0f), bsdf_weight(0.0f);
+					glm::vec3 wo = material_bsdf.WorldToShading(-ray.direction), wi(0.0f), bsdf_weight(0.0f);
 					float pdf = 0.0f;
 					
-					bool sample_valid = uber_bsdf.SampleWi(sampler.Random1D(), sampler.Random1D(), sampler.Random1D(), wo, &bsdf_weight, &wi, &pdf);
+					bool sample_valid = material_bsdf.SampleWi(wo, &bsdf_weight, &wi, &pdf, sampler.Random1D(), sampler.Random1D(), sampler.Random1D());
 					assert(!glm::isnan(bsdf_weight.x) && !glm::isnan(bsdf_weight.y) && !glm::isnan(bsdf_weight.z));
 					if (!sample_valid) { break; }
 
@@ -681,7 +660,7 @@ namespace YumeRT
 						else { break; }
 					}
 
-					glm::vec3 new_direction = uber_bsdf.ShadingToWorld(wi);
+					glm::vec3 new_direction = material_bsdf.ShadingToWorld(wi);
 					bool front_side_bounce = glm::dot(hit_geometry_normal, new_direction) >= 0.0f;
 					// this method to avoid self intersection is still not robust, it makes the sphere self-intersection when radius is big
 					glm::vec3 new_origin = OffsetRayOrigin(hit_position, front_side_bounce? hit_geometry_normal : -hit_geometry_normal);
