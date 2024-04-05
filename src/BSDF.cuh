@@ -555,7 +555,20 @@ namespace YumeRT
 			bool sample_valid = bsdfs[selected_bsdf_idx].Sample(u1, u2, wo, weight, wi, &bsdf_wi_pdf);
 			if (!sample_valid || !(bsdf_wi_pdf * weights[selected_bsdf_idx] > 0.0f)) { return false; }
 
-			float deno = SafeRcp(bsdf_wi_pdf * weights[selected_bsdf_idx]);
+			float mix_pdf = bsdf_wi_pdf * weights[selected_bsdf_idx];
+			for (int i = 0; i < bsdf_count; ++i)
+			{
+				if (i == selected_bsdf_idx) { continue; }
+				BSDF &bsdf = bsdfs[i];
+				float wi_pdf = bsdf.PDF(wo, *wi);
+				mix_pdf += weights[i] * wi_pdf;
+			}
+			
+			*pdf = mix_pdf;
+			*weight *= bsdf_wi_pdf * SafeRcp(mix_pdf);
+			return true;
+
+			/*float deno = SafeRcp(bsdf_wi_pdf * weights[selected_bsdf_idx]);
 
 			float mix_pdf = 1.0f;
 			for (int i = 0; i < bsdf_count; ++i)
@@ -567,9 +580,10 @@ namespace YumeRT
 			}
 			if (!(glm::abs(mix_pdf) > 0.0f)) { return false; }
 
-			*pdf = SafeRcp(mix_pdf * bsdf_wi_pdf * weights[selected_bsdf_idx]);
-			*weight *= SafeRcp(mix_pdf);
-			return true;
+			float average_weight = SafeRcp(mix_pdf);
+			*pdf = bsdf_wi_pdf * weights[selected_bsdf_idx] * average_weight;
+			*weight *= average_weight * SafeRcp(weights[selected_bsdf_idx]);*/
+			
 		}
 	};
 	struct MaterialBSDF 

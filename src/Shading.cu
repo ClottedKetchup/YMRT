@@ -46,8 +46,7 @@ namespace YumeRT
 
 	__device__ __host__ inline float PowerHeuristic(float main_pdf, float vice_pdf)
 	{
-		float f = glm::min(glm::max(1E-15f, vice_pdf * SafeRcp(main_pdf)), 1E15f);
-		return 1.0f / (1.0f + Sqr(f));
+		return SafeRcp(1.0f + Sqr(vice_pdf * SafeRcp(main_pdf)));
 	}
 
 

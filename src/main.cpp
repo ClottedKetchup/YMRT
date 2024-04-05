@@ -13,8 +13,8 @@ void TestScene_CornellBox(std::shared_ptr<YumeRT::SceneManager> scene_manager, i
 	const uint32_t fog_tex = scene_manager->AddTexture("fog_tex", YumeRT::Texture().InitNoiseTextureTurbulence(fog_tex_black, fog_tex_white));
 	int world_volume_idx = -1;
 
-	glm::vec3 camera_from = glm::vec3(0.0f, 0.0f, 6.0f);
-	glm::vec3 camera_look = glm::vec3(5.0f, 0.0f, 4.0f);
+	glm::vec3 camera_from = glm::vec3(0.0f, 0.0f, 10.0f);
+	glm::vec3 camera_look = glm::vec3(0.0f, 0.0f, 4.0f);
 	float camera_fov = glm::radians(45.0f);
 	float camera_aspect = float(screen_width) / float(screen_height);
 
