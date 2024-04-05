@@ -185,7 +185,6 @@ namespace YumeRT
 	{
 		// https://www.researchgate.net/profile/Helen-Hu-3/publication/255580911_A_Coupled_Matte-Specular_Reflection_Model/links/57c717b008ae9d64047e95d0/A-Coupled-Matte-Specular-Reflection-Model.pdf
 		glm::vec3 diffuse_albedo;
-		float nt, ni, specular_weight;
 
 		// all the direction in shading_frame
 		__device__ __host__ inline float PDF(const glm::vec3 &wo, const glm::vec3 &wi)
@@ -200,23 +199,18 @@ namespace YumeRT
 				return glm::vec3(0.0f);
 			}
 			float cos_theta = glm::max(wi.z, 0.0f);
-			// float eta = nt / ni;
-			// float fr = FresnelDielectricDielectric(eta, cos_theta);
 			*pdf = cos_theta * INV_PI;
-			return diffuse_albedo *  cos_theta * INV_PI ; /** (1.0f - fr * specular_weight)*/
+			return diffuse_albedo *  cos_theta * INV_PI ; 
 		}
 		__device__ __host__ inline bool Sample(float u0, float u1, const glm::vec3 &wo, glm::vec3 *weight, glm::vec3 *wi, float *pdf)
 		{
 			*wi = SampleCosine(u0, u1);
 			float cos_theta = glm::max((*wi).z, 0.0f);
 			*pdf =  cos_theta * INV_PI;
-			// float eta = nt / ni;
-			// float fr = FresnelDielectricDielectric(eta, cos_theta);
-			*weight = diffuse_albedo ; /** (1.0f - fr * specular_weight)*/
+			*weight = diffuse_albedo ; 
 			return true;
 		}
 	};
-
 	struct MicrofacetReflection
 	{
 		glm::vec3 specular_albedo;
@@ -279,7 +273,6 @@ namespace YumeRT
 			return true;
 		}
 	};
-
 	struct MicrofacetTransmission
 	{
 		glm::vec3 transmission_albedo;
@@ -365,7 +358,6 @@ namespace YumeRT
 			return true;
 		}
 	};
-
 	struct BSDF
 	{
 		uint32_t bsdf_type;
@@ -436,10 +428,40 @@ namespace YumeRT
 		}
 	};
 
-	enum BOUNCE_TYPE
+	struct DefaultMtlBSDF 
 	{
-		REFLECTION = 0,
-		TRANSMISSION = 1
+		BSDF bsdfs[4];
+		float weights[4];
+		int count;
+
+		__device__ __host__ DefaultMtlBSDF() : weights{ 0.0f, 0.0f, 0.0f, 0.0f }, count(0){}
+		__device__ __host__ void InitBSDFSettings(const Material &mtl,
+			const Texture *textures,
+			const TextureManager &texture_manager,
+			const TextureCoordinate &texture_coordinate,
+			const Ray &ray_in,
+			int hit_back,
+			float prim_outer_ior) 
+		{
+			
+		}
+		__device__ __host__ glm::vec3 EvalWi(const glm::vec3 &wo, const glm::vec3 &wi, float *pdf)
+		{
+			return glm::vec3(0.0f);
+		}
+		__device__ __host__ bool SampleWi(const glm::vec3 &wo,
+			glm::vec3 *weight,
+			glm::vec3 *wi,
+			float *pdf,
+			float u0, float u1, float u2)
+		{
+			return false;
+		}
+		
+	};
+	struct MaterialBSDF 
+	{
+	
 	};
 
 	struct UberBSDF
@@ -449,15 +471,6 @@ namespace YumeRT
 		BSDF bsdfs[4];
 
 		int back_side;
-		float metalness;
-		float specular_weight;
-		float transmission_weight;
-
-		float alpha_x;
-		float alpha_y;
-		float in_IOR;
-		float out_IOR;
-		
 		float weights[4];
 		bool component_inited[4];
 
@@ -487,34 +500,34 @@ namespace YumeRT
 		{
 			back_side = hit_back;
 
-			metalness = mtl.surface_material.metalness;
-			transmission_weight = mtl.surface_material.transmission_weight;
-			specular_weight = mtl.surface_material.specular_weight;
+			float metalness = mtl.default_mtl.metalness;
+			float transmission_weight = mtl.default_mtl.transmission_weight;
+			float specular_weight = mtl.default_mtl.specular_weight;
 
-			in_IOR = glm::max(ray_in.ray_ior, 0.001f);
-			out_IOR = glm::max(hit_back? prim_outer_ior : mtl.surface_material.ior_n, 0.001f);
+			float i_ior = glm::max(ray_in.ray_ior, 0.001f);
+			float o_ior = glm::max(hit_back? prim_outer_ior : mtl.default_mtl.ior_n, 0.001f);
 
-			alpha_x = Sqr(glm::clamp(mtl.surface_material.alpha_x, 0.001f, 0.98f));
-			alpha_y = Sqr(glm::clamp(mtl.surface_material.alpha_y, 0.001f, 0.98f));
+			float alpha_x = Sqr(glm::clamp(mtl.default_mtl.alpha_x, 0.001f, 0.98f));
+			float alpha_y = Sqr(glm::clamp(mtl.default_mtl.alpha_y, 0.001f, 0.98f));
 
-			float eta = out_IOR / in_IOR;
+			float eta = o_ior * SafeRcp(i_ior);
 			float fr = FresnelDielectricDielectric(eta, glm::max(glm::dot(normal, -ray_in.direction), 0.0f));
 			
-			fr *= mtl.surface_material.specular_weight;
+			fr *= mtl.default_mtl.specular_weight;
 			// TO verify: is this right?
 			weights[0] = metalness;
 			weights[1] = (1.0f - metalness) * fr;
 			weights[2] = (1.0f - metalness) * (1.0 - fr) * transmission_weight;
 			weights[3] = (1.0f - metalness) * (1.0 - fr) * (1.0f - transmission_weight);
 
-			const glm::vec3 diffuse_albedo = mtl.surface_material.diffuse_albedo_tex != INVALID_UINT_32?
-				TextureEval(textures[mtl.surface_material.diffuse_albedo_tex], textures, texture_manager, texture_coordinate):
-				mtl.surface_material.diffuse_albedo;
+			const glm::vec3 diffuse_albedo = mtl.default_mtl.diffuse_albedo_tex != INVALID_UINT_32?
+				TextureEval(textures[mtl.default_mtl.diffuse_albedo_tex], textures, texture_manager, texture_coordinate):
+				mtl.default_mtl.diffuse_albedo;
 
 			if (weights[0] > 0.0f)
 			{
 				glm::vec3 metal_n, metal_k;
-				EdgeTintToConductiveFresnel(diffuse_albedo, mtl.surface_material.specular_albedo, &metal_n, &metal_k);
+				EdgeTintToConductiveFresnel(diffuse_albedo, mtl.default_mtl.specular_albedo, &metal_n, &metal_k);
 
 				bsdfs[0].bsdf_type = MICROFACET_REFLECTION;
 				bsdfs[0].microfacet_reflect.specular_albedo = glm::vec3(1.0f);
@@ -522,7 +535,7 @@ namespace YumeRT
 				bsdfs[0].microfacet_reflect.alpha_y = alpha_y;
 				bsdfs[0].microfacet_reflect.nt = metal_n;
 				bsdfs[0].microfacet_reflect.kt = metal_k;
-				bsdfs[0].microfacet_reflect.ni = in_IOR;
+				bsdfs[0].microfacet_reflect.ni = i_ior;
 				bsdfs[0].microfacet_reflect.is_metal = (int)true;
 
 				component_inited[0] = true;
@@ -531,12 +544,12 @@ namespace YumeRT
 			if (weights[1] > 0.0f)
 			{
 				bsdfs[1].bsdf_type = MICROFACET_REFLECTION;
-				bsdfs[1].microfacet_reflect.specular_albedo = mtl.surface_material.specular_albedo;
+				bsdfs[1].microfacet_reflect.specular_albedo = mtl.default_mtl.specular_albedo;
 				bsdfs[1].microfacet_reflect.alpha_x = alpha_x;
 				bsdfs[1].microfacet_reflect.alpha_y = alpha_y;
-				bsdfs[1].microfacet_reflect.nt = glm::vec3(out_IOR);
+				bsdfs[1].microfacet_reflect.nt = glm::vec3(o_ior);
 				bsdfs[1].microfacet_reflect.kt = glm::vec3(0.0f);
-				bsdfs[1].microfacet_reflect.ni = in_IOR;
+				bsdfs[1].microfacet_reflect.ni = i_ior;
 				bsdfs[1].microfacet_reflect.is_metal = (int)false;
 
 				component_inited[1] = true;
@@ -545,11 +558,11 @@ namespace YumeRT
 			if (weights[2] > 0.0f)
 			{
 				bsdfs[2].bsdf_type = MICROFACET_TRANSMISSION;
-				bsdfs[2].microfacet_transmit.transmission_albedo = mtl.surface_material.specular_albedo;
+				bsdfs[2].microfacet_transmit.transmission_albedo = mtl.default_mtl.specular_albedo;
 				bsdfs[2].microfacet_transmit.alpha_x = alpha_x;
 				bsdfs[2].microfacet_transmit.alpha_y = alpha_y;
-				bsdfs[2].microfacet_transmit.ni = in_IOR;
-				bsdfs[2].microfacet_transmit.nt = out_IOR;
+				bsdfs[2].microfacet_transmit.ni = i_ior;
+				bsdfs[2].microfacet_transmit.nt = o_ior;
 				
 				component_inited[2] = true;
 			}
@@ -558,9 +571,6 @@ namespace YumeRT
 			{
 				bsdfs[3].bsdf_type = LAMBERT;
 				bsdfs[3].lambert.diffuse_albedo = diffuse_albedo;
-				bsdfs[3].lambert.ni = in_IOR;
-				bsdfs[3].lambert.nt = out_IOR;
-				bsdfs[3].lambert.specular_weight = mtl.surface_material.specular_weight;
 				component_inited[3] = true;
 			}
 		}
@@ -627,32 +637,12 @@ namespace YumeRT
 		__device__ __host__ inline glm::vec3 EvalSingleBSDF(int selected_bsdf_idx, const glm::vec3 &wo, const glm::vec3 &wi, float *pdf)
 		{
 			glm::vec3 bsdf_weight = bsdfs[selected_bsdf_idx].Eval(wo, wi, pdf);
-
-			if (selected_bsdf_idx == 3)
-			{
-				constexpr float k_coeff = 21.f / 20.f;
-				float k = k_coeff * (1.0f - FresnelR0(out_IOR / in_IOR));
-				float cos_theta = glm::max(wi.z, 0.f);
-				float out_fr = FresnelDielectricDielectric(out_IOR / in_IOR, cos_theta);
-				bsdf_weight *= (1.0f - out_fr * specular_weight) * k;
-			}
-
 			return bsdf_weight;
 		}
 
 		__device__ __host__ inline bool SampleSingleBSDF(int selected_bsdf_idx, float u0, float u1, const glm::vec3 &wo, glm::vec3 *weight, glm::vec3 *wi, float *pdf)
 		{
 			bool sample_valid = bsdfs[selected_bsdf_idx].Sample(u0, u1, wo, weight, wi, pdf);
-			
-			if (selected_bsdf_idx == 3)
-			{
-				constexpr float k_coeff = 21.f / 20.f;
-				float k = k_coeff * (1.0f - FresnelR0(out_IOR / in_IOR));
-				float cos_theta = glm::max((*wi).z, 0.f);
-				float out_fr = FresnelDielectricDielectric(out_IOR / in_IOR, cos_theta);
-				*weight *= (1.0f - out_fr * specular_weight) * k;
-			}
-
 			return sample_valid;
 		}
 
@@ -660,8 +650,7 @@ namespace YumeRT
 			const glm::vec3 &wo,
 			glm::vec3 *weight,
 			glm::vec3 *wi,
-			float *pdf,
-			BOUNCE_TYPE *bounce_type)
+			float *pdf)
 		{
 			int selected_bsdf_idx = -1;
 			float bsdf_select_weight = 0.0f;

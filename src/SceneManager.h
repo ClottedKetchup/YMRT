@@ -1316,14 +1316,9 @@ namespace YumeRT
 	// TODO: Material add, remove ,edit...
 	inline uint32_t SceneManager::AddLightMaterial(const std::string &name, const glm::vec3 &light_color, float intensity)
 	{
-		Material mtl;
-		mtl.material_type = LIGHT_MTL;
-		mtl.light_material.light_color = light_color;
-		mtl.light_material.intensity = intensity;
-
+		materials.push_back(Material().InitLightMtl(light_color, intensity));
 		material_names.push_back(name);
 		material_reference_counters.push_back(0);
-		materials.push_back(mtl);
 
 		AddSceneFlag(SCENECHANGE_FLAG::MATERIAL_ADD);
 		return (uint32_t)materials.size() - 1;
@@ -1338,22 +1333,10 @@ namespace YumeRT
 																				   float specular_weight,
 																				   float transmission_weight, 
 																				   uint32_t diff_tex_idx)
-	{
-		Material mtl;
-		mtl.material_type = SURFACE_MTL_DEFAULT;
-		mtl.surface_material.diffuse_albedo = diffuse_albedo;
-		mtl.surface_material.specular_albedo = specular_albedo;
-		mtl.surface_material.alpha_x = roughness_x;
-		mtl.surface_material.alpha_y = roughness_y;
-		mtl.surface_material.ior_n = ior_n;
-		mtl.surface_material.metalness = metalness;
-		mtl.surface_material.specular_weight = specular_weight;
-		mtl.surface_material.transmission_weight = transmission_weight;
-		mtl.surface_material.diffuse_albedo_tex = diff_tex_idx;
-		
+	{	
+		materials.push_back(Material().InitDefaultMtl(diffuse_albedo, specular_albedo, roughness_x, roughness_y, ior_n, metalness, specular_weight, transmission_weight, diff_tex_idx));
 		material_names.push_back(name);
 		material_reference_counters.push_back(0);
-		materials.push_back(mtl);
 	
 		AddSceneFlag(SCENECHANGE_FLAG::MATERIAL_ADD);
 		return (uint32_t)materials.size() - 1;
@@ -1516,7 +1499,7 @@ namespace YumeRT
 			const GeometryData &geometry = geometries[prim.geometry_idx];
 
 			// compute irradiance
-			float irradiance = (mtl.light_material.light_color.x + mtl.light_material.light_color.y + mtl.light_material.light_color.z) * mtl.light_material.intensity * ONE_PI;
+			float irradiance = (mtl.light_mtl.light_color.x + mtl.light_mtl.light_color.y + mtl.light_mtl.light_color.z) * mtl.light_mtl.intensity * ONE_PI;
 
 			if (geometry.geometry_type == TRIANGLE_MESH)
 			{

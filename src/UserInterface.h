@@ -685,7 +685,7 @@ namespace YumeRT
 			static const char* material_type_names[] = { "surface material", "light material" };
 			if (ImGui::BeginCombo("Material Type", material_type_names[highlight_material.material_type]))
 			{
-				for (uint32_t i = MATERIAL_TYPE::SURFACE_MTL_DEFAULT; i <= MATERIAL_TYPE::LIGHT_MTL; ++i)
+				for (uint32_t i = MATERIAL_TYPE::DEFAULT_MTL; i <= MATERIAL_TYPE::LIGHT_MTL; ++i)
 				{
 					if (ImGui::Selectable(material_type_names[i])) 
 					{ 
@@ -696,43 +696,43 @@ namespace YumeRT
 				ImGui::EndCombo();
 			}
 
-			if (highlight_material.material_type == SURFACE_MTL_DEFAULT)
+			if (highlight_material.material_type == DEFAULT_MTL)
 			{
 				ImGui::Separator();
-				if (ImGui::ColorEdit3("Diffuse Albedo", (float*)(&highlight_material.surface_material.diffuse_albedo), ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR))
+				if (ImGui::ColorEdit3("Diffuse Albedo", (float*)(&highlight_material.default_mtl.diffuse_albedo), ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR))
 				{
 					scene_manager->UpdateMaterial(highlight_material_idx);
 				}
-				if (ImGui::SliderFloat("Metalness", &highlight_material.surface_material.metalness, 0.0f, 1.0f))
-				{
-					scene_manager->UpdateMaterial(highlight_material_idx);
-				}
-
-				ImGui::Separator();
-				if (ImGui::SliderFloat("Specular Weight", &highlight_material.surface_material.specular_weight, 0.0f, 1.0f))
-				{
-					scene_manager->UpdateMaterial(highlight_material_idx);
-				}
-				if (ImGui::ColorEdit3("Specular Albedo", (float*)(&highlight_material.surface_material.specular_albedo), ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR))
-				{
-					scene_manager->UpdateMaterial(highlight_material_idx);
-				}
-				if (ImGui::InputFloat("IOR", &highlight_material.surface_material.ior_n))
-				{
-					highlight_material.surface_material.ior_n = glm::max(0.0f, highlight_material.surface_material.ior_n);
-					scene_manager->UpdateMaterial(highlight_material_idx);
-				}
-				if (ImGui::SliderFloat("Roughness X", &highlight_material.surface_material.alpha_x, 0.0f, 1.0f))
-				{
-					scene_manager->UpdateMaterial(highlight_material_idx);
-				}
-				if (ImGui::SliderFloat("Roughness Y", &highlight_material.surface_material.alpha_y, 0.0f, 1.0f))
+				if (ImGui::SliderFloat("Metalness", &highlight_material.default_mtl.metalness, 0.0f, 1.0f))
 				{
 					scene_manager->UpdateMaterial(highlight_material_idx);
 				}
 
 				ImGui::Separator();
-				if (ImGui::SliderFloat("Transmission Weight", &highlight_material.surface_material.transmission_weight, 0.0f, 1.0f))
+				if (ImGui::SliderFloat("Specular Weight", &highlight_material.default_mtl.specular_weight, 0.0f, 1.0f))
+				{
+					scene_manager->UpdateMaterial(highlight_material_idx);
+				}
+				if (ImGui::ColorEdit3("Specular Albedo", (float*)(&highlight_material.default_mtl.specular_albedo), ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR))
+				{
+					scene_manager->UpdateMaterial(highlight_material_idx);
+				}
+				if (ImGui::InputFloat("IOR", &highlight_material.default_mtl.ior_n))
+				{
+					highlight_material.default_mtl.ior_n = glm::max(0.0f, highlight_material.default_mtl.ior_n);
+					scene_manager->UpdateMaterial(highlight_material_idx);
+				}
+				if (ImGui::SliderFloat("Roughness X", &highlight_material.default_mtl.alpha_x, 0.0f, 1.0f))
+				{
+					scene_manager->UpdateMaterial(highlight_material_idx);
+				}
+				if (ImGui::SliderFloat("Roughness Y", &highlight_material.default_mtl.alpha_y, 0.0f, 1.0f))
+				{
+					scene_manager->UpdateMaterial(highlight_material_idx);
+				}
+
+				ImGui::Separator();
+				if (ImGui::SliderFloat("Transmission Weight", &highlight_material.default_mtl.transmission_weight, 0.0f, 1.0f))
 				{
 					scene_manager->UpdateMaterial(highlight_material_idx);
 				}
@@ -740,13 +740,13 @@ namespace YumeRT
 			else if (highlight_material.material_type == LIGHT_MTL)
 			{
 				ImGui::Separator();
-				if (ImGui::ColorEdit3("Light Color", (float*)(&highlight_material.light_material.light_color), ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR))
+				if (ImGui::ColorEdit3("Light Color", (float*)(&highlight_material.light_mtl.light_color), ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR))
 				{
 					scene_manager->UpdateMaterial(highlight_material_idx);
 				}
-				if (ImGui::InputFloat("Intensity", &highlight_material.light_material.intensity))
+				if (ImGui::InputFloat("Intensity", &highlight_material.light_mtl.intensity))
 				{
-					highlight_material.light_material.intensity = glm::max(0.0f, highlight_material.light_material.intensity);
+					highlight_material.light_mtl.intensity = glm::max(0.0f, highlight_material.light_mtl.intensity);
 					scene_manager->UpdateMaterial(highlight_material_idx);
 				}
 			}

@@ -159,7 +159,7 @@ namespace YumeRT
 				
 				float distance = glm::length(*light_sample_pos - position);
 				*pdf = Sqr(distance) * SafeRcp(area * cos_theta);
-				return light_mtl.light_material.light_color * light_mtl.light_material.intensity;
+				return light_mtl.light_mtl.light_color * light_mtl.light_mtl.intensity;
 			}
 			else if(geometry.geometry_type == SPHERE)
 			{
@@ -198,7 +198,7 @@ namespace YumeRT
 				*light_sample_pos = glm::vec3(otw * glm::vec4(intersect_pos, 1.0f));
 				*light_sample_geo_normal = ((*light_sample_pos) - glm::vec3(otw[3][0], otw[3][1], otw[3][2])) / radius;
 				*pdf = 1.0f / cone_solid_angle;
-				return light_mtl.light_material.light_color * light_mtl.light_material.intensity;
+				return light_mtl.light_mtl.light_color * light_mtl.light_mtl.intensity;
 			}
 			else 
 			{
@@ -272,7 +272,7 @@ namespace YumeRT
 
 				*pdf = Sqr(distance) * SafeRcp(area * cos_theta);
 
-				return   light_mtl.light_material.light_color * light_mtl.light_material.intensity / (*pdf);
+				return   light_mtl.light_mtl.light_color * light_mtl.light_mtl.intensity / (*pdf);
 			}
 			else if (geometry.geometry_type == SPHERE)
 			{
@@ -304,7 +304,7 @@ namespace YumeRT
 				*light_sample_geo_normal = ((*light_sample_pos) - glm::vec3(otw[3][0], otw[3][1], otw[3][2])) / radius;
 				*wi = glm::normalize(glm::vec3(otw * glm::vec4(cone_sample, 0.0f)));
 				*pdf = 1.0f / cone_solid_angle;
-				return light_mtl.light_material.light_color * light_mtl.light_material.intensity * cone_solid_angle;
+				return light_mtl.light_mtl.light_color * light_mtl.light_mtl.intensity * cone_solid_angle;
 			}
 			else
 			{

@@ -608,7 +608,7 @@ namespace YumeRT
 
 					if (mtl.material_type == LIGHT_MTL)
 					{
-						if (never_scatter) { L += throughput * mtl.light_material.light_color * mtl.light_material.intensity; }
+						if (never_scatter) { L += throughput * mtl.light_mtl.light_color * mtl.light_mtl.intensity; }
 						break;
 					}
 
@@ -673,9 +673,8 @@ namespace YumeRT
 					// indirect lighting
 					glm::vec3 wo = uber_bsdf.WorldToShading(-ray.direction), wi(0.0f), bsdf_weight(0.0f);
 					float pdf = 0.0f;
-					BOUNCE_TYPE bounce_type;
 					
-					bool sample_valid = uber_bsdf.SampleIndirectMix(sampler.Random1D(), sampler.Random1D(), wo, &bsdf_weight, &wi, &pdf, &bounce_type);
+					bool sample_valid = uber_bsdf.SampleIndirectMix(sampler.Random1D(), sampler.Random1D(), wo, &bsdf_weight, &wi, &pdf);
 					assert(!glm::isnan(bsdf_weight.x) && !glm::isnan(bsdf_weight.y) && !glm::isnan(bsdf_weight.z));
 					if (!sample_valid) { break; }
 
@@ -696,7 +695,7 @@ namespace YumeRT
 					
 					ray = Ray(new_origin, 
 									new_direction,
-									front_side_bounce? prim.external_ior : mtl.surface_material.ior_n, 
+									front_side_bounce? prim.external_ior : mtl.default_mtl.ior_n, 
 									front_side_bounce? prim.outer_volume_idx : prim.inner_volume_idx);
 					never_scatter = false;
 					++depth;
