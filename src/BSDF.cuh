@@ -248,7 +248,9 @@ namespace YumeRT
 			float D_term = D(wh, alpha_x, alpha_y);
 			float G1_term = G1(wo, alpha_x, alpha_y);
 			float G2_term = G2(wo, wi, alpha_x, alpha_y);
-			glm::vec3 fr = is_metal ? FresnelDieletricConductor(nt / ni, kt / ni, glm::dot(wo, wh)) : glm::vec3(1.0f);
+			const float i_ni = SafeRcp(ni);
+			const float cos_theta = glm::max(glm::dot(wo, wh), 0.0f);
+			const glm::vec3 fr = is_metal ? FresnelDieletricConductor(nt * i_ni, kt * i_ni, cos_theta) : glm::vec3(FresnelDielectricDielectric(nt.x * i_ni, cos_theta));
 			*pdf = D_term * G1_term * 0.25f / glm::max(wo.z, 1E-8f);
 			return specular_albedo * D_term * G2_term * 0.25f * fr / glm::max(wo.z, 1E-8f);
 		}
@@ -267,7 +269,9 @@ namespace YumeRT
 			float D_term = D(wh, alpha_x, alpha_y);
 			float G1_term = G1(wo, alpha_x, alpha_y);
 			float G2_term = G2(wo, *wi, alpha_x, alpha_y);
-			glm::vec3 fr = is_metal ? FresnelDieletricConductor(nt / ni, kt / ni, glm::dot(wo, wh)) : glm::vec3(1.0f);
+			const float i_ni = SafeRcp(ni);
+			const float cos_theta = glm::max(glm::dot(wo, wh), 0.0f);
+			const glm::vec3 fr = is_metal ? FresnelDieletricConductor(nt * i_ni, kt * i_ni, cos_theta) : glm::vec3(FresnelDielectricDielectric(nt.x * i_ni, cos_theta));
 			*pdf = D_term * G1_term * 0.25f / glm::max(wo.z, 1E-8f);
 			*weight = specular_albedo * G2_term * fr / G1_term;
 			return true;
@@ -325,9 +329,12 @@ namespace YumeRT
 			float G1_term = G1(wo, alpha_x, alpha_y);
 			float G2_term = G2(wo, wi, alpha_x, alpha_y);
 			float dwhdwi = Sqr(nt) * glm::abs(glm::dot(wi, wh)) / glm::max(Sqr(ni * glm::dot(wo, wh) + nt * glm::dot(wi, wh)), 1E-12f);
+			const float i_ni = SafeRcp(ni);
+			const float cos_theta = glm::max(glm::dot(wo, wh), 0.0f);
+			const float fr = FresnelDielectricDielectric(nt * i_ni, cos_theta);
 
 			*pdf = D_term * G1_term * glm::abs(glm::dot(wo, wh)) * dwhdwi / glm::max(glm::abs(wo.z), 1E-8f);
-			return transmission_albedo * glm::abs(glm::dot(wo, wh) / glm::max(glm::abs(wo.z), 1E-8f)) * G2_term * D_term * dwhdwi * Sqr(ni / nt);
+			return transmission_albedo * (1.0f - fr) * glm::abs(glm::dot(wo, wh) / glm::max(glm::abs(wo.z), 1E-8f)) * G2_term * D_term * dwhdwi * Sqr(ni / nt);
 		}
 
 		__device__ __host__ inline bool Sample(float u0, float u1, const glm::vec3 &wo, glm::vec3 *weight, glm::vec3 *wi, float *pdf)
@@ -352,9 +359,12 @@ namespace YumeRT
 			float G1_term = G1(wo, alpha_x, alpha_y);
 			float G2_term = G2(*wi, wo, alpha_x, alpha_y);
 			float dwhdwi = Sqr(nt) * glm::abs(glm::dot(*wi, wh)) / glm::max(Sqr(ni * glm::dot(wo, wh) + nt * glm::dot(*wi, wh)), 1E-12f);
+			const float i_ni = SafeRcp(ni);
+			const float cos_theta = glm::max(glm::dot(wo, wh), 0.0f);
+			const float fr = FresnelDielectricDielectric(nt * i_ni, cos_theta);
 
 			*pdf = D_term * G1_term * glm::abs(glm::dot(wo, wh)) * dwhdwi / glm::max(glm::abs(wo.z), 1E-8f);
-			*weight = transmission_albedo * Sqr(ni / nt) * G2_term / G1_term;
+			*weight = transmission_albedo * (1.0f - fr) * Sqr(ni / nt) * G2_term / G1_term;
 			return true;
 		}
 	};
@@ -567,23 +577,6 @@ namespace YumeRT
 			*pdf = mix_pdf;
 			*weight *= bsdf_wi_pdf * SafeRcp(mix_pdf);
 			return true;
-
-			/*float deno = SafeRcp(bsdf_wi_pdf * weights[selected_bsdf_idx]);
-
-			float mix_pdf = 1.0f;
-			for (int i = 0; i < bsdf_count; ++i)
-			{
-				if (i == selected_bsdf_idx) { continue; }
-				BSDF &bsdf = bsdfs[i];
-				float wi_pdf = bsdf.PDF(wo, *wi);
-				mix_pdf += weights[i] * wi_pdf * deno;
-			}
-			if (!(glm::abs(mix_pdf) > 0.0f)) { return false; }
-
-			float average_weight = SafeRcp(mix_pdf);
-			*pdf = bsdf_wi_pdf * weights[selected_bsdf_idx] * average_weight;
-			*weight *= average_weight * SafeRcp(weights[selected_bsdf_idx]);*/
-			
 		}
 	};
 	struct MaterialBSDF 
