@@ -95,17 +95,17 @@ void TestScene_CornellBox(std::shared_ptr<YumeRT::SceneManager> scene_manager, i
 		1.0f,
 		world_volume_idx, -1);
 
-	//// light
-	//AddPrimInstance(cube_idx,
-	//	AddTransform(glm::vec3(-3.0f, 4.15f, -5.0f), glm::vec3(0.3, 0.3f, 0.3)),
-	//	AddLightMaterial("ceil light", glm::vec3(1.0f), 150.0f),
-	//	1.0f,
-	//	world_volume_idx, -1);
+	// light
+	scene_manager->AddPrimInstance(cube_idx,
+		scene_manager->AddTransform(glm::vec3(-3.0f, 4.15f, -5.0f), glm::vec3(0.3, 0.3f, 0.3)),
+		scene_manager->AddLightMaterial("ceil light", glm::vec3(1.0f), 150.0f),
+		1.0f,
+		world_volume_idx, -1);
 
 	// sphere light
 	scene_manager->AddPrimInstance(sphere_idx,
-		scene_manager->AddTransform(glm::vec3(3.0f, 3.35f, -5.0f), glm::vec3(0.45f, 0.45f, 0.45f)),
-		scene_manager->AddLightMaterial("sphere light", glm::vec3(1.0f), 80.0f),
+		scene_manager->AddTransform(glm::vec3(3.0f, 3.35f, -5.0f), glm::vec3(0.15f, 0.15f, 0.15f)),
+		scene_manager->AddLightMaterial("sphere light", glm::vec3(1.0f), 200.0f),
 		1.0f,
 		world_volume_idx, -1);
 

@@ -32,7 +32,7 @@
 namespace YumeRT
 {
 
-#define MAX_RAY_DEPTH 16
+#define MAX_RAY_DEPTH 32
 
 #define TILE_X_RES 16u
 #define TILE_Y_RES 16u

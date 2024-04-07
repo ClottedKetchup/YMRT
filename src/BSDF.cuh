@@ -566,16 +566,18 @@ namespace YumeRT
 			if (!sample_valid || !(bsdf_wi_pdf * weights[selected_bsdf_idx] > 0.0f)) { return false; }
 
 			float mix_pdf = bsdf_wi_pdf * weights[selected_bsdf_idx];
+			glm::vec3 mix_bsdf = (*weight) * bsdf_wi_pdf * weights[selected_bsdf_idx];
 			for (int i = 0; i < bsdf_count; ++i)
 			{
 				if (i == selected_bsdf_idx) { continue; }
 				BSDF &bsdf = bsdfs[i];
-				float wi_pdf = bsdf.PDF(wo, *wi);
+				float wi_pdf;
+				mix_bsdf += weights[i] * bsdf.Eval(wo, *wi, &wi_pdf);
 				mix_pdf += weights[i] * wi_pdf;
 			}
 			
 			*pdf = mix_pdf;
-			*weight *= bsdf_wi_pdf * SafeRcp(mix_pdf);
+			*weight = mix_bsdf * SafeRcp(mix_pdf);
 			return true;
 		}
 	};
