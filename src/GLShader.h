@@ -57,7 +57,7 @@ namespace YumeRT
 			}
 		}
 
-		void InitShader(const std::string &vs, const std::string &fs)
+		inline void InitShader(const std::string &vs, const std::string &fs)
 		{
 			vert = CompileShader(vs, VERTEX);
 			frag = CompileShader(fs, FRAGMENT);
@@ -71,7 +71,7 @@ namespace YumeRT
 			glDeleteShader(frag);
 		}
 		
-		void Use()
+		inline void Use()
 		{
 			glUseProgram(program);
 		}
@@ -85,7 +85,7 @@ namespace YumeRT
 		{
 			VERTEX, FRAGMENT
 		};
-		GLuint CompileShader(const std::string& shader_name, ShaderType shader_type)
+		inline GLuint CompileShader(const std::string& shader_name, ShaderType shader_type)
 		{
 			std::ifstream fs;
 			std::stringstream ss;

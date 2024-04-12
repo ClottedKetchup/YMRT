@@ -31,7 +31,7 @@ namespace YumeRT
 #pragma pack(pop)
 
 	// This is for Mesh intersection
-	__device__ __host__  bool IntersectTri(const Triangle &triangle, const glm::vec3 *mesh_positions, const uint32_t *mesh_vidxs, const Ray &ray, HitRecord *hit_record)
+	__device__ __host__  inline bool IntersectTri(const Triangle &triangle, const glm::vec3 *mesh_positions, const uint32_t *mesh_vidxs, const Ray &ray, HitRecord *hit_record)
 	{
 		const uint32_t vid0 = mesh_vidxs[triangle.id0];
 		const uint32_t vid1 = mesh_vidxs[triangle.id1];
@@ -103,7 +103,7 @@ namespace YumeRT
 		return true;
 	}
 
-	__device__ __host__  bool IntersectMeshObject(const GeometryData &geometry, const Scene &scene, const Ray &ray, HitRecord *hit_record, bool test_any_hit)
+	__device__ __host__  inline bool IntersectMeshObject(const GeometryData &geometry, const Scene &scene, const Ray &ray, HitRecord *hit_record, bool test_any_hit)
 	{
 		if (geometry.tri_mesh.bottom_node_count == 0 || scene.bottom_nodes == nullptr)
 		{
@@ -173,7 +173,7 @@ namespace YumeRT
 		return hit;
 	}
 
-	__device__ __host__  bool IntersectSphereObject(const GeometryData &geometry, const Scene &scene, const Ray &ray, HitRecord *hit_record, bool test_any_hit)
+	__device__ __host__  inline bool IntersectSphereObject(const GeometryData &geometry, const Scene &scene, const Ray &ray, HitRecord *hit_record, bool test_any_hit)
 	{
 		float radius = geometry.sphere.radius;
 
@@ -240,7 +240,7 @@ namespace YumeRT
 		}
 	}
 
-	__device__ __host__  bool BVHTraverse(const Scene &scene, const Ray &ray, HitRecord *hit_record)
+	__device__ __host__  inline bool BVHTraverse(const Scene &scene, const Ray &ray, HitRecord *hit_record)
 	{
 		if (scene.top_node_count == 0 || scene.top_nodes == nullptr) { return false; }
 
@@ -307,7 +307,7 @@ namespace YumeRT
 	}
 
 	// TODO: you should construst a separate BVH for volume traverse!
-	__device__ __host__  bool ClosestVolume(const Scene &scene, const Ray &ray, HitRecord *hit_record)
+	__device__ __host__  inline bool ClosestVolume(const Scene &scene, const Ray &ray, HitRecord *hit_record)
 	{
 		if (scene.top_node_count == 0 || scene.top_nodes == nullptr || scene.volume_count == 0) { return false; }
 
@@ -375,7 +375,7 @@ namespace YumeRT
 		return hit;
 	}
 
-	__device__ __host__  bool BVHTraverseShadow(const Scene &scene, const Ray &ray, HitRecord *hit_record)
+	__device__ __host__  inline bool BVHTraverseShadow(const Scene &scene, const Ray &ray, HitRecord *hit_record)
 	{
 		if (scene.top_node_count == 0 || scene.top_nodes == nullptr) { return false; }
 
@@ -446,7 +446,7 @@ namespace YumeRT
 
 
 
-	__device__ __host__ void FetchSphereShadingData(const Scene &scene,
+	__device__ __host__ inline void FetchSphereShadingData(const Scene &scene,
 																					 const HitRecord &hit_record,
 																					 const PrimitiveInstance &hit_instance,
 																					 glm::vec3 *hit_position,
@@ -494,7 +494,7 @@ namespace YumeRT
 		*hit_dpdv = glm::vec3(position_object.y * cos_phi, -radius * sin_theta, sin_phi * position_object.y) * ONE_PI;
 	}
 
-	__device__ __host__ void FetchMeshShadingData(const Scene &scene,
+	__device__ __host__ inline void FetchMeshShadingData(const Scene &scene,
 																				   const HitRecord &hit_record,
 																				   const PrimitiveInstance &hit_instance,
 																				   glm::vec3 *hit_position,

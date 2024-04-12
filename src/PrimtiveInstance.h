@@ -16,8 +16,8 @@ namespace YumeRT
 		float external_ior = 1.0f;
 		bool is_volume_boundary = false;
 
-		__device__ __host__ PrimitiveInstance() {};
-		__device__ __host__ PrimitiveInstance(uint32_t geometry_idx, 
+		__device__ __host__ inline PrimitiveInstance() {};
+		__device__ __host__ inline PrimitiveInstance(uint32_t geometry_idx,
 																	uint32_t transform_idx, 
 																	uint32_t material_idx, 
 																	float external_ior = 1.0f,

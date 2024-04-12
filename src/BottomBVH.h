@@ -165,7 +165,7 @@ namespace YumeRT
 	class BottomBVHBuilder
 	{
 	public:
-		__host__ BottomBVHBuilder(GeometryData *tri_mesh,
+		__host__ inline BottomBVHBuilder(GeometryData *tri_mesh,
 													Triangle *triangles,
 													uint32_t tri_count,
 													glm::vec3 *positions,
@@ -213,7 +213,7 @@ namespace YumeRT
 	class TopBVHBuilder
 	{
 	public:
-		__host__ TopBVHBuilder(PrimitiveInstance *prim_instances,
+		__host__ inline TopBVHBuilder(PrimitiveInstance *prim_instances,
 												uint32_t prim_instance_count,
 												glm::mat4 *transforms,
 												GeometryData *geometries,
@@ -249,7 +249,7 @@ namespace YumeRT
 	class ACBVHBuilder
 	{
 	public:
-		__host__ ACBVHBuilder(PrimitiveInstance *prim_instances,
+		__host__ inline ACBVHBuilder(PrimitiveInstance *prim_instances,
 											  uint32_t prim_instance_count,
 											  glm::mat4 *transforms,
 											  GeometryData *geometries,

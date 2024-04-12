@@ -82,7 +82,7 @@ namespace YumeRT
 		float power;
 		float area;
 
-		__device__ __host__ ShapeLight() {}
+		__device__ __host__ inline ShapeLight() {}
 
 		__device__ __host__ inline float PDF(const Scene &scene, const glm::vec3 &position, const glm::vec3 &wi) const
 		{
@@ -323,7 +323,7 @@ namespace YumeRT
 		float padding;
 
 		// dir always toward the light, wi!
-		__device__ __host__ DistantLight() {}
+		__device__ __host__ inline DistantLight() {}
 		__device__ __host__ inline float PDF(const Scene &scene, const glm::vec3 &wi) const
 		{
 			return 0.0f;

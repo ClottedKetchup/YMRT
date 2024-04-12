@@ -97,7 +97,7 @@ namespace YumeRT
 			return ptr;
 		}
 		
-		~Renderer() {}
+		inline ~Renderer() {}
 
 		inline void Init()
 		{
@@ -250,7 +250,7 @@ namespace YumeRT
 		bool disable_object_highlight = false;
 		bool render_setting_change = false;
 
-		Renderer() {}
+		inline Renderer() {}
 
 		inline ImageResource& GetImageResource(const std::string &aov_name)
 		{

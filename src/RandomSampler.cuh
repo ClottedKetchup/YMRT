@@ -377,7 +377,7 @@ namespace YumeRT
 
 	struct HaltonEnumerator
 	{
-		__device__ __host__ HaltonEnumerator(int width, int height)
+		__device__ __host__ inline HaltonEnumerator(int width, int height)
 		{
 			int scale2 = 1;
 			exp2 = 0;
@@ -485,8 +485,8 @@ namespace YumeRT
 	struct PCGSampler 
 	{
 	public:
-		__device__ __host__ PCGSampler() {}
-		__device__ __host__ PCGSampler(uint32_t pixel_idx, uint32_t pixel_sample_idx, uint32_t dim_idx, uint32_t frame_idx) 
+		__device__ __host__ inline PCGSampler() {}
+		__device__ __host__ inline PCGSampler(uint32_t pixel_idx, uint32_t pixel_sample_idx, uint32_t dim_idx, uint32_t frame_idx) 
 			:pixel_idx(pixel_idx), pixel_sample_idx(pixel_sample_idx), dim_idx(dim_idx), frame_idx(frame_idx){}
 		__device__ __host__ inline float Random1D() 
 		{
@@ -514,8 +514,8 @@ namespace YumeRT
 	struct HaltonSampler
 	{
 	public:
-		__device__ __host__ HaltonSampler() {}
-		__device__ __host__ HaltonSampler(uint64_t sample_index, int dim_offset, uint32_t *permute_table): dim_idx(dim_offset), permutes(permute_table), sample_idx(sample_index)
+		__device__ __host__ inline HaltonSampler() {}
+		__device__ __host__ inline HaltonSampler(uint64_t sample_index, int dim_offset, uint32_t *permute_table): dim_idx(dim_offset), permutes(permute_table), sample_idx(sample_index)
 		{
 			assert(dim_offset >= 2);
 		}
@@ -599,8 +599,8 @@ namespace YumeRT
 	struct SobolSampler
 	{
 	public:
-		__device__ __host__ SobolSampler() {}
-		__device__ __host__ SobolSampler(int pixel_sample_count,
+		__device__ __host__ inline SobolSampler() {}
+		__device__ __host__ inline SobolSampler(int pixel_sample_count,
 															   int pixel_sample_idx,
 															   int frame_idx,
 															   int dim_offset,
@@ -710,7 +710,7 @@ namespace YumeRT
 			SobolSampler sobol_sampler;
 		};
 
-		__device__ __host__ RandomSampler() {}
+		__device__ __host__ inline RandomSampler() {}
 		__device__ __host__ inline void InitPCGSampler(uint32_t pixel_idx, uint32_t pixel_sample_idx, uint32_t dim_idx, uint32_t frame_idx) 
 		{
 			sampler_type = PCG;

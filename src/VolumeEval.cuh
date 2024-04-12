@@ -149,7 +149,7 @@ namespace YumeRT {
 	}
 
 	// give sampled distance
-	__device__ __host__ bool SampleVolumeScattering(const Scene& scene,
+	__device__ __host__ inline bool SampleVolumeScattering(const Scene& scene,
 		const TextureManager& texture_manager,
 		const Ray& ray,
 		const float t_max,
@@ -289,7 +289,7 @@ namespace YumeRT {
 		}
 	}
 
-	__device__ __host__ glm::vec3 TraceTr(const Scene& scene,
+	__device__ __host__ inline glm::vec3 TraceTr(const Scene& scene,
 		const TextureManager& texture_manager,
 		const Ray& ray,
 		RandomSampler &sampler)

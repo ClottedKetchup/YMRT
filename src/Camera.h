@@ -10,7 +10,7 @@ namespace YumeRT
 	struct Camera 
 	{
 	public:
-		__device__ __host__ Camera() 
+		__device__ __host__ inline Camera()
 		{
 			InitPerspective();
 		}

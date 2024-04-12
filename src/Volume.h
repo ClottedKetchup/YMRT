@@ -14,8 +14,8 @@ namespace YumeRT
 		uint32_t transform_idx;
 		float g;
 
-		__device__ __host__ Volume(){}
-		__device__ __host__ float EvalPhase(const glm::vec3 &wo, const glm::vec3 &wi, float *pdf) const
+		__device__ __host__ inline Volume(){}
+		__device__ __host__ inline float EvalPhase(const glm::vec3 &wo, const glm::vec3 &wi, float *pdf) const
 		{
 			// HenyeyGreenstein anisotropy scattering
 			float cos_theta = glm::dot(wo, wi);
@@ -23,7 +23,7 @@ namespace YumeRT
 			*pdf = 0.25f * INV_PI * (1.f - g * g) * SafeRcp((t * glm::sqrt(glm::max(t, 0.0f))));
 			return (*pdf);
 		}
-		__device__ __host__ bool SamplePhase(float u0, float u1, const glm::vec3 &wo, float *weight, glm::vec3 *wi, float *pdf) const
+		__device__ __host__ inline bool SamplePhase(float u0, float u1, const glm::vec3 &wo, float *weight, glm::vec3 *wi, float *pdf) const
 		{
 			float cos_theta;
 			if (glm::abs(g) < 1e-4f) {

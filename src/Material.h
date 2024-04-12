@@ -26,7 +26,7 @@ namespace YumeRT
 
 		uint32_t diffuse_albedo_tex = INVALID_UINT_32;
 
-		__device__ __host__ DefaultMtl(const glm::vec3 &diffuse_albedo,
+		__device__ __host__ inline DefaultMtl(const glm::vec3 &diffuse_albedo,
 			const glm::vec3 &specular_albedo,
 			float roughness_x,
 			float roughness_y,
@@ -59,7 +59,7 @@ namespace YumeRT
 		glm::vec3 light_color = glm::vec3(0.5f);
 		float intensity = 0.2f;
 
-		__device__ __host__ LightMtl(const glm::vec3 &light_color, float intensity) : light_color(light_color), intensity(intensity) {}
+		__device__ __host__ inline LightMtl(const glm::vec3 &light_color, float intensity) : light_color(light_color), intensity(intensity) {}
 		__device__ __host__ inline LightMtl& operator=(const LightMtl& other) 
 		{
 			light_color = other.light_color;
@@ -78,7 +78,7 @@ namespace YumeRT
 			LightMtl light_mtl;
 		};
 		
-		__device__ __host__ Material() {}
+		__device__ __host__ inline Material() {}
 		__device__ __host__ inline Material& operator=(const Material& other) 
 		{
 			material_type = other.material_type;

@@ -378,7 +378,7 @@ namespace YumeRT
 			MicrofacetTransmission microfacet_transmit;
 		};
 
-		__device__ __host__ BSDF() {};
+		__device__ __host__ inline BSDF() {};
 		__device__ __host__ inline float PDF(const glm::vec3 &wo, const glm::vec3 &wi)
 		{
 			if (bsdf_type == LAMBERT)
@@ -444,7 +444,7 @@ namespace YumeRT
 		float weights[4];
 		int bsdf_count;
 
-		__device__ __host__ DefaultMtlBSDF() : weights{ 0.0f, 0.0f, 0.0f, 0.0f }, bsdf_count(0){}
+		__device__ __host__ inline DefaultMtlBSDF() : weights{ 0.0f, 0.0f, 0.0f, 0.0f }, bsdf_count(0){}
 		__device__ __host__ inline void InitBSDFSettings(const Material &mtl,
 			const Texture *textures,
 			const TextureManager &texture_manager,
@@ -593,7 +593,7 @@ namespace YumeRT
 			DefaultMtlBSDF default_mtl_bsdf;
 		};
 
-		__device__ __host__ MaterialBSDF(): material_type(INVALID_UINT_32){}
+		__device__ __host__ inline MaterialBSDF(): material_type(INVALID_UINT_32){}
 		__device__ __host__ inline void InitShadingSpace(const glm::vec3 &hit_normal, const glm::vec3 &hit_tangent)
 		{
 			normal = hit_normal;
