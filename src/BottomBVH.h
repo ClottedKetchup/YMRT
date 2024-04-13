@@ -170,7 +170,7 @@ namespace YumeRT
 			uint32_t *vidxs)
 			:triangles(triangles), tri_count(tri_count), vidxs(vidxs), positions(positions) {}
 
-		__host__  std::vector<BottomNode> BuildMeshBVH(float *time);
+		__host__  std::vector<BottomNode> BuildMeshBVH(float *time = nullptr);
 	private:
 		Triangle *triangles;
 		uint32_t tri_count;

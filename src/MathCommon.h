@@ -101,4 +101,9 @@ namespace YumeRT
 		}
 		T = glm::cross(B, N);
 	}
+
+	 __device__ __host__ inline size_t AlignedMemorySize(size_t memory_required, size_t alignment)
+	 {
+		 return ((memory_required + (alignment - 1)) & (~(alignment - 1)));
+	 }
 };
