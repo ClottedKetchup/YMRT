@@ -8,6 +8,7 @@
 #include "MathCommon.h"
 #include "Ray.h"
 #include "BottomBVH.h"
+#include "TopBVH.h"
 
 #include "PrimtiveInstance.h"
 #include "Volume.h"

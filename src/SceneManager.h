@@ -15,6 +15,7 @@
 #include "GeometryDefines.h"
 #include "GeometryUtilities.h"
 #include "BottomBVH.h"
+#include "TopBVH.h"
 #include "PrimtiveInstance.h"
 #include "Material.h"
 #include "Light.h"
@@ -480,12 +481,15 @@ namespace YumeRT
 		geometry_names.push_back(std::string(assimp_mesh.mName.C_Str()));
 
 		GeometryData &mesh_data = geometries[geometries.size() - 1];
-		BottomBVHBuilder MeshBuilder(&mesh_data,
-			triangles.data() + mesh_data.tri_mesh.triangle_offset,
+		BottomBVHBuilder MeshBuilder(triangles.data() + mesh_data.tri_mesh.triangle_offset,
 			mesh_data.tri_mesh.triangle_count,
 			positions.data() + mesh_data.tri_mesh.position_offset,
 			vidxs.data() + mesh_data.tri_mesh.vidx_offset);
-		MeshBuilder.BuildMeshBVH(bottom_nodes, &bottom_BVH_time);
+		auto m_bottom_nodes = MeshBuilder.BuildMeshBVH(&bottom_BVH_time);
+		
+		mesh_data.tri_mesh.bottom_node_offset = (uint32_t)bottom_nodes.size();
+		mesh_data.tri_mesh.bottom_node_count = (uint32_t)m_bottom_nodes.size();
+		bottom_nodes.insert(bottom_nodes.end(), m_bottom_nodes.begin(), m_bottom_nodes.end());
 
 		AddSceneFlag(SCENECHANGE_FLAG::GEOMETRY_ADD);
 		return (uint32_t)geometries.size() - 1;
@@ -966,12 +970,15 @@ namespace YumeRT
 		memcpy(texcoords.data() + pre_texcoords_size, cube_texcoords.data(), sizeof(glm::vec2) * 36);
 
 		GeometryData &cube_data = geometries[geometries.size() - 1];
-		BottomBVHBuilder MeshBuilder(&cube_data,
-			triangles.data() + cube_data.tri_mesh.triangle_offset,
+		BottomBVHBuilder MeshBuilder(triangles.data() + cube_data.tri_mesh.triangle_offset,
 			cube_data.tri_mesh.triangle_count,
 			positions.data() + cube_data.tri_mesh.position_offset,
 			vidxs.data() + cube_data.tri_mesh.vidx_offset);
-		MeshBuilder.BuildMeshBVH(bottom_nodes, &bottom_BVH_time);
+		auto m_bottom_nodes = MeshBuilder.BuildMeshBVH(&bottom_BVH_time);
+
+		cube_data.tri_mesh.bottom_node_offset = (uint32_t)bottom_nodes.size();
+		cube_data.tri_mesh.bottom_node_count = (uint32_t)m_bottom_nodes.size();
+		bottom_nodes.insert(bottom_nodes.end(), m_bottom_nodes.begin(), m_bottom_nodes.end());
 
 		AddSceneFlag(SCENECHANGE_FLAG::GEOMETRY_ADD);
 		return (uint32_t)geometries.size() - 1;
