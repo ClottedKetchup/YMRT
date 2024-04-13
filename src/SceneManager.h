@@ -95,9 +95,9 @@ namespace YumeRT
 			return ptr;
 		}
 
-		~SceneManager()
+		~SceneManager() // the clear work is handled by MainSystem!
 		{
-			// the clear work is handled by MainSystem!
+			
 		}
 
 		void DestroyResources();
@@ -106,8 +106,7 @@ namespace YumeRT
 		void UploadSceneSetting();
 		void UpdateScene(const Camera &cam, uint32_t *highlight_prim_idx);
 
-		inline uint32_t AddQube(const std::string &name);
-		inline uint32_t AddSphere(const std::string &name, float radius);
+		inline uint32_t AddGeometry(const std::string &name, const GeometryData& geometry);
 		inline uint32_t RemoveGeometry(uint32_t geometry_idx);
 
 		// this function only record the transform state: T, S, R
@@ -288,15 +287,6 @@ namespace YumeRT
 		std::vector<uint32_t> geometry_reference_counters;
 		std::vector<std::string> geometry_names;
 
-		std::vector<Triangle> triangles;
-		std::vector<uint32_t> vidxs;
-		std::vector<glm::vec3> positions;
-		std::vector<uint32_t> nidxs;
-		std::vector<glm::vec3> normals;
-		std::vector<uint32_t> uvidxs;
-		std::vector<glm::vec2> texcoords;
-
-		std::vector<BottomNode> bottom_nodes;
 		std::vector<TopNode> top_nodes;
 
 		std::vector<Material> materials;
@@ -400,119 +390,108 @@ namespace YumeRT
 
 	uint32_t SceneManager::CreateCustomMesh(const aiMesh *ai_mesh)
 	{
-		const aiMesh &assimp_mesh = (*ai_mesh);
+		return 0;
+		//const aiMesh &assimp_mesh = (*ai_mesh);
 
-		GeometryData mesh;
-		mesh.geometry_type = GEOMETRY_TYPE::TRIANGLE_MESH;
+		//GeometryData mesh;
+		//mesh.geometry_type = GEOMETRY_TYPE::TRIANGLE_MESH;
 
-		mesh.tri_mesh.triangle_offset = (uint32_t)triangles.size();
-		mesh.tri_mesh.vidx_offset = (uint32_t)vidxs.size();
-		mesh.tri_mesh.position_offset = (uint32_t)positions.size();
-		mesh.tri_mesh.nidx_offset = (uint32_t)nidxs.size();
-		mesh.tri_mesh.normal_offset = (uint32_t)normals.size();
-		mesh.tri_mesh.uvidx_offset = (uint32_t)uvidxs.size();
-		mesh.tri_mesh.texcoord_offset = (uint32_t)texcoords.size();
+		//mesh.tri_mesh.triangle_offset = (uint32_t)triangles.size();
+		//mesh.tri_mesh.vidx_offset = (uint32_t)vidxs.size();
+		//mesh.tri_mesh.position_offset = (uint32_t)positions.size();
+		//mesh.tri_mesh.nidx_offset = (uint32_t)nidxs.size();
+		//mesh.tri_mesh.normal_offset = (uint32_t)normals.size();
+		//mesh.tri_mesh.uvidx_offset = (uint32_t)uvidxs.size();
+		//mesh.tri_mesh.texcoord_offset = (uint32_t)texcoords.size();
 
-		for (int i = 0; i < assimp_mesh.mNumFaces; ++i)
-		{
-			assert(assimp_mesh.mFaces[i].mNumIndices == 3);
-			
-			Triangle triangle;
-			triangle.id0 = (i * 3) + 0;
-			triangle.id1 = (i * 3) + 1;
-			triangle.id2 = (i * 3) + 2;
-			triangles.push_back(triangle);
+		//for (int i = 0; i < assimp_mesh.mNumFaces; ++i)
+		//{
+		//	assert(assimp_mesh.mFaces[i].mNumIndices == 3);
+		//	
+		//	Triangle triangle;
+		//	triangle.id0 = (i * 3) + 0;
+		//	triangle.id1 = (i * 3) + 1;
+		//	triangle.id2 = (i * 3) + 2;
+		//	triangles.push_back(triangle);
 
-			for (int vid = 0; vid < assimp_mesh.mFaces[i].mNumIndices; ++vid)
-			{
-				uint32_t idx = assimp_mesh.mFaces[i].mIndices[vid];
-				vidxs.push_back(idx);
-				nidxs.push_back(idx);
-				uvidxs.push_back(idx);
-			}
-		}
-		
-		if (assimp_mesh.HasPositions())
-		{
-			for (int vert_idx = 0; vert_idx < assimp_mesh.mNumVertices; ++vert_idx)
-			{
-				glm::vec3 position;
-				position.x = assimp_mesh.mVertices[vert_idx].x;
-				position.y = assimp_mesh.mVertices[vert_idx].y;
-				position.z = assimp_mesh.mVertices[vert_idx].z;
-				positions.push_back(position);
-			}
-		}
+		//	for (int vid = 0; vid < assimp_mesh.mFaces[i].mNumIndices; ++vid)
+		//	{
+		//		uint32_t idx = assimp_mesh.mFaces[i].mIndices[vid];
+		//		vidxs.push_back(idx);
+		//		nidxs.push_back(idx);
+		//		uvidxs.push_back(idx);
+		//	}
+		//}
+		//
+		//if (assimp_mesh.HasPositions())
+		//{
+		//	for (int vert_idx = 0; vert_idx < assimp_mesh.mNumVertices; ++vert_idx)
+		//	{
+		//		glm::vec3 position;
+		//		position.x = assimp_mesh.mVertices[vert_idx].x;
+		//		position.y = assimp_mesh.mVertices[vert_idx].y;
+		//		position.z = assimp_mesh.mVertices[vert_idx].z;
+		//		positions.push_back(position);
+		//	}
+		//}
 
-		if (assimp_mesh.HasNormals())
-		{
-			for (int n_idx = 0; n_idx < assimp_mesh.mNumVertices; ++n_idx)
-			{
-				glm::vec3 normal;
-				normal.x = assimp_mesh.mNormals[n_idx].x;
-				normal.y = assimp_mesh.mNormals[n_idx].y;
-				normal.z = assimp_mesh.mNormals[n_idx].z;
-				normals.push_back(normal);
-			}
-		}
+		//if (assimp_mesh.HasNormals())
+		//{
+		//	for (int n_idx = 0; n_idx < assimp_mesh.mNumVertices; ++n_idx)
+		//	{
+		//		glm::vec3 normal;
+		//		normal.x = assimp_mesh.mNormals[n_idx].x;
+		//		normal.y = assimp_mesh.mNormals[n_idx].y;
+		//		normal.z = assimp_mesh.mNormals[n_idx].z;
+		//		normals.push_back(normal);
+		//	}
+		//}
 
-		if (assimp_mesh.HasTextureCoords(0))
-		{
-			for (int uv_idx = 0; uv_idx < assimp_mesh.mNumVertices; ++uv_idx)
-			{
-				glm::vec2 texcoord;
-				texcoord.x = assimp_mesh.mTextureCoords[0][uv_idx].x;
-				texcoord.y = assimp_mesh.mTextureCoords[0][uv_idx].y;
-				texcoords.push_back(texcoord);
-			}
-		}
+		//if (assimp_mesh.HasTextureCoords(0))
+		//{
+		//	for (int uv_idx = 0; uv_idx < assimp_mesh.mNumVertices; ++uv_idx)
+		//	{
+		//		glm::vec2 texcoord;
+		//		texcoord.x = assimp_mesh.mTextureCoords[0][uv_idx].x;
+		//		texcoord.y = assimp_mesh.mTextureCoords[0][uv_idx].y;
+		//		texcoords.push_back(texcoord);
+		//	}
+		//}
 
-		mesh.tri_mesh.triangle_count = (uint32_t)triangles.size() - mesh.tri_mesh.triangle_offset;
-		mesh.tri_mesh.idx_count = (uint32_t)vidxs.size() - mesh.tri_mesh.vidx_offset;
-		mesh.tri_mesh.position_count =(uint32_t)positions.size() - mesh.tri_mesh.position_offset;
-		mesh.tri_mesh.normal_count = (uint32_t)normals.size() - mesh.tri_mesh.normal_offset;
-		mesh.tri_mesh.texcoord_count = (uint32_t)texcoords.size() - mesh.tri_mesh.texcoord_offset;
+		//mesh.tri_mesh.triangle_count = (uint32_t)triangles.size() - mesh.tri_mesh.triangle_offset;
+		//mesh.tri_mesh.idx_count = (uint32_t)vidxs.size() - mesh.tri_mesh.vidx_offset;
+		//mesh.tri_mesh.position_count =(uint32_t)positions.size() - mesh.tri_mesh.position_offset;
+		//mesh.tri_mesh.normal_count = (uint32_t)normals.size() - mesh.tri_mesh.normal_offset;
+		//mesh.tri_mesh.texcoord_count = (uint32_t)texcoords.size() - mesh.tri_mesh.texcoord_offset;
 
-		// add sphere
-		geometries.push_back(mesh);
-		// add its counter to 0
-		geometry_reference_counters.push_back(0);
-		// add its name, now only for display
-		geometry_names.push_back(std::string(assimp_mesh.mName.C_Str()));
+		//// add sphere
+		//geometries.push_back(mesh);
+		//// add its counter to 0
+		//geometry_reference_counters.push_back(0);
+		//// add its name, now only for display
+		//geometry_names.push_back(std::string(assimp_mesh.mName.C_Str()));
 
-		GeometryData &mesh_data = geometries[geometries.size() - 1];
-		BottomBVHBuilder MeshBuilder(triangles.data() + mesh_data.tri_mesh.triangle_offset,
-			mesh_data.tri_mesh.triangle_count,
-			positions.data() + mesh_data.tri_mesh.position_offset,
-			vidxs.data() + mesh_data.tri_mesh.vidx_offset);
-		auto m_bottom_nodes = MeshBuilder.BuildMeshBVH(&bottom_BVH_time);
-		
-		mesh_data.tri_mesh.bottom_node_offset = (uint32_t)bottom_nodes.size();
-		mesh_data.tri_mesh.bottom_node_count = (uint32_t)m_bottom_nodes.size();
-		bottom_nodes.insert(bottom_nodes.end(), m_bottom_nodes.begin(), m_bottom_nodes.end());
+		//GeometryData &mesh_data = geometries[geometries.size() - 1];
+		//BottomBVHBuilder MeshBuilder(triangles.data() + mesh_data.tri_mesh.triangle_offset,
+		//	mesh_data.tri_mesh.triangle_count,
+		//	positions.data() + mesh_data.tri_mesh.position_offset,
+		//	vidxs.data() + mesh_data.tri_mesh.vidx_offset);
+		//auto m_bottom_nodes = MeshBuilder.BuildMeshBVH(&bottom_BVH_time);
+		//
+		//mesh_data.tri_mesh.bottom_node_offset = (uint32_t)bottom_nodes.size();
+		//mesh_data.tri_mesh.bottom_node_count = (uint32_t)m_bottom_nodes.size();
+		//bottom_nodes.insert(bottom_nodes.end(), m_bottom_nodes.begin(), m_bottom_nodes.end());
 
-		AddSceneFlag(SCENECHANGE_FLAG::GEOMETRY_ADD);
-		return (uint32_t)geometries.size() - 1;
+		//AddSceneFlag(SCENECHANGE_FLAG::GEOMETRY_ADD);
+		//return (uint32_t)geometries.size() - 1;
 	}
 
 	void SceneManager::DestroyResources()
 	{
 		FREE_GPU_RESOURCE(scene.camera);
 
-		// mesh data
-		FREE_GPU_RESOURCE(scene.vidxs);
-		FREE_GPU_RESOURCE(scene.positions);
-		FREE_GPU_RESOURCE(scene.nidxs);
-		FREE_GPU_RESOURCE(scene.normals);
-		FREE_GPU_RESOURCE(scene.uvidxs);
-		FREE_GPU_RESOURCE(scene.texcoords);
-		FREE_GPU_RESOURCE(scene.triangles);
-
 		scene.geometry_count = 0;
 		FREE_GPU_RESOURCE(scene.geometries);
-
-		scene.bottom_node_count = 0;
-		FREE_GPU_RESOURCE(scene.bottom_nodes);
 
 		scene.prim_instance_count = 0;
 		FREE_GPU_RESOURCE(scene.prim_instances);
@@ -544,16 +523,8 @@ namespace YumeRT
 		FREE_GPU_RESOURCE(scene.sampler_data.sobol_matrices);
 
 		assert(scene.camera == nullptr);
-		assert(scene.vidxs == nullptr);
-		assert(scene.positions == nullptr);
-		assert(scene.nidxs == nullptr);
-		assert(scene.normals == nullptr);
-		assert(scene.uvidxs == nullptr);
-		assert(scene.texcoords == nullptr);
-		assert(scene.triangles == nullptr);
 		assert(scene.geometries == nullptr);
 		assert(scene.prim_instances == nullptr);
-		assert(scene.bottom_nodes == nullptr);
 		assert(scene.top_nodes == nullptr);
 		assert(scene.transforms == nullptr);
 		assert(scene.i_transforms == nullptr);
@@ -575,30 +546,22 @@ namespace YumeRT
 
 	void SceneManager::UploadSceneSetting()
 	{
+		for (auto& geometry : geometries) 
+		{ 
+			geometry.Upload();
+		}
 		ACBVHBuilder SceneBuilder(prim_instances.data(),
 													  (uint32_t)prim_instances.size(),
 													  transforms.data(),
-													  geometries.data(),
-													  bottom_nodes.data());
+													  geometries.data());
 		SceneBuilder.BuildSceneBVH(top_nodes, &top_BVH_time);
 
 		LoadShapeLights();
 
 		UPLOAD_TO_GPU(scene.camera, &camera, sizeof(Camera));
 
-		UPLOAD_TO_GPU(scene.vidxs, vidxs.data(), sizeof(uint32_t) * vidxs.size());
-		UPLOAD_TO_GPU(scene.positions, positions.data(), sizeof(glm::vec3) * positions.size());
-		UPLOAD_TO_GPU(scene.nidxs, nidxs.data(), sizeof(uint32_t) * nidxs.size());
-		UPLOAD_TO_GPU(scene.normals, normals.data(), sizeof(glm::vec3) * normals.size());
-		UPLOAD_TO_GPU(scene.uvidxs, uvidxs.data(), sizeof(uint32_t) * uvidxs.size());
-		UPLOAD_TO_GPU(scene.texcoords, texcoords.data(), sizeof(glm::vec2) * texcoords.size());
-		UPLOAD_TO_GPU(scene.triangles, triangles.data(), sizeof(Triangle) * triangles.size());
-
 		scene.geometry_count = (uint32_t)geometries.size();
 		UPLOAD_TO_GPU(scene.geometries, geometries.data(), sizeof(GeometryData) * geometries.size());
-
-		scene.bottom_node_count = (uint32_t)bottom_nodes.size();
-		UPLOAD_TO_GPU(scene.bottom_nodes, bottom_nodes.data(), sizeof(BottomNode) * bottom_nodes.size());
 
 		scene.prim_instance_count = (uint32_t)prim_instances.size();
 		UPLOAD_TO_GPU(scene.prim_instances, prim_instances.data(), sizeof(PrimitiveInstance) * prim_instances.size());
@@ -646,34 +609,16 @@ namespace YumeRT
 		if ((scene_change_flag & GEOMETRY_ADD) ||
 			(scene_change_flag & GEOMETRY_REMOVE))
 		{
-			FREE_GPU_RESOURCE(scene.vidxs);
-			UPLOAD_TO_GPU(scene.vidxs, vidxs.data(), sizeof(uint32_t) * vidxs.size());
-
-			FREE_GPU_RESOURCE(scene.positions);
-			UPLOAD_TO_GPU(scene.positions, positions.data(), sizeof(glm::vec3) * positions.size());
-
-			FREE_GPU_RESOURCE(scene.nidxs);
-			UPLOAD_TO_GPU(scene.nidxs, nidxs.data(), sizeof(uint32_t) * nidxs.size());
-
-			FREE_GPU_RESOURCE(scene.normals);
-			UPLOAD_TO_GPU(scene.normals, normals.data(), sizeof(glm::vec3) * normals.size());
-
-			FREE_GPU_RESOURCE(scene.uvidxs);
-			UPLOAD_TO_GPU(scene.uvidxs, uvidxs.data(), sizeof(uint32_t) * uvidxs.size());
-
-			FREE_GPU_RESOURCE(scene.texcoords);
-			UPLOAD_TO_GPU(scene.texcoords, texcoords.data(), sizeof(glm::vec2) * texcoords.size());
-
-			FREE_GPU_RESOURCE(scene.triangles);
-			UPLOAD_TO_GPU(scene.triangles, triangles.data(), sizeof(Triangle) * triangles.size());
-
 			FREE_GPU_RESOURCE(scene.geometries);
+			if ((scene_change_flag & GEOMETRY_ADD))
+			{
+				for (auto& geometry : geometries)
+				{
+					geometry.Upload();
+				}
+			}
 			scene.geometry_count = (uint32_t)geometries.size();
 			UPLOAD_TO_GPU(scene.geometries, geometries.data(), sizeof(GeometryData) * geometries.size());
-
-			FREE_GPU_RESOURCE(scene.bottom_nodes);
-			scene.bottom_node_count = (uint32_t)bottom_nodes.size();
-			UPLOAD_TO_GPU(scene.bottom_nodes, bottom_nodes.data(), sizeof(BottomNode) * bottom_nodes.size());
 		}
 
 		bool instances_has_rebuild = false;
@@ -682,10 +627,9 @@ namespace YumeRT
 			(scene_change_flag & INSTANCE_REMOVE))
 		{
 			ACBVHBuilder SceneBuilder(prim_instances.data(),
-				(uint32_t)prim_instances.size(),
-				transforms.data(),
-				geometries.data(),
-				bottom_nodes.data());
+														(uint32_t)prim_instances.size(),
+														transforms.data(),
+														geometries.data());
 			top_nodes.clear();
 			SceneBuilder.BuildSceneBVH(top_nodes, &top_BVH_time, highlight_prim_idx);
 
@@ -763,234 +707,11 @@ namespace YumeRT
 
 		ResetSceneFlag();
 	}
-	
-	inline uint32_t SceneManager::AddQube(const std::string &name)
+
+	inline uint32_t SceneManager::AddGeometry(const std::string &name, const GeometryData& geometry)
 	{
-		GeometryData cube;
-		cube.geometry_type = GEOMETRY_TYPE::TRIANGLE_MESH;
-
-		cube.tri_mesh.idx_count = 36;
-		cube.tri_mesh.vidx_offset = (uint32_t)vidxs.size();
-		cube.tri_mesh.position_offset = (uint32_t)positions.size();
-		cube.tri_mesh.nidx_offset = (uint32_t)nidxs.size();
-		cube.tri_mesh.normal_offset = (uint32_t)normals.size();
-		cube.tri_mesh.uvidx_offset = (uint32_t)uvidxs.size();
-		cube.tri_mesh.texcoord_offset = (uint32_t)texcoords.size();
-
-		cube.tri_mesh.position_count = 36;
-		cube.tri_mesh.normal_count = 36;
-		cube.tri_mesh.texcoord_count = 36;
-
-		cube.tri_mesh.triangle_count = 12;
-		cube.tri_mesh.triangle_offset = (uint32_t)triangles.size();
-
 		// add a shape
-		geometries.push_back(cube);
-		// add its counter to 0
-		geometry_reference_counters.push_back(0);
-		// add its name, now only for display
-		geometry_names.push_back(name);
-
-		std::vector<uint32_t> cube_idxs = {
-		0, 1, 2,
-		3, 4, 5,
-		6, 7, 8,
-		9, 10, 11,
-		12, 13, 14,
-		15, 16, 17,
-		18, 19, 20,
-		21, 22, 23,
-		24, 25, 26,
-		27, 28, 29,
-		30, 31, 32,
-		33, 34, 35,
-		};
-
-		uint32_t pre_triangles_size = triangles.size();
-		triangles.resize(pre_triangles_size + 12);
-		for (uint32_t i = 0, tri_id = 0; i < cube_idxs.size(); i += 3, ++tri_id)
-		{
-			(triangles.data() + pre_triangles_size)[tri_id].id0 = i;
-			(triangles.data() + pre_triangles_size)[tri_id].id1 = i + 1;
-			(triangles.data() + pre_triangles_size)[tri_id].id2 = i + 2;
-		}
-
-		std::vector<float> cube_positions = {
-		-0.5f, -0.5f, -0.5f,
-		0.5f,  0.5f, -0.5f,
-		0.5f, -0.5f, -0.5f,
-		0.5f,  0.5f, -0.5f,
-		-0.5f, -0.5f, -0.5f,
-		-0.5f,  0.5f, -0.5f,
-
-		-0.5f, -0.5f,  0.5f,
-		0.5f, -0.5f,  0.5f,
-		0.5f,  0.5f,  0.5f,
-		0.5f,  0.5f,  0.5f,
-		-0.5f,  0.5f,  0.5f,
-		-0.5f, -0.5f,  0.5f,
-
-		-0.5f,  0.5f,  0.5f,
-		-0.5f,  0.5f, -0.5f,
-		-0.5f, -0.5f, -0.5f,
-		-0.5f, -0.5f, -0.5f,
-		-0.5f, -0.5f,  0.5f,
-		-0.5f,  0.5f,  0.5f,
-
-		0.5f,  0.5f,  0.5f,
-		0.5f, -0.5f, -0.5f,
-		0.5f,  0.5f, -0.5f,
-		0.5f, -0.5f, -0.5f,
-		0.5f,  0.5f,  0.5f,
-		0.5f, -0.5f,  0.5f,
-
-		-0.5f, -0.5f, -0.5f,
-		0.5f, -0.5f, -0.5f,
-		0.5f, -0.5f,  0.5f,
-		0.5f, -0.5f,  0.5f,
-		-0.5f, -0.5f,  0.5f,
-		-0.5f, -0.5f, -0.5f,
-
-		-0.5f,  0.5f, -0.5f,
-		0.5f,  0.5f,  0.5f,
-		0.5f,  0.5f, -0.5f,
-		0.5f,  0.5f,  0.5f,
-		-0.5f,  0.5f, -0.5f,
-		-0.5f,  0.5f,  0.5f,
-		};
-		std::vector<float> cube_normals = {
-		0.0f,  0.0f, -1.0f,
-		0.0f,  0.0f, -1.0f,
-		0.0f,  0.0f, -1.0f,
-		0.0f,  0.0f, -1.0f,
-		0.0f,  0.0f, -1.0f,
-		0.0f,  0.0f, -1.0f,
-
-		0.0f,  0.0f,  1.0f,
-		0.0f,  0.0f,  1.0f,
-		0.0f,  0.0f,  1.0f,
-		0.0f,  0.0f,  1.0f,
-		0.0f,  0.0f,  1.0f,
-		0.0f,  0.0f,  1.0f,
-
-		-1.0f,  0.0f,  0.0f,
-		-1.0f,  0.0f,  0.0f,
-		-1.0f,  0.0f,  0.0f,
-		-1.0f,  0.0f,  0.0f,
-		-1.0f,  0.0f,  0.0f,
-		-1.0f,  0.0f,  0.0f,
-
-		1.0f,  0.0f,  0.0f,
-		1.0f,  0.0f,  0.0f,
-		1.0f,  0.0f,  0.0f,
-		1.0f,  0.0f,  0.0f,
-		1.0f,  0.0f,  0.0f,
-		1.0f,  0.0f,  0.0f,
-
-		0.0f, -1.0f,  0.0f,
-		0.0f, -1.0f,  0.0f,
-		0.0f, -1.0f,  0.0f,
-		0.0f, -1.0f,  0.0f,
-		0.0f, -1.0f,  0.0f,
-		0.0f, -1.0f,  0.0f,
-
-		0.0f,  1.0f,  0.0f,
-		0.0f,  1.0f,  0.0f,
-		0.0f,  1.0f,  0.0f,
-		0.0f,  1.0f,  0.0f,
-		0.0f,  1.0f,  0.0f,
-		0.0f,  1.0f,  0.0f,
-		};
-		std::vector<float> cube_texcoords = {
-		0.0f,  0.0f,
-		1.0f,  1.0f,
-		1.0f,  0.0f,
-		1.0f,  1.0f,
-		0.0f,  0.0f,
-		0.0f,  1.0f,
-
-		0.0f,  0.0f,
-		1.0f,  0.0f,
-		1.0f,  1.0f,
-		1.0f,  1.0f,
-		0.0f,  1.0f,
-		0.0f,  0.0f,
-
-		1.0f,  0.0f,
-		1.0f,  1.0f,
-		0.0f,  1.0f,
-		0.0f,  1.0f,
-		0.0f,  0.0f,
-		1.0f,  0.0f,
-
-		1.0f,  0.0f,
-		0.0f,  1.0f,
-		1.0f,  1.0f,
-		0.0f,  1.0f,
-		1.0f,  0.0f,
-		0.0f,  0.0f,
-
-		0.0f,  1.0f,
-		1.0f,  1.0f,
-		1.0f,  0.0f,
-		1.0f,  0.0f,
-		0.0f,  0.0f,
-		0.0f,  1.0f,
-
-		0.0f,  1.0f,
-		1.0f,  0.0f,
-		1.0f,  1.0f,
-		1.0f,  0.0f,
-		0.0f,  1.0f,
-		0.0f,  0.0f
-		};
-
-		uint32_t pre_vidxs_size = vidxs.size();
-		vidxs.resize(pre_vidxs_size + 36);
-		memcpy(vidxs.data() + pre_vidxs_size, cube_idxs.data(), sizeof(uint32_t) * 36);
-
-		uint32_t pre_nidxs_size = nidxs.size();
-		nidxs.resize(pre_nidxs_size + 36);
-		memcpy(nidxs.data() + pre_nidxs_size, cube_idxs.data(), sizeof(uint32_t) * 36);
-
-		uint32_t pre_uvidxs_size = uvidxs.size();
-		uvidxs.resize(pre_uvidxs_size + 36);
-		memcpy(uvidxs.data() + pre_uvidxs_size, cube_idxs.data(), sizeof(uint32_t) * 36);
-
-		uint32_t pre_positions_size = positions.size();
-		positions.resize(pre_positions_size + 36);
-		memcpy(positions.data() + pre_positions_size, cube_positions.data(), sizeof(glm::vec3) * 36);
-
-		uint32_t pre_normals_size = normals.size();
-		normals.resize(pre_normals_size + 36);
-		memcpy(normals.data() + pre_normals_size, cube_normals.data(), sizeof(glm::vec3) * 36);
-
-		uint32_t pre_texcoords_size = texcoords.size();
-		texcoords.resize(pre_texcoords_size + 36);
-		memcpy(texcoords.data() + pre_texcoords_size, cube_texcoords.data(), sizeof(glm::vec2) * 36);
-
-		GeometryData &cube_data = geometries[geometries.size() - 1];
-		BottomBVHBuilder MeshBuilder(triangles.data() + cube_data.tri_mesh.triangle_offset,
-			cube_data.tri_mesh.triangle_count,
-			positions.data() + cube_data.tri_mesh.position_offset,
-			vidxs.data() + cube_data.tri_mesh.vidx_offset);
-		auto m_bottom_nodes = MeshBuilder.BuildMeshBVH(&bottom_BVH_time);
-
-		cube_data.tri_mesh.bottom_node_offset = (uint32_t)bottom_nodes.size();
-		cube_data.tri_mesh.bottom_node_count = (uint32_t)m_bottom_nodes.size();
-		bottom_nodes.insert(bottom_nodes.end(), m_bottom_nodes.begin(), m_bottom_nodes.end());
-
-		AddSceneFlag(SCENECHANGE_FLAG::GEOMETRY_ADD);
-		return (uint32_t)geometries.size() - 1;
-	}
-	inline uint32_t SceneManager::AddSphere(const std::string &name, float radius)
-	{
-		GeometryData sphere;
-		sphere.geometry_type = GEOMETRY_TYPE::SPHERE;
-		sphere.sphere.radius = radius;
-
-		// add sphere
-		geometries.push_back(sphere);
+		geometries.push_back(geometry);
 		// add its counter to 0
 		geometry_reference_counters.push_back(0);
 		// add its name, now only for display
@@ -999,6 +720,7 @@ namespace YumeRT
 		AddSceneFlag(SCENECHANGE_FLAG::GEOMETRY_ADD);
 		return (uint32_t)geometries.size() - 1;
 	}
+	
 	inline uint32_t SceneManager::RemoveGeometry(uint32_t geometry_idx)
 	{
 		if (geometries.empty()) { return INVALID_UINT_32; }
@@ -1027,69 +749,10 @@ namespace YumeRT
 		}
 		prim_instances.resize(head);
 
-		if (instances_are_change) 
-		{ 
-			AddSceneFlag(SCENECHANGE_FLAG::INSTANCE_REMOVE);
-		}
+		if (instances_are_change) { AddSceneFlag(SCENECHANGE_FLAG::INSTANCE_REMOVE); }
 
-		const GeometryData &geometry_to_deleted = geometries[geometry_idx];
-		if (geometry_to_deleted.geometry_type == TRIANGLE_MESH)
-		{
-			for (auto& geometry : geometries)
-			{
-				if (geometry.geometry_type == TRIANGLE_MESH)
-				{
-					if (geometry.tri_mesh.triangle_offset > geometry_to_deleted.tri_mesh.triangle_offset)
-					{
-						geometry.tri_mesh.triangle_offset -= geometry_to_deleted.tri_mesh.triangle_count;
-					}
-					if (geometry.tri_mesh.bottom_node_offset > geometry_to_deleted.tri_mesh.bottom_node_offset)
-					{
-						geometry.tri_mesh.bottom_node_offset -= geometry_to_deleted.tri_mesh.bottom_node_count;
-					}
-					if (geometry.tri_mesh.vidx_offset > geometry_to_deleted.tri_mesh.vidx_offset)
-					{
-						geometry.tri_mesh.vidx_offset -= geometry_to_deleted.tri_mesh.idx_count;
-					}
-					if (geometry.tri_mesh.position_offset > geometry_to_deleted.tri_mesh.position_offset)
-					{
-						geometry.tri_mesh.position_offset -= geometry_to_deleted.tri_mesh.position_count;
-					}
-					if (geometry.tri_mesh.nidx_offset > geometry_to_deleted.tri_mesh.nidx_offset)
-					{
-						geometry.tri_mesh.nidx_offset -= geometry_to_deleted.tri_mesh.idx_count;
-					}
-					if (geometry.tri_mesh.normal_offset > geometry_to_deleted.tri_mesh.normal_offset)
-					{
-						geometry.tri_mesh.normal_offset -= geometry_to_deleted.tri_mesh.normal_count;
-					}
-					if (geometry.tri_mesh.uvidx_offset > geometry_to_deleted.tri_mesh.uvidx_offset)
-					{
-						geometry.tri_mesh.uvidx_offset -= geometry_to_deleted.tri_mesh.idx_count;
-					}
-					if (geometry.tri_mesh.texcoord_offset > geometry_to_deleted.tri_mesh.texcoord_offset)
-					{
-						geometry.tri_mesh.texcoord_offset -= geometry_to_deleted.tri_mesh.texcoord_count;
-					}
-				}
-			}
-
-			triangles.erase(triangles.begin() + geometry_to_deleted.tri_mesh.triangle_offset, triangles.begin() + geometry_to_deleted.tri_mesh.triangle_offset + geometry_to_deleted.tri_mesh.triangle_count);
-
-			bottom_nodes.erase(bottom_nodes.begin() + geometry_to_deleted.tri_mesh.bottom_node_offset, bottom_nodes.begin() + geometry_to_deleted.tri_mesh.bottom_node_offset + geometry_to_deleted.tri_mesh.bottom_node_count);
-
-			vidxs.erase(vidxs.begin() + geometry_to_deleted.tri_mesh.vidx_offset, vidxs.begin() + geometry_to_deleted.tri_mesh.vidx_offset + geometry_to_deleted.tri_mesh.idx_count);
-
-			positions.erase(positions.begin() + geometry_to_deleted.tri_mesh.position_offset, positions.begin() + geometry_to_deleted.tri_mesh.position_offset + geometry_to_deleted.tri_mesh.position_count);
-
-			nidxs.erase(nidxs.begin() + geometry_to_deleted.tri_mesh.nidx_offset, nidxs.begin() + geometry_to_deleted.tri_mesh.nidx_offset + geometry_to_deleted.tri_mesh.idx_count);
-
-			normals.erase(normals.begin() + geometry_to_deleted.tri_mesh.normal_offset, normals.begin() + geometry_to_deleted.tri_mesh.normal_offset + geometry_to_deleted.tri_mesh.normal_count);
-
-			uvidxs.erase(uvidxs.begin() + geometry_to_deleted.tri_mesh.uvidx_offset, uvidxs.begin() + geometry_to_deleted.tri_mesh.uvidx_offset + geometry_to_deleted.tri_mesh.idx_count);
-
-			texcoords.erase(texcoords.begin() + geometry_to_deleted.tri_mesh.texcoord_offset, texcoords.begin() + geometry_to_deleted.tri_mesh.texcoord_offset + geometry_to_deleted.tri_mesh.texcoord_count);
-		}
+		GeometryData &geometry_to_deleted = geometries[geometry_idx];
+		geometry_to_deleted.Destory();
 
 		// remove geometry
 		geometries.erase(geometries.begin() + geometry_idx);
@@ -1099,7 +762,6 @@ namespace YumeRT
 		AddSceneFlag(SCENECHANGE_FLAG::GEOMETRY_REMOVE);
 
 		if (geometries.empty()) { return INVALID_UINT_32; }
-
 		// give the first element back
 		return 0;
 	}
@@ -1126,7 +788,7 @@ namespace YumeRT
 		uint32_t transform_idx = prim_instances[prim_idx].transform_idx;
 		uint32_t geometry_idx = prim_instances[prim_idx].geometry_idx;
 
-		const BBox3 object_bbox = GetGeometryBound(geometries[geometry_idx], bottom_nodes.data());
+		const BBox3 object_bbox = GetGeometryBound(geometries[geometry_idx]);
 		const glm::vec3 bbox_center = BBox3Center(object_bbox);
 
 		transforms[transform_idx] = transform_states[transform_idx].GetTransformMatrix(bbox_center);
@@ -1267,7 +929,7 @@ namespace YumeRT
 		geometry_reference_counters[geometry_idx]++;
 		material_reference_counters[material_idx]++;
 
-		const BBox3 object_bbox = GetGeometryBound(geometries[geometry_idx], bottom_nodes.data());
+		const BBox3 object_bbox = GetGeometryBound(geometries[geometry_idx]);
 		const glm::vec3 bbox_center = BBox3Center(object_bbox);
 
 		transforms[transform_idx] = transform_states[transform_idx].GetTransformMatrix(bbox_center);
@@ -1510,11 +1172,12 @@ namespace YumeRT
 
 			if (geometry.geometry_type == TRIANGLE_MESH)
 			{
-				const uint32_t *mesh_vidxs = vidxs.data() + geometry.tri_mesh.vidx_offset;
-				const glm::vec3 *mesh_positions = positions.data() + geometry.tri_mesh.position_offset;
-				const Triangle *mesh_triangles = triangles.data() + geometry.tri_mesh.triangle_offset;
-
-				for (uint32_t triangle_idx = 0; triangle_idx < geometry.tri_mesh.triangle_count; ++triangle_idx)
+				const TriangleMesh &triangle_mesh = geometry.triangle_mesh;
+				const Triangle *mesh_triangles = triangle_mesh.GetTrianglesHost();
+				const uint32_t *mesh_vidxs = triangle_mesh.GetPositionIndicesHost();
+				const glm::vec3 *mesh_positions = triangle_mesh.GetPositionsHost();
+				
+				for (uint32_t triangle_idx = 0; triangle_idx < triangle_mesh.triangle_count; ++triangle_idx)
 				{
 					const Triangle &triangle = mesh_triangles[triangle_idx];
 

@@ -60,12 +60,7 @@ namespace YumeRT
 		float b = 2.0f * (ray_direction.x * ray_origin.x + ray_direction.y * ray_origin.y + ray_direction.z * ray_origin.z);
 		float c = ray_origin.x * ray_origin.x + ray_origin.y * ray_origin.y + ray_origin.z * ray_origin.z - sphere_radius * sphere_radius;
 		float discriminator = b * b - 4.0f * a * c;
-		float t = 0.f;
-
-		if (discriminator < 0)
-		{
-			return false;
-		}
+		if (discriminator < 0) { return false; }
 
 		float sqrt_discriminator = glm::sqrt(discriminator);
 		*t0 = (-b - sqrt_discriminator) / (2.0 * a);
@@ -103,12 +98,13 @@ namespace YumeRT
 			const glm::mat4 &otw = scene.transforms[prim.transform_idx];
 			const glm::mat4 &wto = scene.i_transforms[prim.transform_idx];
 
-		
 			if (geometry.geometry_type == TRIANGLE_MESH)
 			{
-				const glm::vec3 *mesh_positions = scene.positions + geometry.tri_mesh.position_offset;
-				const uint32_t *mesh_vidxs = scene.vidxs + geometry.tri_mesh.vidx_offset;
-				const Triangle *mesh_triangles = scene.triangles + geometry.tri_mesh.triangle_offset;
+				const TriangleMesh &triangle_mesh = geometry.triangle_mesh;
+				assert(triangle_mesh != nullptr);
+				const Triangle *mesh_triangles = triangle_mesh.GetTrianglesDevice();
+				const uint32_t *mesh_vidxs = triangle_mesh.GetPositionIndicesDevice();
+				const glm::vec3 *mesh_positions = triangle_mesh.GetPositionsDevice();
 
 				const Triangle &triangle = mesh_triangles[triangle_idx];
 
@@ -132,8 +128,8 @@ namespace YumeRT
 					return glm::vec3(0.0f);
 				}
 
-				const glm::vec3 *mesh_normals = scene.normals + geometry.tri_mesh.normal_offset;
-				const uint32_t *mesh_nidxs = scene.nidxs + geometry.tri_mesh.nidx_offset;
+				const uint32_t *mesh_nidxs = triangle_mesh.GetNormalIndicesDevice();
+				const glm::vec3 *mesh_normals = triangle_mesh.GetNormalsDevice();
 
 				uint32_t nid0 = mesh_nidxs[triangle.id0];
 				uint32_t nid1 = mesh_nidxs[triangle.id1];
@@ -226,9 +222,11 @@ namespace YumeRT
 			{
 				// TODO: fix bug
 				// TODO: is noisy
-				const glm::vec3 *mesh_positions = scene.positions + geometry.tri_mesh.position_offset;
-				const uint32_t *mesh_vidxs = scene.vidxs + geometry.tri_mesh.vidx_offset;
-				const Triangle *mesh_triangles = scene.triangles + geometry.tri_mesh.triangle_offset;
+				const TriangleMesh &triangle_mesh = geometry.triangle_mesh;
+				assert(triangle_mesh != nullptr);
+				const Triangle *mesh_triangles = triangle_mesh.GetTrianglesDevice();
+				const uint32_t *mesh_vidxs = triangle_mesh.GetPositionIndicesDevice();
+				const glm::vec3 *mesh_positions = triangle_mesh.GetPositionsDevice();
 
 				const Triangle &triangle = mesh_triangles[triangle_idx];
 				
@@ -241,9 +239,9 @@ namespace YumeRT
 				const glm::vec3 &p2 = mesh_positions[vid2];
 				const glm::vec3 geo_normal = glm::cross(p1 - p0, p2 - p0);
 
-				const glm::vec3 *mesh_normals = scene.normals + geometry.tri_mesh.normal_offset;
-				const uint32_t *mesh_nidxs = scene.nidxs + geometry.tri_mesh.nidx_offset;
-
+				const uint32_t *mesh_nidxs = triangle_mesh.GetNormalIndicesDevice();
+				const glm::vec3 *mesh_normals = triangle_mesh.GetNormalsDevice();
+				
 				uint32_t nid0 = mesh_nidxs[triangle.id0];
 				uint32_t nid1 = mesh_nidxs[triangle.id1];
 				uint32_t nid2 = mesh_nidxs[triangle.id2];

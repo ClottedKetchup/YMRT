@@ -6,37 +6,35 @@
 #include "SceneDefines.h"
 #include "BoundingBox.h"
 #include "MathCommon.h"
-#include "Ray.h"
 #include "BottomBVH.h"
 
 namespace YumeRT 
 {
-	__device__ __host__ inline  BBox3 GetMeshObjectBound(const GeometryData &geometry, const BottomNode *bottom_nodes)
+	__host__ inline  BBox3 GetMeshObjectBound(const TriangleMesh &triangle_mesh)
 	{
-		assert(bottom_nodes != nullptr);
-		return (bottom_nodes + geometry.tri_mesh.bottom_node_offset)[0].bbox;
+		BBox3 *p_bbox = triangle_mesh.GetBoundingBoxHost();
+		return p_bbox != nullptr ? *p_bbox : BBox3();
 	}
 
-	__device__ __host__ inline  BBox3 GetSphereObjectBound(const GeometryData &geometry, const BottomNode *bottom_nodes)
+	__host__ inline  BBox3 GetSphereObjectBound(const Sphere &sphere)
 	{
-		float radius = geometry.sphere.radius;
 		BBox3 result_bbox;
-		result_bbox.p_min = glm::vec3(-radius);
-		result_bbox.p_max = glm::vec3(radius);
+		result_bbox.p_min = glm::vec3(-sphere.radius);
+		result_bbox.p_max = glm::vec3(sphere.radius);
 		return BoundFix(result_bbox);
 	}
 
-	__device__ __host__ inline  BBox3 GetGeometryBound(const GeometryData &geometry, const BottomNode *bottom_nodes)
+	__host__ inline  BBox3 GetGeometryBound(const GeometryData &geometry)
 	{
 		uint32_t geo_type = geometry.geometry_type;
 		BBox3 object_bbox;
 		if (geo_type == GEOMETRY_TYPE::TRIANGLE_MESH)
 		{
-			object_bbox = GetMeshObjectBound(geometry, bottom_nodes);
+			object_bbox = GetMeshObjectBound(geometry.triangle_mesh);
 		}
 		else if (geo_type == GEOMETRY_TYPE::SPHERE)
 		{
-			object_bbox = GetSphereObjectBound(geometry, bottom_nodes);
+			object_bbox = GetSphereObjectBound(geometry.sphere);
 		}
 		else 
 		{
@@ -46,64 +44,31 @@ namespace YumeRT
 		return object_bbox;
 	}
 
-	__device__ __host__ inline  glm::vec3 GetMeshObjectCenter(const GeometryData &geometry, const BottomNode *bottom_nodes)
+	__host__ inline  glm::vec3 GetMeshObjectCenter(const TriangleMesh &triangle_mesh)
 	{
-		assert(bottom_nodes != nullptr);
-		return BBox3Center((bottom_nodes + geometry.tri_mesh.bottom_node_offset)[0].bbox);
+		BBox3 *p_bbox = triangle_mesh.GetBoundingBoxHost();
+		return BBox3Center(p_bbox != nullptr ? *p_bbox : BBox3());
 	}
 
-	__device__ __host__ inline  glm::vec3 GetSphereObjectCenter(const GeometryData &geometry, const BottomNode *bottom_nodes)
+	__host__ inline  glm::vec3 GetSphereObjectCenter(const Sphere &sphere)
 	{
 		return glm::vec3(0.f);
 	}
 
-	__device__ __host__ inline  glm::vec3 GetGeometryCenter(const GeometryData &geometry, const BottomNode *bottom_nodes /* global data buffer */)
+	__host__ inline  glm::vec3 GetGeometryCenter(const GeometryData &geometry)
 	{
 		uint32_t geo_type = geometry.geometry_type;
 		if (geo_type == GEOMETRY_TYPE::TRIANGLE_MESH)
 		{
-			return GetMeshObjectCenter(geometry, bottom_nodes);
+			return GetMeshObjectCenter(geometry.triangle_mesh);
 		}
 		else if (geo_type == GEOMETRY_TYPE::SPHERE)
 		{
-			return GetSphereObjectCenter(geometry, bottom_nodes);
+			return GetSphereObjectCenter(geometry.sphere);
 		}
 		else 
 		{
 			return glm::vec3(0.0f);
 		}
 	}
-
-	__device__ __host__ inline  BBox3 GetTriBound(const Triangle &triangle, const glm::vec3 *mesh_positions, const uint32_t *mesh_vidxs)
-	{
-		BBox3 bbox;
-		uint32_t vid0 = mesh_vidxs[triangle.id0];
-		uint32_t vid1 = mesh_vidxs[triangle.id1];
-		uint32_t vid2 = mesh_vidxs[triangle.id2];
-
-		const glm::vec3 &p0 = mesh_positions[vid0];
-		const glm::vec3 &p1 = mesh_positions[vid1];
-		const glm::vec3 &p2 = mesh_positions[vid2];
-
-		bbox = BBox3Extend(bbox, p0);
-		bbox = BBox3Extend(bbox, p1);
-		bbox = BBox3Extend(bbox, p2);
-
-		bbox = BoundFix(bbox);
-		return bbox;
-	}
-
-	__device__ __host__ inline glm::vec3 GetTriCenter(const Triangle &triangle, const glm::vec3 *mesh_positions, const uint32_t *mesh_vidxs)
-	{
-		uint32_t vid0 = mesh_vidxs[triangle.id0];
-		uint32_t vid1 = mesh_vidxs[triangle.id1];
-		uint32_t vid2 = mesh_vidxs[triangle.id2];
-
-		const glm::vec3 &p0 = mesh_positions[vid0];
-		const glm::vec3 &p1 = mesh_positions[vid1];
-		const glm::vec3 &p2 = mesh_positions[vid2];
-		return (p0 + p1 + p2) / 3.f;
-	}
-
-	
 };

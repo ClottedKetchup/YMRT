@@ -48,9 +48,8 @@ namespace YumeRT
 		__host__ inline TopBVHBuilder(PrimitiveInstance *prim_instances,
 			uint32_t prim_instance_count,
 			glm::mat4 *transforms,
-			GeometryData *geometries,
-			BottomNode *bottom_nodes)
-			:prim_instances(prim_instances), prim_instance_count(prim_instance_count), transforms(transforms), geometries(geometries), bottom_nodes(bottom_nodes) {}
+			GeometryData *geometries)
+			:prim_instances(prim_instances), prim_instance_count(prim_instance_count), transforms(transforms), geometries(geometries){}
 
 		__host__  uint32_t BuildSceneBVH(std::vector<TopNode> &top_nodes, float *time);
 	private:
@@ -58,7 +57,6 @@ namespace YumeRT
 		uint32_t prim_instance_count;
 		glm::mat4 *transforms;
 		GeometryData *geometries;
-		BottomNode *bottom_nodes;
 	};
 
 	struct ACCluster
@@ -84,9 +82,8 @@ namespace YumeRT
 		__host__ inline ACBVHBuilder(PrimitiveInstance *prim_instances,
 			uint32_t prim_instance_count,
 			glm::mat4 *transforms,
-			GeometryData *geometries,
-			BottomNode *bottom_nodes)
-			:prim_instances(prim_instances), prim_instance_count(prim_instance_count), transforms(transforms), geometries(geometries), bottom_nodes(bottom_nodes) {}
+			GeometryData *geometries)
+			:prim_instances(prim_instances), prim_instance_count(prim_instance_count), transforms(transforms), geometries(geometries){}
 
 		__host__  uint32_t BuildSceneBVH(std::vector<TopNode> &top_nodes, float *time, uint32_t *highlight_prim_idx = nullptr);
 	private:
@@ -94,7 +91,6 @@ namespace YumeRT
 		uint32_t prim_instance_count;
 		glm::mat4 *transforms;
 		GeometryData *geometries;
-		BottomNode *bottom_nodes;
 
 		__host__ uint32_t FindBestMatch(const std::vector<ACCluster> &clusters,
 			const std::vector<RawTopNode> &raw_nodes,

@@ -7,7 +7,7 @@
 
 void TestScene_CornellBox(std::shared_ptr<YumeRT::SceneManager> scene_manager, int screen_width, int screen_height)
 {
-	YumeRT::Geometry test_geo;
+	YumeRT::GeometryData test_geo;
 	test_geo.InitCube();
 	YumeRT::Triangle *triangles = test_geo.triangle_mesh.GetTrianglesHost();
 	uint32_t *position_indices = test_geo.triangle_mesh.GetPositionIndicesHost();
@@ -19,7 +19,8 @@ void TestScene_CornellBox(std::shared_ptr<YumeRT::SceneManager> scene_manager, i
 	YumeRT::BottomNode *bottom_nodes = test_geo.triangle_mesh.GetNodesHost();
 	test_geo.Destory();
 
-	uint32_t cube_idx = scene_manager->AddQube("Cube"), sphere_idx = scene_manager->AddSphere("Sphere", 1.0f);
+	uint32_t cube_idx = scene_manager->AddGeometry("Cube", YumeRT::GeometryData().InitCube()), 
+		sphere_idx = scene_manager->AddGeometry("Sphere", YumeRT::GeometryData().InitSphere(1.0f));
 	const uint32_t fog_tex_black = scene_manager->AddTexture("fog_tex_black", YumeRT::Texture().InitConstantTextureRGB(glm::vec3(0.04f)));
 	const uint32_t fog_tex_white = scene_manager->AddTexture("fog_tex_white", YumeRT::Texture().InitConstantTextureRGB(glm::vec3(0.96f)));
 	const uint32_t fog_tex = scene_manager->AddTexture("fog_tex", YumeRT::Texture().InitNoiseTextureTurbulence(fog_tex_black, fog_tex_white));

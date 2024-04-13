@@ -1,5 +1,5 @@
 #include "BottomBVH.h"
-#include "GeometryUtilities.h"
+#include "TriangleDefines.h"
 
 namespace YumeRT
 {

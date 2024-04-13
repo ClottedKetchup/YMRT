@@ -516,7 +516,7 @@ namespace YumeRT
 			ImGui::InputText("Cube Name", geometry_name_buf, 32);
 			if (ImGui::Button("Create Cube", ImGui::GetItemRectSize()))
 			{
-				scene_manager->AddQube(std::string(geometry_name_buf));
+				scene_manager->AddGeometry(std::string(geometry_name_buf), GeometryData().InitCube());
 			}
 		}
 		else if (selected_geometry_type == 1) // create a sphere
@@ -530,7 +530,7 @@ namespace YumeRT
 
 			if (ImGui::Button("Create Sphere", ImGui::GetItemRectSize()))
 			{
-				scene_manager->AddSphere(std::string(geometry_name_buf), sphere_radius);
+				 scene_manager->AddGeometry(std::string(geometry_name_buf), GeometryData().InitSphere(sphere_radius));
 			}
 		}
 		ImGui::Separator();

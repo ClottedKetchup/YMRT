@@ -104,12 +104,9 @@ namespace YumeRT
 		return true;
 	}
 
-	__device__ __host__  inline bool IntersectMeshObject(const GeometryData &geometry, const Scene &scene, const Ray &ray, HitRecord *hit_record, bool test_any_hit)
+	__device__ __host__  inline bool IntersectMeshObject(const TriangleMesh &triangle_mesh, const Ray &ray, HitRecord *hit_record, bool test_any_hit)
 	{
-		if (geometry.tri_mesh.bottom_node_count == 0 || scene.bottom_nodes == nullptr)
-		{
-			return false;
-		}
+		if (triangle_mesh.GetNodesDevice() == nullptr) { return false; }
 
 		const uint32_t stack_size = 32;
 		uint32_t root_idx = 0;
@@ -117,10 +114,11 @@ namespace YumeRT
 		uint32_t stack[stack_size];
 		int p_top = -1;
 
-		const uint32_t *vidxs = scene.vidxs + geometry.tri_mesh.vidx_offset;
-		const glm::vec3 *positions = scene.positions + geometry.tri_mesh.position_offset;
-		const Triangle *triangles = scene.triangles + geometry.tri_mesh.triangle_offset;
-		const BottomNode *bottom_nodes = scene.bottom_nodes + geometry.tri_mesh.bottom_node_offset;
+		const Triangle *triangles = triangle_mesh.GetTrianglesDevice();
+		const uint32_t *vidxs = triangle_mesh.GetPositionIndicesDevice();
+		const glm::vec3 *positions = triangle_mesh.GetPositionsDevice();
+		const BottomNode *bottom_nodes = triangle_mesh.GetNodesDevice();
+		if (triangles == nullptr || vidxs == nullptr || positions == nullptr || bottom_nodes == nullptr) { return false; }
 
 		float t = 0.0f;
 		bool hit = false;
@@ -174,9 +172,9 @@ namespace YumeRT
 		return hit;
 	}
 
-	__device__ __host__  inline bool IntersectSphereObject(const GeometryData &geometry, const Scene &scene, const Ray &ray, HitRecord *hit_record, bool test_any_hit)
+	__device__ __host__  inline bool IntersectSphereObject(const Sphere &sphere, const Ray &ray, HitRecord *hit_record, bool test_any_hit)
 	{
-		float radius = geometry.sphere.radius;
+		float radius = sphere.radius;
 
 		const glm::vec3 &ray_o = ray.origin;
 		const glm::vec3 &ray_d = ray.direction;
@@ -229,11 +227,11 @@ namespace YumeRT
 		uint32_t geo_type = geometry.geometry_type;
 		if (geo_type == GEOMETRY_TYPE::TRIANGLE_MESH)
 		{
-			return IntersectMeshObject(geometry, scene, ray, hit_record, test_any_hit);
+			return IntersectMeshObject(geometry.triangle_mesh, ray, hit_record, test_any_hit);
 		}
 		else if (geo_type == GEOMETRY_TYPE::SPHERE)
 		{
-			return IntersectSphereObject(geometry, scene, ray, hit_record, test_any_hit);
+			return IntersectSphereObject(geometry.sphere, ray, hit_record, test_any_hit);
 		}
 		else
 		{
@@ -457,9 +455,9 @@ namespace YumeRT
 																					 glm::vec3 *hit_dpdu,
 																					 glm::vec3 *hit_dpdv)
 	{
-		const GeometryData &hit_sphere = scene.geometries[hit_instance.geometry_idx];
+		const Sphere &hit_sphere = scene.geometries[hit_instance.geometry_idx].sphere;
 
-		float radius = glm::max(hit_sphere.sphere.radius, 1E-8f);
+		float radius = glm::max(hit_sphere.radius, 1E-8f);
 
 		glm::vec3 position_object = hit_record.hit_barycentric;
 		glm::vec3 normal_object = hit_record.hit_barycentric / radius;
@@ -505,14 +503,14 @@ namespace YumeRT
 																				   glm::vec3 *hit_dpdu,
 																				   glm::vec3 *hit_dpdv)
 	{
-		const GeometryData &hit_mesh = scene.geometries[hit_instance.geometry_idx];
+		const TriangleMesh &hit_mesh = scene.geometries[hit_instance.geometry_idx].triangle_mesh;
 		
-		const glm::vec3 *mesh_positions = scene.positions + hit_mesh.tri_mesh.position_offset;
-		const glm::vec3 *mesh_normals = scene.normals + hit_mesh.tri_mesh.normal_offset;
-		const uint32_t *mesh_vidxs = scene.vidxs + hit_mesh.tri_mesh.vidx_offset;
-		const uint32_t *mesh_nidxs = scene.nidxs + hit_mesh.tri_mesh.nidx_offset;
+		const glm::vec3 *mesh_positions = hit_mesh.GetPositionsDevice();
+		const glm::vec3 *mesh_normals = hit_mesh.GetNormalsDevice();
+		const uint32_t *mesh_vidxs = hit_mesh.GetPositionIndicesDevice();
+		const uint32_t *mesh_nidxs = hit_mesh.GetNormalIndicesDevice();
 
-		const Triangle *mesh_triangles = scene.triangles + hit_mesh.tri_mesh.triangle_offset;
+		const Triangle *mesh_triangles = hit_mesh.GetTrianglesDevice();
 		const Triangle &triangle = mesh_triangles[hit_record.hit_triangle_idx];
 		
 		uint32_t vid0 = mesh_vidxs[triangle.id0];
@@ -540,12 +538,10 @@ namespace YumeRT
 																   + n2 * hit_record.hit_barycentric.z;
 		*hit_geometry_normal = glm::cross(p1 - p0, p2 - p0);
 
-		bool has_custom_uv = (hit_mesh.tri_mesh.texcoord_count > 0);
+		bool has_custom_uv = (hit_mesh.GetTexcoordsDevice() != nullptr && hit_mesh.GetTexcoordIndicesDevice() != nullptr);
 
-		const uint32_t *mesh_uvidxs = has_custom_uv?
-			(scene.uvidxs + hit_mesh.tri_mesh.uvidx_offset) : nullptr;
-		const glm::vec2 *mesh_texcoords = has_custom_uv ?
-			(scene.texcoords + hit_mesh.tri_mesh.texcoord_offset) : nullptr;
+		const uint32_t *mesh_uvidxs = has_custom_uv? hit_mesh.GetTexcoordIndicesDevice() : nullptr;
+		const glm::vec2 *mesh_texcoords = has_custom_uv ? hit_mesh.GetTexcoordsDevice() : nullptr;
 		
 		uint32_t uvid0 = has_custom_uv ? mesh_uvidxs[triangle.id0] : vid0;
 		uint32_t uvid1 = has_custom_uv ? mesh_uvidxs[triangle.id1] : vid1;
@@ -651,12 +647,10 @@ namespace YumeRT
 																								glm::vec3 *hit_position, 
 																								glm::vec3 *hit_geometry_normal)
 	{
-		const GeometryData &hit_sphere = scene.geometries[hit_instance.geometry_idx];
-
-		float radius = glm::max(hit_sphere.sphere.radius, 1E-8f);
+		const Sphere &hit_sphere = scene.geometries[hit_instance.geometry_idx].sphere;
+		float radius = glm::max(hit_sphere.radius, 1E-8f);
 
 		*hit_position = hit_record.hit_barycentric;
-
 		*hit_geometry_normal = hit_record.hit_barycentric / radius;
 	}
 
@@ -666,12 +660,12 @@ namespace YumeRT
 																								glm::vec3 *hit_position,
 																								glm::vec3 *hit_geometry_normal)
 	{
-		const GeometryData &hit_mesh = scene.geometries[hit_instance.geometry_idx];
+		const TriangleMesh &hit_mesh = scene.geometries[hit_instance.geometry_idx].triangle_mesh;
 
-		const glm::vec3 *mesh_positions = scene.positions + hit_mesh.tri_mesh.position_offset;
-		const uint32_t *mesh_vidxs = scene.vidxs + hit_mesh.tri_mesh.vidx_offset;
+		const glm::vec3 *mesh_positions = hit_mesh.GetPositionsDevice();
+		const uint32_t *mesh_vidxs = hit_mesh.GetPositionIndicesDevice();
 
-		const Triangle *mesh_triangles = scene.triangles + hit_mesh.tri_mesh.triangle_offset;
+		const Triangle *mesh_triangles = hit_mesh.GetTrianglesDevice();
 		const Triangle &triangle = mesh_triangles[hit_record.hit_triangle_idx];
 
 		uint32_t vid0 = mesh_vidxs[triangle.id0];

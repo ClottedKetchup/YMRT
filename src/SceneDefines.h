@@ -10,10 +10,6 @@ namespace YumeRT
 
 	struct PrimitiveInstance;
 
-	struct Triangle;
-
-	struct BottomNode;
-
 	struct TopNode;
 
 	struct Material;
@@ -31,25 +27,11 @@ namespace YumeRT
 	{
 		Camera *camera = nullptr;
 
-		uint32_t *vidxs = nullptr;
-		glm::vec3 *positions = nullptr;
-
-		uint32_t *nidxs = nullptr;
-		glm::vec3 *normals = nullptr;
-
-		uint32_t *uvidxs = nullptr;
-		glm::vec2 *texcoords = nullptr;
-
-		Triangle *triangles = nullptr;
-
 		uint32_t geometry_count = 0;
 		GeometryData *geometries = nullptr;
 
 		uint32_t prim_instance_count = 0;
 		PrimitiveInstance *prim_instances = nullptr;
-
-		uint32_t bottom_node_count = 0;
-		BottomNode *bottom_nodes = nullptr;
 
 		uint32_t top_node_count = 0;
 		TopNode *top_nodes = nullptr;

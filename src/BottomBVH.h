@@ -12,6 +12,7 @@
 
 namespace YumeRT 
 {
+	struct Triangle;
 	struct RawBottomNode
 	{
 		BBox3 bbox;

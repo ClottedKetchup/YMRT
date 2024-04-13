@@ -41,7 +41,7 @@ namespace YumeRT
 				prim_instance_infos[i].idx = i;
 				const glm::mat4 &transform = transforms[prim_instances[i].transform_idx];
 				const GeometryData &geometry = geometries[prim_instances[i].geometry_idx];
-				prim_instance_infos[i].bbox = BBox3Transform(GetGeometryBound(geometry, bottom_nodes), transform);
+				prim_instance_infos[i].bbox = BBox3Transform(GetGeometryBound(geometry), transform);
 			});
 
 		std::vector<bool> use_mid_split(2 * prim_instance_count - 1, false);
@@ -217,7 +217,7 @@ namespace YumeRT
 				const glm::mat4 &transform = transforms[prim_instances[i].transform_idx];
 				const GeometryData &geometry = geometries[prim_instances[i].geometry_idx];
 
-				raw_nodes[i].bbox = BBox3Transform(GetGeometryBound(geometry, bottom_nodes), transform);
+				raw_nodes[i].bbox = BBox3Transform(GetGeometryBound(geometry), transform);
 				raw_nodes[i].left = raw_nodes[i].right = INVALID_UINT_32;
 				raw_nodes[i].offset = i;
 				raw_nodes[i].count = 1;

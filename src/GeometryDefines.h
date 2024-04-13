@@ -3,55 +3,16 @@
 #include "Helper.h"
 #include "MathCommon.h"
 #include "BottomBVH.h"
+#include "TriangleDefines.h"
 
 namespace YumeRT
 {
-	struct Triangle
-	{
-		uint32_t id0, id1, id2;
-	};
 	enum GEOMETRY_TYPE
 	{
 		TRIANGLE_MESH = 0,
 		SPHERE = 1
 	};
-#pragma pack(push, 16)
-	struct GeometryData
-	{
-		uint32_t geometry_type;
-		uint32_t padding;
-		union
-		{
-			struct
-			{
-				uint32_t triangle_count;
-				uint32_t triangle_offset;
-				uint32_t bottom_node_count;
-				uint32_t bottom_node_offset;
 
-				uint32_t idx_count;
-
-				uint32_t vidx_offset;
-				uint32_t position_count;
-				uint32_t position_offset;
-
-				uint32_t nidx_offset;
-				uint32_t normal_count;
-				uint32_t normal_offset;
-
-				uint32_t uvidx_offset;
-				uint32_t texcoord_count;
-				uint32_t texcoord_offset;
-			}tri_mesh;
-			struct
-			{
-				float radius;
-				float theta_min, theta_max;
-				float phi_min, phi_max;
-			}sphere;
-		};
-	};
-#pragma pack(pop)
 
 	struct TriangleMesh 
 	{
@@ -67,6 +28,7 @@ namespace YumeRT
 		int64_t texcoord_idx_offset;
 		int64_t texcoord_offset; // vec2
 		int64_t node_offset; // node
+		int64_t boundingbox_offset;
 		
 		__device__ __host__ inline TriangleMesh() : device_data_ptr(nullptr), host_data_ptr(nullptr),
 			data_size(0),
@@ -78,7 +40,8 @@ namespace YumeRT
 			normal_offset(-1),
 			texcoord_idx_offset(-1),
 			texcoord_offset(-1),
-			node_offset(-1) {}
+			node_offset(-1), 
+			boundingbox_offset(-1){}
 		__device__ __host__ inline Triangle* GetTrianglesDevice() const 
 		{
 			return  device_data_ptr != nullptr && triangle_offset != -1 ? (Triangle*)(device_data_ptr + triangle_offset) : nullptr;
@@ -110,6 +73,10 @@ namespace YumeRT
 		__device__ __host__ inline BottomNode* GetNodesDevice() const 
 		{
 			return  device_data_ptr != nullptr && node_offset != -1 ? (BottomNode*)(device_data_ptr + node_offset) : nullptr;
+		}
+		__device__ __host__ inline BBox3* GetBoundingBoxDevice() const 
+		{
+			return  device_data_ptr != nullptr && boundingbox_offset != -1 ? (BBox3*)(device_data_ptr + boundingbox_offset) : nullptr;
 		}
 
 		__device__ __host__ inline Triangle* GetTrianglesHost() const
@@ -144,15 +111,19 @@ namespace YumeRT
 		{
 			return  host_data_ptr != nullptr && node_offset != -1 ? (BottomNode*)(host_data_ptr + node_offset) : nullptr;
 		}
+		__device__ __host__ inline BBox3* GetBoundingBoxHost() const
+		{
+			return  host_data_ptr != nullptr && boundingbox_offset != -1 ? (BBox3*)(host_data_ptr + boundingbox_offset) : nullptr;
+		}
 		
 		__host__ inline void Destory() 
 		{
 			FREE_GPU_RESOURCE(device_data_ptr);
-			_aligned_free(host_data_ptr);
+			if (host_data_ptr != nullptr) { _aligned_free(host_data_ptr); }
 		}
 		__host__ inline void Upload() 
 		{
-			UPLOAD_TO_GPU(device_data_ptr, host_data_ptr, data_size);
+			if (device_data_ptr == nullptr) { UPLOAD_TO_GPU(device_data_ptr, host_data_ptr, data_size); }
 		}
 	};
 	struct Sphere 
@@ -163,7 +134,7 @@ namespace YumeRT
 
 		__device__ __host__ inline Sphere(): radius(1.0f) {}
 	};
-	struct Geometry 
+	struct GeometryData 
 	{
 		uint32_t geometry_type;
 		union 
@@ -172,11 +143,11 @@ namespace YumeRT
 			Sphere sphere;
 		};
 
-		__device__ __host__ inline Geometry() 
+		__device__ __host__ inline GeometryData()
 		{
 			
 		}
-		__host__ inline Geometry& InitCube() 
+		__host__ inline GeometryData& InitCube()
 		{
 			geometry_type = GEOMETRY_TYPE::TRIANGLE_MESH;
 
@@ -391,13 +362,16 @@ namespace YumeRT
 			std::vector<BottomNode> bottom_nodes = MeshBuilder.BuildMeshBVH();
 			triangle_mesh.node_offset = append_to_buffer(bottom_nodes.data(), sizeof(BottomNode) * bottom_nodes.size());
 
+			const BBox3 bounding_box = bottom_nodes.front().bbox;
+			triangle_mesh.boundingbox_offset = append_to_buffer(&bounding_box, sizeof(BBox3));
+
 			triangle_mesh.host_data_ptr = (uint8_t*)(_aligned_malloc(sizeof(uint8_t) * geometry_data_buffer.size(), 16));
 			memcpy(triangle_mesh.host_data_ptr, geometry_data_buffer.data(), sizeof(uint8_t) * geometry_data_buffer.size());
 			
 			triangle_mesh.data_size = sizeof(uint8_t) * geometry_data_buffer.size();
 			return *this;
 		}
-		__host__ inline Geometry& InitSphere(float radius)
+		__host__ inline GeometryData& InitSphere(float radius)
 		{
 			geometry_type = GEOMETRY_TYPE::SPHERE;
 			sphere.radius = radius;
