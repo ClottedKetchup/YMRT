@@ -118,7 +118,7 @@ namespace YumeRT
 		
 		__host__ inline void Destory() 
 		{
-			FREE_GPU_RESOURCE(device_data_ptr);
+			if (device_data_ptr != nullptr) { FREE_GPU_RESOURCE(device_data_ptr); }
 			if (host_data_ptr != nullptr) { _aligned_free(host_data_ptr); }
 		}
 		__host__ inline void Upload() 
@@ -150,6 +150,20 @@ namespace YumeRT
 		__host__ inline GeometryData& InitCube()
 		{
 			geometry_type = GEOMETRY_TYPE::TRIANGLE_MESH;
+
+			triangle_mesh.device_data_ptr = nullptr;
+			triangle_mesh.host_data_ptr = nullptr;
+			triangle_mesh.data_size = 0;
+			triangle_mesh.triangle_count = -1;
+			triangle_mesh.triangle_offset = -1;
+			triangle_mesh.position_idx_offset = -1;
+			triangle_mesh.position_offset = -1;
+			triangle_mesh.normal_idx_offset = -1;
+			triangle_mesh.normal_offset = -1;
+			triangle_mesh.texcoord_idx_offset = -1;
+			triangle_mesh.texcoord_offset = -1;
+			triangle_mesh.node_offset = -1;
+			triangle_mesh.boundingbox_offset = -1;
 
 			std::vector<uint8_t> geometry_data_buffer;
 			auto append_to_buffer = [&](const void *data, size_t data_size)->size_t 

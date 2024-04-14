@@ -91,30 +91,24 @@ namespace YumeRT
 	class Renderer 
 	{
 	public:
-		static inline std::shared_ptr<Renderer> GetInstance()
-		{
-			static std::shared_ptr<Renderer> ptr(new Renderer());
-			return ptr;
-		}
 
 		inline Renderer(const Renderer&) = delete;
 		inline Renderer(const Renderer&&) = delete;
 		inline Renderer& operator=(const Renderer&) = delete;
-		inline ~Renderer() {}
-
-		inline void Init()
+		inline Renderer() 
 		{
-			resource_names = 
-			{
-				"Beauty",
-				"Accumulate"
-			};
-
+			printf("Renderer module init...\n");
+			resource_names = { "Beauty","Accumulate" };
 			image_resources.resize(resource_names.size());
 			for (uint32_t aov_idx = 0; aov_idx < (uint32_t)image_resources.size(); ++aov_idx)
 			{
 				resource_map[resource_names[aov_idx]] = aov_idx;
 			}
+		}
+		inline ~Renderer() 
+		{
+			printf("Renderer module exit...\n");
+			DestroyResources();
 		}
 
 		// scene should be accompanied with some scene flag
@@ -252,8 +246,6 @@ namespace YumeRT
 		RenderSetting render_setting;
 		bool disable_object_highlight = false;
 		bool render_setting_change = false;
-
-		inline Renderer() {}
 
 		inline ImageResource& GetImageResource(const std::string &aov_name)
 		{

@@ -92,22 +92,26 @@ namespace YumeRT
 		friend inline void CursorPosCallback(GLFWwindow* window, double xpos, double ypos);
 		friend inline void ScrollCallback(GLFWwindow *window, double xoffset, double yoffset);
 
-		static inline std::shared_ptr<UserInterface> GetInstance()
-		{
-			static std::shared_ptr<UserInterface> ptr(new UserInterface());
-			return ptr;
-		}
-
 		inline UserInterface(const UserInterface&) = delete;
 		inline UserInterface(const UserInterface&&) = delete;
 		inline UserInterface& operator=(const UserInterface&) = delete;
-		inline ~UserInterface() {}
-
-		inline void Init(GLFWwindow *window,
+		inline UserInterface(GLFWwindow *window,
 			uint32_t width,
 			uint32_t height,
 			std::shared_ptr<Renderer> & ptr_renderer,
-			std::shared_ptr<SceneManager> & ptr_scene_manager);
+			std::shared_ptr<SceneManager> & ptr_scene_manager) :
+			rt_renderer(ptr_renderer), scene_manager(ptr_scene_manager), m_width(width), m_height(height) 
+		{
+			printf("Gui module init...\n");
+			glfwSetWindowUserPointer(window, this);
+			SetCallBack(window);
+			InitUI(window);
+		}
+		inline ~UserInterface() 
+		{
+			printf("Gui module exit...\n");
+			DestroyResources();
+		}
 
 		inline void DestroyResources();
 
@@ -166,8 +170,6 @@ namespace YumeRT
 		bool m_show_light_menu = false;
 		bool m_show_volume_menu = false;
 		bool m_show_texture_menu = false;
-
-		inline UserInterface() {}
 
 		inline void InitUI(GLFWwindow *window);
 
@@ -284,22 +286,6 @@ namespace YumeRT
 		float fov = user_interface.trackball.camera.GetFov();
 		fov -= glm::radians(yoffset);
 		user_interface.trackball.camera.SetFov(glm::clamp(fov, glm::radians(1.0f), glm::radians(90.0f)));
-	}
-
-	inline void UserInterface::Init(GLFWwindow *window,
-		uint32_t width, 
-		uint32_t height,
-		std::shared_ptr<Renderer> & ptr_renderer,
-		std::shared_ptr<SceneManager> & ptr_scene_manager)
-	{
-		rt_renderer = ptr_renderer;
-		scene_manager = ptr_scene_manager;
-		m_width = width ;
-		m_height = height;
-
-		glfwSetWindowUserPointer(window, this);
-		SetCallBack(window);
-		InitUI(window);
 	}
 
 	inline void UserInterface::DestroyResources()

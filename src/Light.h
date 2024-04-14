@@ -101,7 +101,6 @@ namespace YumeRT
 			if (geometry.geometry_type == TRIANGLE_MESH)
 			{
 				const TriangleMesh &triangle_mesh = geometry.triangle_mesh;
-				assert(triangle_mesh != nullptr);
 				const Triangle *mesh_triangles = triangle_mesh.GetTrianglesDevice();
 				const uint32_t *mesh_vidxs = triangle_mesh.GetPositionIndicesDevice();
 				const glm::vec3 *mesh_positions = triangle_mesh.GetPositionsDevice();
@@ -223,7 +222,6 @@ namespace YumeRT
 				// TODO: fix bug
 				// TODO: is noisy
 				const TriangleMesh &triangle_mesh = geometry.triangle_mesh;
-				assert(triangle_mesh != nullptr);
 				const Triangle *mesh_triangles = triangle_mesh.GetTrianglesDevice();
 				const uint32_t *mesh_vidxs = triangle_mesh.GetPositionIndicesDevice();
 				const glm::vec3 *mesh_positions = triangle_mesh.GetPositionsDevice();
