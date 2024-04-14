@@ -91,12 +91,15 @@ namespace YumeRT
 	class Renderer 
 	{
 	public:
-		static std::shared_ptr<Renderer> GetInstance()
+		static inline std::shared_ptr<Renderer> GetInstance()
 		{
 			static std::shared_ptr<Renderer> ptr(new Renderer());
 			return ptr;
 		}
-		
+
+		inline Renderer(const Renderer&) = delete;
+		inline Renderer(const Renderer&&) = delete;
+		inline Renderer& operator=(const Renderer&) = delete;
 		inline ~Renderer() {}
 
 		inline void Init()

@@ -79,38 +79,41 @@ namespace YumeRT
 		}
 	};
 
-	void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
-	void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
-	void CursorPosCallback(GLFWwindow* window, double xpos, double ypos);
-	void ScrollCallback(GLFWwindow *window, double xoffset, double yoffset);
+	inline void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
+	inline void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
+	inline void CursorPosCallback(GLFWwindow* window, double xpos, double ypos);
+	inline void ScrollCallback(GLFWwindow *window, double xoffset, double yoffset);
 
 	class UserInterface
 	{
 	public:
-		friend void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
-		friend void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
-		friend void CursorPosCallback(GLFWwindow* window, double xpos, double ypos);
-		friend void ScrollCallback(GLFWwindow *window, double xoffset, double yoffset);
+		friend inline void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
+		friend inline void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
+		friend inline void CursorPosCallback(GLFWwindow* window, double xpos, double ypos);
+		friend inline void ScrollCallback(GLFWwindow *window, double xoffset, double yoffset);
 
-		static std::shared_ptr<UserInterface> GetInstance()
+		static inline std::shared_ptr<UserInterface> GetInstance()
 		{
 			static std::shared_ptr<UserInterface> ptr(new UserInterface());
 			return ptr;
 		}
 
-		~UserInterface() {}
+		inline UserInterface(const UserInterface&) = delete;
+		inline UserInterface(const UserInterface&&) = delete;
+		inline UserInterface& operator=(const UserInterface&) = delete;
+		inline ~UserInterface() {}
 
-		void Init(GLFWwindow *window,
+		inline void Init(GLFWwindow *window,
 			uint32_t width,
 			uint32_t height,
 			std::shared_ptr<Renderer> & ptr_renderer,
 			std::shared_ptr<SceneManager> & ptr_scene_manager);
 
-		void DestroyResources();
+		inline void DestroyResources();
 
-		void SetCallBack(GLFWwindow *window);
+		inline void SetCallBack(GLFWwindow *window);
 
-		void ProcessInput(GLFWwindow *window);
+		inline void ProcessInput(GLFWwindow *window);
 
 		inline void SetCamera(const glm::vec3 &from, const glm::vec3 &look, float fov, float aspect)
 		{
@@ -164,7 +167,7 @@ namespace YumeRT
 		bool m_show_volume_menu = false;
 		bool m_show_texture_menu = false;
 
-		UserInterface() {}
+		inline UserInterface() {}
 
 		inline void InitUI(GLFWwindow *window);
 
@@ -191,7 +194,7 @@ namespace YumeRT
 		inline void ExitUI();
 	};
 
-	void FramebufferSizeCallback(GLFWwindow* window, int width, int height)
+	inline void FramebufferSizeCallback(GLFWwindow* window, int width, int height)
 	{
 		UserInterface &user_interface = *((UserInterface*)glfwGetWindowUserPointer(window));
 
@@ -200,7 +203,7 @@ namespace YumeRT
 		user_interface.trackball.camera.SetAspectRatio(float(width) / float(height));
 	}
 
-	void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
+	inline void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 	{
 		double x_pos, y_pos;
 		glfwGetCursorPos(window, &x_pos, &y_pos);
@@ -237,7 +240,7 @@ namespace YumeRT
 		}
 	}
 
-	void CursorPosCallback(GLFWwindow * window, double xpos, double ypos)
+	inline void CursorPosCallback(GLFWwindow * window, double xpos, double ypos)
 	{
 		UserInterface &user_interface = *((UserInterface*)glfwGetWindowUserPointer(window));
 
@@ -273,7 +276,7 @@ namespace YumeRT
 		}
 	}
 
-	void ScrollCallback(GLFWwindow * window, double xoffset, double yoffset)
+	inline void ScrollCallback(GLFWwindow * window, double xoffset, double yoffset)
 	{
 		UserInterface &user_interface = *((UserInterface*)glfwGetWindowUserPointer(window));
 
@@ -283,7 +286,7 @@ namespace YumeRT
 		user_interface.trackball.camera.SetFov(glm::clamp(fov, glm::radians(1.0f), glm::radians(90.0f)));
 	}
 
-	void UserInterface::Init(GLFWwindow *window, 
+	inline void UserInterface::Init(GLFWwindow *window,
 		uint32_t width, 
 		uint32_t height,
 		std::shared_ptr<Renderer> & ptr_renderer,
@@ -299,14 +302,14 @@ namespace YumeRT
 		InitUI(window);
 	}
 
-	void UserInterface::DestroyResources()
+	inline void UserInterface::DestroyResources()
 	{
 		ExitUI();
 		rt_renderer = nullptr;
 		scene_manager = nullptr;
 	}
 
-	void UserInterface::SetCallBack(GLFWwindow *window)
+	inline void UserInterface::SetCallBack(GLFWwindow *window)
 	{
 		glfwSetFramebufferSizeCallback(window, FramebufferSizeCallback);
 		glfwSetMouseButtonCallback(window, MouseButtonCallback);
@@ -314,7 +317,7 @@ namespace YumeRT
 		glfwSetScrollCallback(window, ScrollCallback);
 	}
 
-	void UserInterface::ProcessInput(GLFWwindow * window)
+	inline void UserInterface::ProcessInput(GLFWwindow * window)
 	{
 		if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
 		{
