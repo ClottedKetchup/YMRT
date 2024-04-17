@@ -134,7 +134,7 @@ namespace YumeRT
 			bool last_frame_scene_change = scene_manager->IsSceneChange();
 			scene_manager->UpdateScene(user_interface->GetCamera(), &highlight_prim_idx);
 			user_interface->SetSelectedPrimIdx(highlight_prim_idx);
-			rt_renderer->Render(scene_manager->GetScene(), scene_manager->GetTextureManager(), last_frame_scene_change);
+			rt_renderer->Render(scene_manager->GetScene(), scene_manager->GetImageTileCache(), last_frame_scene_change);
 
 			shader.Use();
 			empty_VAO.Bind();

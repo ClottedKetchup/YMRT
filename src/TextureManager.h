@@ -7,7 +7,7 @@
 namespace YumeRT
 {
 	// should be single instance, the same as Scene
-	struct TextureManager 
+	struct ImageTileCache
 	{
 		int x;
 	};

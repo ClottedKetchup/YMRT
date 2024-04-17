@@ -36,6 +36,10 @@ target_include_directories(${EXE_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 target_include_directories(${EXE_NAME} PRIVATE "${PROJECT_SOURCE_DIR}/external/glm")
 target_include_directories(${EXE_NAME} PRIVATE "${PROJECT_SOURCE_DIR}/external/assimp-5.1.0/include")
 target_include_directories(${EXE_NAME} PRIVATE "${PROJECT_SOURCE_DIR}/external/imgui")
+target_include_directories(${EXE_NAME} PRIVATE "${PROJECT_SOURCE_DIR}/external/image_lib")
+
+
+
 
 set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 

@@ -11,6 +11,7 @@
 
 #include "Texture.h"
 #include "TextureEval.cuh"
+#include "Ray.h"
 
 namespace YumeRT
 {
@@ -447,7 +448,7 @@ namespace YumeRT
 		__device__ __host__ inline DefaultMtlBSDF() : weights{ 0.0f, 0.0f, 0.0f, 0.0f }, bsdf_count(0){}
 		__device__ __host__ inline void InitBSDFSettings(const Material &mtl,
 			const Texture *textures,
-			const TextureManager &texture_manager,
+			const ImageTileCache &Image_tile_cache,
 			const TextureCoordinate &texture_coordinate,
 			const Ray &ray_in,
 			const glm::vec3 &normal,
@@ -465,7 +466,7 @@ namespace YumeRT
 			const float specular_weight = default_mtl.specular_weight;
 			const float transmission_weight = default_mtl.transmission_weight;
 			const glm::vec3 diffuse_albedo = default_mtl.diffuse_albedo_tex != INVALID_UINT_32 ? 
-				TextureEval(textures[default_mtl.diffuse_albedo_tex], textures, texture_manager, texture_coordinate) : default_mtl.diffuse_albedo;
+				TextureEval(textures[default_mtl.diffuse_albedo_tex], textures, Image_tile_cache, texture_coordinate) : default_mtl.diffuse_albedo;
 			
 			assert(bsdf_count == 0);
 
@@ -610,7 +611,7 @@ namespace YumeRT
 		}
 		__device__ __host__ inline void InitBSDFSettings(const Material &mtl,
 			const Texture *textures,
-			const TextureManager &texture_manager,
+			const ImageTileCache &Image_tile_cache,
 			const TextureCoordinate &texture_coordinate,
 			const Ray &ray_in,
 			int hit_back,
@@ -621,7 +622,7 @@ namespace YumeRT
 			assert(material_type != INVALID_UINT_32);
 			if (material_type == DEFAULT_MTL) 
 			{
-				default_mtl_bsdf.InitBSDFSettings(mtl, textures, texture_manager, texture_coordinate, ray_in, normal, hit_back, prim_outer_ior);
+				default_mtl_bsdf.InitBSDFSettings(mtl, textures, Image_tile_cache, texture_coordinate, ray_in, normal, hit_back, prim_outer_ior);
 			}
 			else if (material_type == LIGHT_MTL)
 			{

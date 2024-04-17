@@ -53,7 +53,7 @@ namespace YumeRT
 
 	__device__ glm::vec3 EvalDistantLight(const RenderSetting &render_setting,
 																const Scene &scene, 
-																const TextureManager& texture_manager,
+																const ImageTileCache& image_tile_cache,
 																MaterialBSDF &material_bsdf,
 																const glm::vec3 &ray_direction, 
 																const PrimitiveInstance& hit_prim,
@@ -98,7 +98,7 @@ namespace YumeRT
 						shadow_ray = Ray(shadow_ray_origin, light_dir, 1.0f,
 													  front_side_light ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
 						shadow_ray.t = TMAX;
-						tr = TraceTr(scene, texture_manager, shadow_ray, sampler);
+						tr = TraceTr(scene, image_tile_cache, shadow_ray, sampler);
 					}
 
 					float mis_weight = PowerHeuristic(light_sample_pdf, light_wi_pdf);
@@ -135,7 +135,7 @@ namespace YumeRT
 							shadow_ray = Ray(shadow_ray_origin, light_dir, 1.0f,
 														  front_side_light ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
 							shadow_ray.t = TMAX;
-							tr = TraceTr(scene, texture_manager, shadow_ray, sampler);
+							tr = TraceTr(scene, image_tile_cache, shadow_ray, sampler);
 						}
 
 						float mis_weight = PowerHeuristic(bsdf_sample_pdf, bsdf_wi_pdf);
@@ -152,7 +152,7 @@ namespace YumeRT
 
 	__device__ glm::vec3 EvalVolumeDistantLight(const RenderSetting &render_setting,
 																			 const Scene &scene,
-																			 const TextureManager& texture_manager,
+																			 const ImageTileCache& image_tile_cache,
 																			 const Volume &volume,
 																			 const Ray &ray,
 																			 const glm::vec3 &volume_hit_position,
@@ -184,7 +184,7 @@ namespace YumeRT
 					// don't need ior, set it arbitrary value.
 					shadow_ray = Ray(volume_hit_position, light_dir, 1.0f, ray.volume_idx);
 					shadow_ray.t = TMAX;
-					glm::vec3 tr = TraceTr(scene, texture_manager, shadow_ray, sampler);
+					glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, sampler);
 
 					float mis_weight = PowerHeuristic(light_sample_pdf, light_wi_pdf);
 					direct_lighting += mis_weight * tr * glm::min(phase_weight, 1E16f) * glm::min(Li, glm::vec3(1E16f));
@@ -215,7 +215,7 @@ namespace YumeRT
 						// don't need ior, set it arbitrary value.
 						shadow_ray = Ray(volume_hit_position, light_dir, 1.0f, ray.volume_idx);
 						shadow_ray.t = TMAX;
-						glm::vec3 tr = TraceTr(scene, texture_manager, shadow_ray, sampler);
+						glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, sampler);
 
 						float mis_weight = PowerHeuristic(phase_sample_pdf, phase_wi_pdf);
 						direct_lighting += mis_weight * tr * glm::min(phase_weight, 1E16f) * glm::min(Li, glm::vec3(1E16f));
@@ -230,7 +230,7 @@ namespace YumeRT
 
 	__device__ glm::vec3 EvalShapeLight(const RenderSetting &render_setting,
 																const Scene &scene,
-																const TextureManager& texture_manager,
+																const ImageTileCache& image_tile_cache,
 																MaterialBSDF &material_bsdf,
 																const glm::vec3 &ray_direction,
 																const PrimitiveInstance &hit_prim,
@@ -280,7 +280,7 @@ namespace YumeRT
 						shadow_ray = Ray(shadow_ray_origin, light_dir, 1.0f, 
 													  front_side_light ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
 						shadow_ray.t = max_trace_distance;
-						tr = TraceTr(scene, texture_manager, shadow_ray, sampler);
+						tr = TraceTr(scene, image_tile_cache, shadow_ray, sampler);
 					}
 					
 					float mis_weight = PowerHeuristic(light_sample_pdf, light_wi_pdf);
@@ -322,7 +322,7 @@ namespace YumeRT
 							shadow_ray = Ray(shadow_ray_origin, light_dir, 1.0f, 
 														  front_side_light ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
 							shadow_ray.t = max_trace_distance;
-							tr = TraceTr(scene, texture_manager, shadow_ray, sampler);
+							tr = TraceTr(scene, image_tile_cache, shadow_ray, sampler);
 						}
 						
 						float mis_weight = PowerHeuristic(bsdf_sample_pdf, bsdf_wi_pdf);
@@ -338,7 +338,7 @@ namespace YumeRT
 
 	__device__ glm::vec3 EvalVolumeShapeLight(const RenderSetting &render_setting,
 																			const Scene &scene,
-																			const TextureManager& texture_manager,
+																			const ImageTileCache& image_tile_cache,
 																			const Volume &volume,
 																			const Ray &ray,
 																			const glm::vec3 &volume_hit_position, 
@@ -378,7 +378,7 @@ namespace YumeRT
 												  1.0f,
 												  ray.volume_idx);
 					shadow_ray.t = max_trace_distance;
-					glm::vec3 tr = TraceTr(scene, texture_manager, shadow_ray, sampler);
+					glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, sampler);
 					
 					float mis_weight = PowerHeuristic(light_sample_pdf, light_wi_pdf);
 					direct_lighting += mis_weight * tr * glm::min(phase_weight, 1E16f) * glm::min(Li, glm::vec3(1E16f));
@@ -415,7 +415,7 @@ namespace YumeRT
 													  1.0f,
 													  ray.volume_idx);
 						shadow_ray.t = max_trace_distance;
-						glm::vec3 tr = TraceTr(scene, texture_manager, shadow_ray, sampler);
+						glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, sampler);
 						
 						float mis_weight = PowerHeuristic(phase_sample_pdf, phase_wi_pdf);
 						direct_lighting += mis_weight * tr * glm::min(phase_weight, 1E16f) * glm::min(Li, glm::vec3(1E16f));
@@ -428,7 +428,7 @@ namespace YumeRT
 	}
 
 	__global__ void RenderImage(Scene *scene_ptr,
-													TextureManager *texture_manager_ptr,
+													ImageTileCache *image_tile_cache_ptr,
 													const RenderSetting *render_setting_ptr,
 													const HaltonEnumerator *halton_enumerator_ptr,
 													const int frame_count,
@@ -457,7 +457,7 @@ namespace YumeRT
 		uint32_t pixel_idx = py * width + px;
 		
 		Scene &scene = *scene_ptr;
-		TextureManager &texture_manager = *texture_manager_ptr;
+		ImageTileCache &image_tile_cache = *image_tile_cache_ptr;
 
 		const RenderSetting &render_setting = *render_setting_ptr;
 		const HaltonEnumerator &halton_enumerator = *halton_enumerator_ptr;
@@ -514,7 +514,7 @@ namespace YumeRT
 				glm::vec3 tr_weight(1.0f);
 				float sampled_distance = 0.0f;
 				if (render_setting.enable_volume_scattering && 
-					SampleVolumeScattering(scene, texture_manager, ray, hit_surface? hit_record.hit_t : TMAX, &tr_weight, &sampled_distance, sampler))
+					SampleVolumeScattering(scene, image_tile_cache, ray, hit_surface? hit_record.hit_t : TMAX, &tr_weight, &sampled_distance, sampler))
 				{
 					const Volume &vol = scene.volumes[ray.volume_idx];
 
@@ -523,10 +523,10 @@ namespace YumeRT
 
 					if (render_setting.enable_distant_light)
 					{
-						L += throughput * EvalVolumeDistantLight(render_setting, scene, texture_manager, vol, ray, volume_hit_position, sampler);
+						L += throughput * EvalVolumeDistantLight(render_setting, scene, image_tile_cache, vol, ray, volume_hit_position, sampler);
 					}
 
-					L += throughput * EvalVolumeShapeLight(render_setting, scene, texture_manager, vol, ray, volume_hit_position, sampler);
+					L += throughput * EvalVolumeShapeLight(render_setting, scene, image_tile_cache, vol, ray, volume_hit_position, sampler);
 					
 					// sample phase function
 					// multiply phase weight
@@ -603,7 +603,7 @@ namespace YumeRT
 					TextureCoordinate texture_coordinate(hit_uv, hit_position, hit_position_object_space);
 					material_bsdf.InitBSDFSettings(mtl,
 																scene.textures, 
-																texture_manager,
+																image_tile_cache,
 																texture_coordinate,
 																ray, 
 																hit_record.hit_back, 
@@ -617,7 +617,7 @@ namespace YumeRT
 						{
 							L += throughput * EvalDistantLight(render_setting,
 								scene,
-								texture_manager,
+								image_tile_cache,
 								material_bsdf,
 								ray.direction,
 								prim,
@@ -630,7 +630,7 @@ namespace YumeRT
 						// TODO: sample table, light BVH...
 						L += throughput * EvalShapeLight(render_setting,
 							scene,
-							texture_manager, 
+							image_tile_cache, 
 							material_bsdf,
 							ray.direction,
 							prim,
@@ -687,7 +687,7 @@ namespace YumeRT
 	}
 
 	extern "C" void RenderScene(const Scene &scene,
-		const TextureManager &texture_manager,
+		const ImageTileCache &image_tile_cache,
 		const RenderSetting &render_setting,
 		glm::vec4 *image, 
 		uint32_t *prim_idx_buffer, 
@@ -713,13 +713,13 @@ namespace YumeRT
 			UPLOAD_TO_GPU(halton_enumerator_ptr, &halton_enumerator, sizeof(HaltonEnumerator));
 			// assert(halton_enumerator.MaxFrameCount() > (uint64_t)render_setting.max_frame_count);
 
-			TextureManager *texture_manager_ptr = nullptr;
-			UPLOAD_TO_GPU(texture_manager_ptr, &texture_manager, sizeof(TextureManager));
+			ImageTileCache *image_tile_cache_ptr = nullptr;
+			UPLOAD_TO_GPU(image_tile_cache_ptr, &image_tile_cache, sizeof(ImageTileCache));
 
 			dim3 block_dim(32, 1, 1);
 			dim3 grid_dim(Round_Block_Count(total_pixel_count, block_dim.x), 1, 1);
 			void *args[] = {&scene_ptr, 
-									&texture_manager_ptr,
+									&image_tile_cache_ptr,
 									&render_setting_ptr, 
 									&halton_enumerator_ptr,
 									&frame_count,
@@ -735,7 +735,7 @@ namespace YumeRT
 			FREE_GPU_RESOURCE(scene_ptr);
 			FREE_GPU_RESOURCE(render_setting_ptr);
 			FREE_GPU_RESOURCE(halton_enumerator_ptr);
-			FREE_GPU_RESOURCE(texture_manager_ptr);
+			FREE_GPU_RESOURCE(image_tile_cache_ptr);
 		}
 
 		auto end_time = std::chrono::high_resolution_clock::now();

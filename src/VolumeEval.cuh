@@ -16,7 +16,7 @@ namespace YumeRT {
 #define MAX_FREE_PATH_LENGTH 2048
 
 	__device__ __host__ inline bool SampleTrHomogeneous(const Scene& scene,
-		const TextureManager& texture_manager,
+		const ImageTileCache& image_tile_cache,
 		const Volume &vol,
 		const Ray& ray,
 		const float t_max,
@@ -54,7 +54,7 @@ namespace YumeRT {
 	}
 
 	__device__ __host__ inline bool SampleTrHeterogeneous(const Scene& scene,
-		const TextureManager& texture_manager,
+		const ImageTileCache& image_tile_cache,
 		const Volume &vol,
 		const Ray& ray,
 		const float t_max,
@@ -119,7 +119,7 @@ namespace YumeRT {
 			const TextureCoordinate texture_coordinate(glm::vec2(0.0f), 
 				ray.origin + ray.direction * accumulate_distance, 
 				ray_origin + ray_direction * accumulate_distance);
-			float density = glm::max(TextureEval(density_texture, scene.textures, texture_manager, texture_coordinate).x, 0.0f);
+			float density = glm::max(TextureEval(density_texture, scene.textures, image_tile_cache, texture_coordinate).x, 0.0f);
 			glm::vec3 real_prob_channels;
 			real_prob_channels.x = glm::min(sigma_m.x > 0.0f ? sigma_t.x * density / sigma_m.x : 0.0f, 1.0f);
 			real_prob_channels.y = glm::min(sigma_m.y > 0.0f ? sigma_t.y * density / sigma_m.y : 0.0f, 1.0f);
@@ -150,7 +150,7 @@ namespace YumeRT {
 
 	// give sampled distance
 	__device__ __host__ inline bool SampleVolumeScattering(const Scene& scene,
-		const TextureManager& texture_manager,
+		const ImageTileCache& image_tile_cache,
 		const Ray& ray,
 		const float t_max,
 		glm::vec3 *tr_weight,
@@ -164,16 +164,16 @@ namespace YumeRT {
 		if (vol.density_texture_idx >= 0 && vol.density_texture_idx < scene.texture_count) 
 		{
 			//TODO: delta tracking
-			return SampleTrHeterogeneous(scene, texture_manager, vol, ray, t_max, tr_weight, sampled_distance, sampler);
+			return SampleTrHeterogeneous(scene, image_tile_cache, vol, ray, t_max, tr_weight, sampled_distance, sampler);
 		}
 		else 
 		{
-			return SampleTrHomogeneous(scene, texture_manager, vol, ray, t_max, tr_weight, sampled_distance, sampler);
+			return SampleTrHomogeneous(scene, image_tile_cache, vol, ray, t_max, tr_weight, sampled_distance, sampler);
 		}
 	}
 
 	__device__ __host__ inline glm::vec3 EvalTrHomogeneous(const Scene& scene,
-		const TextureManager& texture_manager,
+		const ImageTileCache& image_tile_cache,
 		const Volume &vol,
 		const Ray& ray,
 		const float t_max,
@@ -183,7 +183,7 @@ namespace YumeRT {
 	}
 
 	__device__ __host__ inline glm::vec3 EvalTrHeterogeneous(const Scene& scene,
-		const TextureManager& texture_manager,
+		const ImageTileCache& image_tile_cache,
 		const Volume &vol,
 		const Ray& ray,
 		const float t_max,
@@ -241,7 +241,7 @@ namespace YumeRT {
 			const TextureCoordinate texture_coordinate(glm::vec2(0.0f), 
 				ray.origin + ray.direction * accumulate_distance,
 				ray_origin + ray_direction * accumulate_distance);
-			float density = glm::max(TextureEval(density_texture, scene.textures, texture_manager, texture_coordinate).x, 0.0f);
+			float density = glm::max(TextureEval(density_texture, scene.textures, image_tile_cache, texture_coordinate).x, 0.0f);
 			glm::vec3 real_prob_channels;
 			real_prob_channels.x = glm::min(sigma_m.x > 0.0f ? sigma_t.x * density / sigma_m.x : 0.0f, 1.0f);
 			real_prob_channels.y = glm::min(sigma_m.y > 0.0f ? sigma_t.y * density / sigma_m.y : 0.0f, 1.0f);
@@ -269,7 +269,7 @@ namespace YumeRT {
 	}
 
 	__device__ __host__ inline glm::vec3 EvalTr(const Scene& scene,
-		const TextureManager& texture_manager,
+		const ImageTileCache& image_tile_cache,
 		const Ray& ray,
 		const float t_max,
 		RandomSampler &sampler)
@@ -281,16 +281,16 @@ namespace YumeRT {
 		if (vol.density_texture_idx >= 0 && vol.density_texture_idx < scene.texture_count) 
 		{
 			// TODO: ratio tracking
-			return EvalTrHeterogeneous(scene, texture_manager, vol, ray, t_max, sampler); 
+			return EvalTrHeterogeneous(scene, image_tile_cache, vol, ray, t_max, sampler); 
 		}
 		else 
 		{
-			return EvalTrHomogeneous(scene, texture_manager, vol, ray, t_max, sampler);
+			return EvalTrHomogeneous(scene, image_tile_cache, vol, ray, t_max, sampler);
 		}
 	}
 
 	__device__ __host__ inline glm::vec3 TraceTr(const Scene& scene,
-		const TextureManager& texture_manager,
+		const ImageTileCache& image_tile_cache,
 		const Ray& ray,
 		RandomSampler &sampler)
 	{
@@ -308,12 +308,12 @@ namespace YumeRT {
 
 			if (!hit_boundary) // nothing hit, reach the light
 			{
-				tr *= EvalTr(scene, texture_manager, tr_ray, glm::max(max_trace_distance - traced_distance, 0.0f), sampler);
+				tr *= EvalTr(scene, image_tile_cache, tr_ray, glm::max(max_trace_distance - traced_distance, 0.0f), sampler);
 				break;
 			}
 			else
 			{
-				tr *= EvalTr(scene, texture_manager, tr_ray, hit_record.hit_t, sampler);
+				tr *= EvalTr(scene, image_tile_cache, tr_ray, hit_record.hit_t, sampler);
 
 				traced_distance += hit_record.hit_t;
 

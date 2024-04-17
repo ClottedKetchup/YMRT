@@ -161,7 +161,7 @@ namespace YumeRT
 		// a bunch of short function
 		inline Camera& GetCameraRef() { return camera; }
 		inline const Scene& GetScene() const { return scene; }
-		inline const TextureManager& GetTextureManager() const { return texture_manager; }
+		inline const ImageTileCache& GetImageTileCache() const { return image_tile_cache; }
 		inline const Camera& GetCamera()const { return camera; }
 		inline const std::vector<PrimitiveInstance>& GetPrimInstances() const { return prim_instances; }
 		inline const std::vector<GeometryData>& GetGeometries() const { return geometries; }
@@ -270,7 +270,7 @@ namespace YumeRT
 		float top_BVH_time = 0.0f;
 
 		Scene scene;
-		TextureManager texture_manager;
+		ImageTileCache image_tile_cache;
 
 		Camera camera;
 		std::vector<TransformState> transform_states;
