@@ -4,10 +4,11 @@
 
 #include "MainSystem.h"
 #include "MathCommon.h"
+#include "FileIO.h"
 
 void TestScene_CornellBox(std::shared_ptr<YumeRT::SceneManager> scene_manager, int screen_width, int screen_height)
 {
-	YumeRT::GeometryData test_geo;
+	/*YumeRT::GeometryData test_geo;
 	test_geo.InitCube();
 	YumeRT::Triangle *triangles = test_geo.triangle_mesh.GetTrianglesHost();
 	uint32_t *position_indices = test_geo.triangle_mesh.GetPositionIndicesHost();
@@ -17,7 +18,7 @@ void TestScene_CornellBox(std::shared_ptr<YumeRT::SceneManager> scene_manager, i
 	uint32_t *texcoord_indices = test_geo.triangle_mesh.GetTexcoordIndicesHost();
 	glm::vec2 *texcoords = test_geo.triangle_mesh.GetTexcoordsHost();
 	YumeRT::BottomNode *bottom_nodes = test_geo.triangle_mesh.GetNodesHost();
-	test_geo.Destory();
+	test_geo.Destory();*/
 
 	uint32_t cube_idx = scene_manager->AddGeometry("Cube", YumeRT::GeometryData().InitCube()), 
 		sphere_idx = scene_manager->AddGeometry("Sphere", YumeRT::GeometryData().InitSphere(1.0f));
@@ -129,9 +130,12 @@ void TestScene_CornellBox(std::shared_ptr<YumeRT::SceneManager> scene_manager, i
 		world_volume_idx, -1);
 
 	// ground
+	const uint32_t image_tex_idx = scene_manager->AddTexture("test texture brick", YumeRT::Texture().InitImageTexture(
+		YumeRT::LoadImageTexture(".\\test_assests\\brick_2k.png", scene_manager->GetImageTextureManager())
+	));
 	scene_manager->AddPrimInstance(cube_idx,
 		scene_manager->AddTransform(glm::vec3(0.0f, -5.55f, 0.0f), glm::vec3(135.0, 1.0f, 135.0f)),
-		scene_manager->AddSurfaceMaterial("ground", glm::vec3(0.55f, 0.55f, 0.55f), glm::vec3(0.0f), 0.2, 0.2, 1.3, 0.0f, 0.0f, 0.0f),
+		scene_manager->AddSurfaceMaterial("ground", glm::vec3(0.55f, 0.55f, 0.55f), glm::vec3(0.0f), 0.2, 0.2, 1.3, 0.0f, 0.0f, 0.0f, image_tex_idx),
 		1.0f,
 		world_volume_idx, -1);
 
@@ -182,6 +186,8 @@ int main(int argc, char *argv[])
 	{
 		std::cout << err.what() << std::endl;
 	}
+
+	
 
 	return 0;
 }

@@ -447,8 +447,8 @@ namespace YumeRT
 		uint32_t tile_x = tile_id % tile_count_x;
 		uint32_t tile_y = tile_id / tile_count_x;
 
-		uint32_t tile_pixel_id = idx % TILE_PIXEL_COUNT;
-		uint32_t tile_pixel_x = tile_pixel_id % TILE_X_RES;
+		uint32_t tile_pixel_id = idx & (TILE_PIXEL_COUNT - 1);
+		uint32_t tile_pixel_x = tile_pixel_id & (TILE_X_RES - 1);
 		uint32_t tile_pixel_y = tile_pixel_id / TILE_X_RES;
 
 		uint32_t px = tile_x * TILE_X_RES + tile_pixel_x;
@@ -687,7 +687,7 @@ namespace YumeRT
 	}
 
 	extern "C" void RenderScene(const Scene &scene,
-		const ImageTileCache &image_tile_cache,
+		const ImageTextureManager &image_texture_manager,
 		const RenderSetting &render_setting,
 		glm::vec4 *image, 
 		uint32_t *prim_idx_buffer, 
@@ -700,6 +700,8 @@ namespace YumeRT
 		uint32_t tile_count_y = (uint32_t)glm::ceil(float(height) / float(TILE_Y_RES));
 		uint32_t total_pixel_count = tile_count_x * TILE_X_RES  * tile_count_y * TILE_Y_RES;
 
+		HaltonEnumerator halton_enumerator(width, height);
+
 		auto start_time = std::chrono::high_resolution_clock::now();
 		{
 			Scene *scene_ptr = nullptr;
@@ -708,13 +710,11 @@ namespace YumeRT
 			RenderSetting *render_setting_ptr = nullptr;
 			UPLOAD_TO_GPU(render_setting_ptr, &render_setting, sizeof(RenderSetting));
 
-			HaltonEnumerator halton_enumerator(width, height);
 			HaltonEnumerator *halton_enumerator_ptr = nullptr;
 			UPLOAD_TO_GPU(halton_enumerator_ptr, &halton_enumerator, sizeof(HaltonEnumerator));
-			// assert(halton_enumerator.MaxFrameCount() > (uint64_t)render_setting.max_frame_count);
 
 			ImageTileCache *image_tile_cache_ptr = nullptr;
-			UPLOAD_TO_GPU(image_tile_cache_ptr, &image_tile_cache, sizeof(ImageTileCache));
+			UPLOAD_TO_GPU(image_tile_cache_ptr, &image_texture_manager.image_tile_cache, sizeof(ImageTileCache));
 
 			dim3 block_dim(32, 1, 1);
 			dim3 grid_dim(Round_Block_Count(total_pixel_count, block_dim.x), 1, 1);

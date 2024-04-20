@@ -106,4 +106,14 @@ namespace YumeRT
 	 {
 		 return ((memory_required + (alignment - 1)) & (~(alignment - 1)));
 	 }
+
+	 __device__ __host__ inline float SRGBToLinear(float s)
+	 {
+		 return s > 0.04045 ? glm::pow((s + 0.055) / 1.055, 2.4f) : (s / 12.92f);
+	 }
+
+	 __device__ __host__ inline float LinearToSRGB(float l)
+	 {
+		 return l > 0.0031308f ? (1.055f * glm::pow(l, 1.0f / 2.4f) - 0.055f) : l * 12.92f;
+	 }
 };

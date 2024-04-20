@@ -8,25 +8,29 @@
 
 namespace YumeRT
 {
+#define TEX_TILE_RES_X 32
+#define TEX_TILE_RES_Y 32
 #define TEXTURE_INVALID_VALUE 1E36f
 
 	enum TEXTURE_TYPE
 	{
-		CONSTANT_TEXTURE_FLOAT = 0,
-		CONSTANT_TEXTURE_RGB = 1,
-		SOLID_TEXTURE_CHECKERBOARD = 2,
-		SOLID_TEXTURE_NOISE = 3,
-		SOLID_TEXTURE_FBM = 4,
-		SOLID_TEXTURE_TURBULENCE = 5,
-		SOLID_TEXTURE_MARBLE = 6,
-		SOLID_TEXTURE_WOOD = 7,
-		SOLID_TEXTURE_POLKA_DOT = 8,
-		SOLID_TEXTURE_WAVE = 9
+		IMAGE_TEXTURE = 0,
+		CONSTANT_TEXTURE_FLOAT = 1,
+		CONSTANT_TEXTURE_RGB = 2,
+		SOLID_TEXTURE_CHECKERBOARD = 3,
+		SOLID_TEXTURE_NOISE = 4,
+		SOLID_TEXTURE_FBM = 5,
+		SOLID_TEXTURE_TURBULENCE = 6,
+		SOLID_TEXTURE_MARBLE = 7,
+		SOLID_TEXTURE_WOOD = 8,
+		SOLID_TEXTURE_POLKA_DOT = 9,
+		SOLID_TEXTURE_WAVE = 10
 	};
 
-	constexpr int texture_type_count = 10;
+	constexpr int texture_type_count = 11;
 	const char* const texture_type_names[texture_type_count] = 
 	{
+		"image texture",
 		"constant float", 
 		"constant rgb", 
 		"checkerboard", 
@@ -51,6 +55,50 @@ namespace YumeRT
 		__device__ __host__ inline TextureCoordinate(const glm::vec2 &uv, 
 			const glm::vec3 &position_world, 
 			const glm::vec3 &position_object) :st(uv), p_world(position_world), p_object(position_object) {}
+	};
+
+	struct ImageTexture 
+	{
+		int width;
+		int height;
+		int tile_offset;
+		int file_offset;
+
+		int16_t mipmap_tile_offsets[16];
+		int16_t mipmap_count;
+		int16_t channel_count;
+
+		// parent location in the stack.
+		int16_t parent_index;
+		// specify current texture's child_index of its parent.
+		int16_t ith_child;
+
+		__device__ __host__ inline ImageTexture() :parent_index(-1), ith_child(-1), mipmap_tile_offsets{0}, mipmap_count(1), tile_offset(-1), file_offset(-1){  }
+		__device__ __host__ inline ImageTexture(int width, int height, int tile_offset, int file_offset, int16_t channel_count,
+			const int16_t *mipmap_tile_offset_list, int16_t mipmap_count)
+			: width(width), height(height), tile_offset(tile_offset), file_offset(file_offset), channel_count(channel_count), 
+			mipmap_count(mipmap_count),
+			parent_index(-1), ith_child(-1)
+		{
+			mipmap_tile_offsets[0] = 0;
+			if (mipmap_tile_offset_list != nullptr) { for (int16_t i = 0; i < mipmap_count; ++i) { mipmap_tile_offsets[i] = mipmap_tile_offset_list[i]; } }
+		}
+		__device__ __host__ inline ImageTexture& operator=(const ImageTexture& other)
+		{
+			width = other.width;
+			height = other.height;
+			tile_offset = other.tile_offset;
+			file_offset = other.file_offset;
+
+			mipmap_count = other.mipmap_count;
+			channel_count = other.channel_count;
+
+			for (int16_t i = 0; i < mipmap_count; ++i) { mipmap_tile_offsets[i] = other.mipmap_tile_offsets[i]; }
+			parent_index = other.parent_index;
+			ith_child = other.ith_child;
+
+			return *this;
+		}
 	};
 
 	struct ConstantTextureFloat 
@@ -582,6 +630,7 @@ namespace YumeRT
 		uint32_t texture_type;
 		union
 		{
+			ImageTexture image_texture;
 			ConstantTextureFloat constant_texture_float;
 			ConstantTextureRGB constant_texture_rgb;
 			CheckerBoardTexture checker_board_texture;
@@ -600,6 +649,9 @@ namespace YumeRT
 			texture_type = other.texture_type;
 			switch (texture_type)
 			{
+			case IMAGE_TEXTURE:
+				image_texture = other.image_texture;
+				break;
 			case CONSTANT_TEXTURE_FLOAT:
 				constant_texture_float = other.constant_texture_float;
 				break;
@@ -815,7 +867,11 @@ namespace YumeRT
 
 		__device__ __host__ inline int16_t GetParentIndex() const 
 		{
-			if (texture_type == CONSTANT_TEXTURE_FLOAT) 
+			if (texture_type == IMAGE_TEXTURE)
+			{
+				return image_texture.parent_index;
+			}
+			else if (texture_type == CONSTANT_TEXTURE_FLOAT) 
 			{
 				return constant_texture_float.parent_index;
 			}
@@ -862,7 +918,11 @@ namespace YumeRT
 		}
 		__device__ __host__ inline void SetParentIndex(int16_t parent_index) 
 		{
-			if (texture_type == CONSTANT_TEXTURE_FLOAT)
+			if (texture_type == IMAGE_TEXTURE)
+			{
+				image_texture.parent_index = parent_index;
+			}
+			else if (texture_type == CONSTANT_TEXTURE_FLOAT)
 			{
 				constant_texture_float.parent_index = parent_index;
 			}
@@ -909,7 +969,11 @@ namespace YumeRT
 		}
 		__device__ __host__ inline int16_t GetIthChild() const 
 		{
-			if (texture_type == CONSTANT_TEXTURE_FLOAT)
+			if (texture_type == IMAGE_TEXTURE)
+			{
+				return image_texture.ith_child;
+			}
+			else if (texture_type == CONSTANT_TEXTURE_FLOAT)
 			{
 				return constant_texture_float.ith_child;
 			}
@@ -956,7 +1020,11 @@ namespace YumeRT
 		}
 		__device__ __host__ inline void SetIthChild(int16_t ith_child) 
 		{
-			if (texture_type == CONSTANT_TEXTURE_FLOAT)
+			if (texture_type == IMAGE_TEXTURE)
+			{
+				image_texture.ith_child = ith_child;
+			}
+			else if (texture_type == CONSTANT_TEXTURE_FLOAT)
 			{
 				constant_texture_float.ith_child = ith_child;
 			}
@@ -1004,7 +1072,11 @@ namespace YumeRT
 
 		__device__ __host__ inline float GetUpperBound(const glm::vec3 &ray_origin, const glm::vec3 &ray_direction, float t_max) const
 		{
-			if (texture_type == CONSTANT_TEXTURE_FLOAT)
+			if (texture_type == IMAGE_TEXTURE) 
+			{
+				return 0.0f;
+			}
+			else if (texture_type == CONSTANT_TEXTURE_FLOAT)
 			{
 				return constant_texture_float.value;
 			}
@@ -1070,6 +1142,19 @@ namespace YumeRT
 			}
 		}
 
+		__device__ __host__ inline Texture& InitImageTexture(int width, int height, int tile_offset, int file_offset, int16_t channel_count,
+			const int16_t *mipmap_tile_offset_list = nullptr, int16_t mipmap_count = 1)
+		{
+			texture_type = IMAGE_TEXTURE;
+			image_texture = ImageTexture(width, height, tile_offset, file_offset, channel_count, mipmap_tile_offset_list, mipmap_count);
+			return *this;
+		}
+		__device__ __host__ inline Texture& InitImageTexture(const ImageTexture& img_tex) 
+		{
+			texture_type = IMAGE_TEXTURE;
+			image_texture = img_tex;
+			return *this;
+		}
 		__device__ __host__ inline Texture& InitConstantTextureFloat(float val)
 		{
 			texture_type = CONSTANT_TEXTURE_FLOAT;

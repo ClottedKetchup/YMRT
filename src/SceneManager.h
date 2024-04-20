@@ -161,7 +161,7 @@ namespace YumeRT
 		// a bunch of short function
 		inline Camera& GetCameraRef() { return camera; }
 		inline const Scene& GetScene() const { return scene; }
-		inline const ImageTileCache& GetImageTileCache() const { return image_tile_cache; }
+		inline ImageTextureManager& GetImageTextureManager()  { return image_texture_manager; }
 		inline const Camera& GetCamera()const { return camera; }
 		inline const std::vector<PrimitiveInstance>& GetPrimInstances() const { return prim_instances; }
 		inline const std::vector<GeometryData>& GetGeometries() const { return geometries; }
@@ -270,7 +270,7 @@ namespace YumeRT
 		float top_BVH_time = 0.0f;
 
 		Scene scene;
-		ImageTileCache image_tile_cache;
+		ImageTextureManager image_texture_manager;
 
 		Camera camera;
 		std::vector<TransformState> transform_states;
@@ -906,10 +906,9 @@ namespace YumeRT
 		FREE_GPU_RESOURCE(scene.sampler_data.halton_permute_table);
 		FREE_GPU_RESOURCE(scene.sampler_data.sobol_matrices);
 
-		for (auto& geometry : geometries) 
-		{
-			geometry.Destory();
-		}
+		for (auto& geometry : geometries) { geometry.Destory(); }
+
+		image_texture_manager.Release();
 
 		assert(scene.camera == nullptr);
 		assert(scene.geometries == nullptr);
@@ -971,6 +970,8 @@ namespace YumeRT
 
 		scene.texture_count = (uint32_t)textures.size();
 		UPLOAD_TO_GPU(scene.textures, textures.data(), sizeof(Texture) * textures.size());
+
+		image_texture_manager.UploadToDevice();
 
 		ResetSceneFlag();
 	}

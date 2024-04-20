@@ -158,7 +158,57 @@ namespace YumeRT
 		assert(turbulence_result >= 0.0f);
 		return turbulence_result;
 	}
-	
+
+	__device__ __host__ inline glm::vec3 EvalTexImage(const Texture& texture, const ImageTileCache& image_tile_cache, const TextureCoordinate& texture_coordinate)
+	{
+		const ImageTexture &image_texture = texture.image_texture;
+		if (image_texture.tile_offset == -1 || image_texture.file_offset == -1) { return glm::vec3(0.0f); }
+		
+		const float pixel_x = texture_coordinate.st.x * image_texture.width;
+		const float pixel_y = texture_coordinate.st.y * image_texture.height;
+		const int tile_x_count = (image_texture.width + TEX_TILE_RES_X - 1) / TEX_TILE_RES_X;
+		const int tile_y_count = (image_texture.height + TEX_TILE_RES_Y - 1) / TEX_TILE_RES_Y;
+		const ImageTile *tiles = image_tile_cache.image_tiles + image_texture.tile_offset;
+		
+		assert(tiles != nullptr);
+		auto floor_and_frac = [](const float coordinate, float *fraction)->int 
+		{
+			int f = (int)glm::floor(coordinate);
+			*fraction = coordinate - (float)f;
+			return f;
+		};
+		auto fetch_texel = [&](int p_x, int p_y)->glm::vec3
+		{
+			p_x = glm::clamp(p_x, 0, (int)image_texture.width - 1);
+			p_y = glm::clamp(p_y, 0, (int)image_texture.height - 1);
+			const int tile_x = p_x / TEX_TILE_RES_X;
+			const int tile_y = p_y / TEX_TILE_RES_Y;
+			const int tile_pixel_x = p_x & (TEX_TILE_RES_X - 1);
+			const int tile_pixel_y = p_y & (TEX_TILE_RES_Y - 1);
+			const int tile_pixel_offset = tile_pixel_y * TEX_TILE_RES_X + tile_pixel_x;
+			const ImageTile &this_tile = *(tiles + (tile_y * tile_x_count + tile_x));
+			
+			glm::vec3 result(0.0f);
+			const int tile_pixel_offset_channel = tile_pixel_offset * image_texture.channel_count;
+			const float* tile_data = (const float*)(this_tile.device_data);
+			for (int channel_idx = 0; channel_idx < 3 && channel_idx < image_texture.channel_count; ++channel_idx){
+				result[channel_idx] = tile_data[tile_pixel_offset_channel + channel_idx];
+			}
+			return result;
+		};
+
+		float frac_x;
+		float frac_y;
+		const int x0 = floor_and_frac(pixel_x - 0.5f, &frac_x);
+		const int y0 = floor_and_frac(pixel_y - 0.5f, &frac_y);
+		const int x1 = x0 + 1;
+		const int y1 = y0 + 1;
+		
+		return (1.0f - frac_x) * (1.0f - frac_y) * fetch_texel(x0, y0) + 
+			frac_x * (1.0f - frac_y) * fetch_texel(x1, y0) + 
+			(1.0f - frac_x) * frac_y * fetch_texel(x0, y1) + 
+			frac_x * frac_y * fetch_texel(x1, y1);
+	}
 	__device__ __host__ inline glm::vec3 EvalTexConstantFloat(const Texture& texture, const ImageTileCache& image_tile_cache, const TextureCoordinate& texture_coordinate)
 	{
 		return glm::vec3(texture.constant_texture_float.value);
@@ -289,7 +339,11 @@ namespace YumeRT
 	}
 	__device__ __host__ inline glm::vec3 EvalTexResult(const Texture& texture, const ImageTileCache& image_tile_cache, const TextureCoordinate& texture_coordinate)
 	{
-		if (texture.texture_type == CONSTANT_TEXTURE_FLOAT)
+		if (texture.texture_type ==  IMAGE_TEXTURE)
+		{
+			return EvalTexImage(texture, image_tile_cache, texture_coordinate);
+		}
+		else if (texture.texture_type == CONSTANT_TEXTURE_FLOAT)
 		{
 			return EvalTexConstantFloat(texture, image_tile_cache, texture_coordinate);
 		}
