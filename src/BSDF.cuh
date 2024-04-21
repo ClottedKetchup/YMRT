@@ -455,18 +455,27 @@ namespace YumeRT
 			int hit_back,
 			float prim_outer_ior) 
 		{
+			auto fetch_color = [&](uint32_t tex_idx, const glm::vec3 &default_color)->glm::vec3{
+				return tex_idx != INVALID_UINT_32 ? TextureEval(textures[tex_idx], textures, Image_tile_cache, texture_coordinate) : default_color;
+			};
+			auto fetch_float = [&](uint32_t tex_idx, const float default_float)->float {
+				return tex_idx != INVALID_UINT_32 ? TextureEval(textures[tex_idx], textures, Image_tile_cache, texture_coordinate).x : default_float;
+			};
+
 			const DefaultMtl& default_mtl = mtl.default_mtl;
-			const float metalness = default_mtl.metalness;
-			const float alpha_x = Sqr(glm::clamp(default_mtl.alpha_x, 0.001f, 0.999f));
-			const float alpha_y = Sqr(glm::clamp(default_mtl.alpha_y, 0.001f, 0.999f));
+
 			const float i_ior = glm::max(ray_in.ray_ior, 0.0001f);
 			const float o_ior = glm::max(hit_back ? prim_outer_ior : default_mtl.ior_n, 0.0001f);
 			const float eta = o_ior * SafeRcp(i_ior);
 			const float fr = FresnelDielectricDielectric(eta, glm::max(glm::dot(normal, -ray_in.direction), 0.0f));
-			const float specular_weight = default_mtl.specular_weight;
-			const float transmission_weight = default_mtl.transmission_weight;
-			const glm::vec3 diffuse_albedo = default_mtl.diffuse_albedo_tex != INVALID_UINT_32 ? 
-				TextureEval(textures[default_mtl.diffuse_albedo_tex], textures, Image_tile_cache, texture_coordinate) : default_mtl.diffuse_albedo;
+
+			const float metalness = fetch_float(default_mtl.metalness_tex, default_mtl.metalness);
+			const float alpha_x = Sqr(glm::clamp(fetch_float(default_mtl.alpha_x_tex, default_mtl.alpha_x), 0.001f, 0.999f));
+			const float alpha_y = Sqr(glm::clamp(fetch_float(default_mtl.alpha_y_tex, default_mtl.alpha_y), 0.001f, 0.999f));
+			const float specular_weight = fetch_float(default_mtl.specular_weight_tex, default_mtl.specular_weight);
+			const float transmission_weight = fetch_float(default_mtl.transmission_weight_tex, default_mtl.transmission_weight);
+			const glm::vec3 diffuse_albedo = fetch_color(default_mtl.diffuse_albedo_tex, default_mtl.diffuse_albedo);
+			const glm::vec3 specular_albedo = fetch_color(default_mtl.specular_albedo_tex, default_mtl.specular_albedo);
 			
 			assert(bsdf_count == 0);
 
@@ -475,7 +484,7 @@ namespace YumeRT
 			if (weight_0 > 0.0f)
 			{
 				glm::vec3 metal_n, metal_k;
-				EdgeTintToConductiveFresnel(diffuse_albedo, default_mtl.specular_albedo, &metal_n, &metal_k);
+				EdgeTintToConductiveFresnel(diffuse_albedo, specular_albedo, &metal_n, &metal_k);
 				bsdfs[bsdf_count].bsdf_type = MICROFACET_REFLECTION;
 				bsdfs[bsdf_count].microfacet_reflect.specular_albedo = glm::vec3(1.0f);
 				bsdfs[bsdf_count].microfacet_reflect.alpha_x = alpha_x;
@@ -493,7 +502,7 @@ namespace YumeRT
 			if (weight_1 > 0.0f)
 			{
 				bsdfs[bsdf_count].bsdf_type = MICROFACET_REFLECTION;
-				bsdfs[bsdf_count].microfacet_reflect.specular_albedo = default_mtl.specular_albedo;
+				bsdfs[bsdf_count].microfacet_reflect.specular_albedo = specular_albedo;
 				bsdfs[bsdf_count].microfacet_reflect.alpha_x = alpha_x;
 				bsdfs[bsdf_count].microfacet_reflect.alpha_y = alpha_y;
 				bsdfs[bsdf_count].microfacet_reflect.nt = glm::vec3(o_ior);
@@ -509,7 +518,7 @@ namespace YumeRT
 			if (weight_2 > 0.0f) 
 			{
 				bsdfs[bsdf_count].bsdf_type = MICROFACET_TRANSMISSION;
-				bsdfs[bsdf_count].microfacet_transmit.transmission_albedo = mtl.default_mtl.specular_albedo;
+				bsdfs[bsdf_count].microfacet_transmit.transmission_albedo = specular_albedo;
 				bsdfs[bsdf_count].microfacet_transmit.alpha_x = alpha_x;
 				bsdfs[bsdf_count].microfacet_transmit.alpha_y = alpha_y;
 				bsdfs[bsdf_count].microfacet_transmit.ni = i_ior;

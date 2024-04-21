@@ -126,9 +126,15 @@ void TestScene_CornellBox(const std::string &exec_path, std::shared_ptr<YumeRT::
 		1.0f,
 		world_volume_idx, -1);
 
+	const uint32_t glass_tex_black_idx = scene_manager->AddTexture("glass_tex_black", YumeRT::Texture().InitConstantTextureFloat(0.65f));
+	const uint32_t glass_tex_white_idx = scene_manager->AddTexture("glass_tex_white", YumeRT::Texture().InitConstantTextureFloat(0.05f));
+	const uint32_t glass_tex_checkerboard = scene_manager->AddTexture("glass_CheckerBoard_0", YumeRT::Texture().
+		InitCheckerBoardTexture(glass_tex_black_idx, glass_tex_white_idx, 16.0f));
+
 	scene_manager->AddPrimInstance(sphere_idx,
 		scene_manager->AddTransform(glm::vec3(0.f, 0.6f, 3.0f), glm::vec3(1.2f)),
-		scene_manager->AddSurfaceMaterial("extra sphere", glm::vec3(0.75f, 0.75f, 0.75f), glm::vec3(1.0f), 0.1, 0.1, 1.33, 0.0f, 1.0f, 1.0f),
+		scene_manager->AddSurfaceMaterial("extra sphere", glm::vec3(0.75f, 0.75f, 0.75f), glm::vec3(1.0f), 0.1, 0.1, 1.33, 0.0f, 1.0f, 1.0f, 
+			INVALID_UINT_32, glass_tex_checkerboard, INVALID_UINT_32, glass_tex_checkerboard),
 		1.0f,
 		world_volume_idx, -1);
 
@@ -139,7 +145,8 @@ void TestScene_CornellBox(const std::string &exec_path, std::shared_ptr<YumeRT::
 	));
 	scene_manager->AddPrimInstance(cube_idx,
 		scene_manager->AddTransform(glm::vec3(0.0f, -5.55f, 0.0f), glm::vec3(135.0, 1.0f, 135.0f)),
-		scene_manager->AddSurfaceMaterial("ground", glm::vec3(0.55f, 0.55f, 0.55f), glm::vec3(0.0f), 0.2, 0.2, 1.3, 0.0f, 0.0f, 0.0f, image_tex_idx),
+		scene_manager->AddSurfaceMaterial("ground", glm::vec3(0.55f, 0.55f, 0.55f), glm::vec3(0.0f), 0.2, 0.2, 1.3, 0.0f, 0.0f, 0.0f, 
+			image_tex_idx, INVALID_UINT_32, image_tex_idx),
 		1.0f,
 		world_volume_idx, -1);
 

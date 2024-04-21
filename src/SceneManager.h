@@ -133,7 +133,13 @@ namespace YumeRT
 																 float metalness = 0.0f,
 																 float specular_weight = 1.0f,
 																 float transmission_weight = 0.0f, 
-																 uint32_t diff_tex_idx = INVALID_UINT_32);
+																 uint32_t diffuse_albedo_tex = INVALID_UINT_32,
+																 uint32_t alpha_x_tex = INVALID_UINT_32,
+																 uint32_t specular_albedo_tex = INVALID_UINT_32,
+																 uint32_t alpha_y_tex = INVALID_UINT_32,
+																 uint32_t specular_weight_tex = INVALID_UINT_32,
+																 uint32_t metalness_tex = INVALID_UINT_32,
+																 uint32_t transmission_weight_tex = INVALID_UINT_32);
 		inline uint32_t RemoveMaterial(uint32_t material_idx);
 		inline void UpdateMaterial(uint32_t material_idx);
 		inline void AssignMaterialToPrim(uint32_t prim_idx, uint32_t material_idx); // you should use it when only the material change...
@@ -516,9 +522,16 @@ namespace YumeRT
 																				   float metalness,
 																				   float specular_weight,
 																				   float transmission_weight, 
-																				   uint32_t diff_tex_idx)
+																				   uint32_t diffuse_albedo_tex,
+																				   uint32_t alpha_x_tex,
+																				   uint32_t specular_albedo_tex,
+																				   uint32_t alpha_y_tex,
+																				   uint32_t specular_weight_tex,
+																				   uint32_t metalness_tex,
+																				   uint32_t transmission_weight_tex)
 	{	
-		materials.push_back(Material().InitDefaultMtl(diffuse_albedo, specular_albedo, roughness_x, roughness_y, ior_n, metalness, specular_weight, transmission_weight, diff_tex_idx));
+		materials.push_back(Material().InitDefaultMtl(diffuse_albedo, specular_albedo, roughness_x, roughness_y, ior_n, metalness, specular_weight, transmission_weight, 
+			diffuse_albedo_tex, alpha_x_tex, specular_albedo_tex, alpha_y_tex, specular_weight_tex, metalness_tex, transmission_weight_tex));
 		material_names.push_back(name);
 		material_reference_counters.push_back(0);
 	
