@@ -20,9 +20,9 @@ namespace YumeRT
 	class MainSystem
 	{
 	public:
-		static inline std::shared_ptr<MainSystem> GetInstance()
+		static inline std::shared_ptr<MainSystem> GetInstance(const std::string &exec_path, uint32_t screen_width = 1024, uint32_t screen_height = 1024)
 		{
-			static std::shared_ptr<MainSystem> ptr(new MainSystem());
+			static std::shared_ptr<MainSystem> ptr(new MainSystem(exec_path, screen_width, screen_height));
 			return ptr;
 		}
 
@@ -37,15 +37,11 @@ namespace YumeRT
 
 		inline std::shared_ptr<SceneManager> GetSceneManager() { return scene_manager; }
 
-		inline void Init(const std::string &vs,
-					  const std::string &fs,
-					  const std::string &scene_file,
-					  uint32_t screen_width,
-					  uint32_t screen_height);
-
 		inline void Run();
 
 	private:
+		const std::string executable_path;
+
 		GLFWwindow *window = nullptr;
 		GLShader shader;
 		GLVertexArray empty_VAO;
@@ -54,14 +50,14 @@ namespace YumeRT
 		std::shared_ptr<UserInterface> user_interface = nullptr;
 		std::shared_ptr<Renderer> rt_renderer = nullptr;
 
-		inline MainSystem() {}
+		inline MainSystem(const std::string &exec_path,
+			uint32_t screen_width,
+			uint32_t screen_height);
 	};
 
-	inline void MainSystem::Init(const std::string &vs,
-		const std::string &fs,
-		const std::string &scene_file,
+	inline MainSystem::MainSystem(const std::string &exec_path,
 		uint32_t screen_width,
-		uint32_t screen_height)
+		uint32_t screen_height): executable_path(exec_path)
 	{
 		// init cuda GL
 		printf("Cuda and GL context init...\n");
@@ -89,9 +85,12 @@ namespace YumeRT
 			throw std::runtime_error("Fail to initialize GLAD");
 		}
 
-		// init gl shader
-		shader.InitShader(vs, fs);
+		const std::string exec_prefix = executable_path.substr(0, executable_path.rfind('\\') + 1);
+		const std::string vert_path = exec_prefix + std::string("shaders\\vert.glsl");
+		const std::string frag_path = exec_prefix + std::string("shaders\\frag.glsl");
 
+		// init gl shader
+		shader.InitShader(vert_path, frag_path);
 		// init an empty vertex array
 		empty_VAO.InitVAO();
 

@@ -1,12 +1,13 @@
 #include <iostream>
 #include <vector>
 #include <random>
+#include <string>
 
 #include "MainSystem.h"
 #include "MathCommon.h"
 #include "FileIO.h"
 
-void TestScene_CornellBox(std::shared_ptr<YumeRT::SceneManager> scene_manager, int screen_width, int screen_height)
+void TestScene_CornellBox(const std::string &exec_path, std::shared_ptr<YumeRT::SceneManager> scene_manager, int screen_width, int screen_height)
 {
 	/*YumeRT::GeometryData test_geo;
 	test_geo.InitCube();
@@ -19,6 +20,8 @@ void TestScene_CornellBox(std::shared_ptr<YumeRT::SceneManager> scene_manager, i
 	glm::vec2 *texcoords = test_geo.triangle_mesh.GetTexcoordsHost();
 	YumeRT::BottomNode *bottom_nodes = test_geo.triangle_mesh.GetNodesHost();
 	test_geo.Destory();*/
+
+	const std::string exec_prefix = exec_path.substr(0, exec_path.rfind('\\') + 1);
 
 	uint32_t cube_idx = scene_manager->AddGeometry("Cube", YumeRT::GeometryData().InitCube()), 
 		sphere_idx = scene_manager->AddGeometry("Sphere", YumeRT::GeometryData().InitSphere(1.0f));
@@ -130,8 +133,9 @@ void TestScene_CornellBox(std::shared_ptr<YumeRT::SceneManager> scene_manager, i
 		world_volume_idx, -1);
 
 	// ground
+	const std::string image_tex_path = exec_prefix + std::string("test_assests\\brick_2k.png");
 	const uint32_t image_tex_idx = scene_manager->AddTexture("test texture brick", YumeRT::Texture().InitImageTexture(
-		YumeRT::LoadImageTexture(".\\test_assests\\brick_2k.png", scene_manager->GetImageTextureManager())
+		YumeRT::LoadImageTexture(image_tex_path, scene_manager->GetImageTextureManager())
 	));
 	scene_manager->AddPrimInstance(cube_idx,
 		scene_manager->AddTransform(glm::vec3(0.0f, -5.55f, 0.0f), glm::vec3(135.0, 1.0f, 135.0f)),
@@ -161,33 +165,15 @@ int main(int argc, char *argv[])
 {
 	try
 	{
-		std::string path(argv[0]);
-		std::string prefix = path.substr(0, path.rfind('\\') + 1);
-		std::string vert_path = prefix + std::string("shaders\\vert.glsl");
-		std::string frag_path = prefix + std::string("shaders\\frag.glsl");
-		std::string model_path = "";
-
-		std::shared_ptr<YumeRT::MainSystem> ptr = 
-			YumeRT::MainSystem::GetInstance();
-
 		const int width = 1024, height = 800;
-
-		ptr->Init(vert_path,
-			frag_path,
-			model_path,
-			width,
-			height);
-
-		TestScene_CornellBox(ptr->GetSceneManager(), width, height);
-
+		std::shared_ptr<YumeRT::MainSystem> ptr = YumeRT::MainSystem::GetInstance(std::string(argv[0]), width, height);
+		TestScene_CornellBox(std::string(argv[0]), ptr->GetSceneManager(), width, height);
 		ptr->Run();
 	}
 	catch (const std::exception& err)
 	{
 		std::cout << err.what() << std::endl;
 	}
-
-	
 
 	return 0;
 }

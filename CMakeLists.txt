@@ -56,3 +56,17 @@ add_custom_command(
 	"${PROJECT_SOURCE_DIR}/src/shaders"
 	"$<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>/shaders"
 )
+
+add_custom_command(
+	TARGET ${EXE_NAME} POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E copy_directory
+	"${PROJECT_SOURCE_DIR}/src/model"
+	"$<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>/model"
+)
+
+add_custom_command(
+	TARGET ${EXE_NAME} POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E copy_directory
+	"${PROJECT_SOURCE_DIR}/src/test_assests"
+	"$<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>/test_assests"
+)
