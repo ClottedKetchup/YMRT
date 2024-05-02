@@ -48,13 +48,24 @@ namespace YumeRT
 	struct TextureCoordinate
 	{
 		glm::vec2 st;
+		float dudx;
+		float dvdx; 
+		float dudy;
+		float dvdy;
 		glm::vec3 p_world;
 		glm::vec3 p_object;
+		
 
-		__device__ __host__ inline TextureCoordinate() :st(glm::vec2(0.0f)), p_world(glm::vec3(0.0f)), p_object(glm::vec3(0.0f)) {}
-		__device__ __host__ inline TextureCoordinate(const glm::vec2 &uv, 
+		__device__ __host__ inline TextureCoordinate() :st(glm::vec2(0.0f)), p_world(glm::vec3(0.0f)), p_object(glm::vec3(0.0f)),
+			dudx(0.0f), dvdx(0.0f), dudy(0.0f), dvdy(0.0f) {}
+		__device__ __host__ inline TextureCoordinate(const glm::vec2 &uv,
 			const glm::vec3 &position_world, 
-			const glm::vec3 &position_object) :st(uv), p_world(position_world), p_object(position_object) {}
+			const glm::vec3 &position_object, 
+			const glm::vec4 &tex_coordinates_differentials = glm::vec4(0.0f)) :st(uv), p_world(position_world), p_object(position_object),
+			dudx(tex_coordinates_differentials.x), 
+			dvdx(tex_coordinates_differentials.y), 
+			dudy(tex_coordinates_differentials.z), 
+			dvdy(tex_coordinates_differentials.w) {}
 	};
 
 	struct ImageTexture 
@@ -1149,7 +1160,7 @@ namespace YumeRT
 			image_texture = ImageTexture(width, height, tile_offset, file_offset, channel_count, mipmap_tile_offset_list, mipmap_count);
 			return *this;
 		}
-		__device__ __host__ inline Texture& InitImageTexture(const ImageTexture& img_tex) 
+		__device__ __host__ inline Texture& InitImageTexture(const ImageTexture& img_tex)
 		{
 			texture_type = IMAGE_TEXTURE;
 			image_texture = img_tex;
@@ -1209,7 +1220,7 @@ namespace YumeRT
 			noise_texture_polka_dot = NoiseTexturePolkaDot(texture_black_idx, texture_white_idx, frequency, radius);
 			return *this;
 		}
-		__device__ __host__ inline Texture& InitNoiseTextureWave(uint32_t texture_black_idx, uint32_t texture_white_idx, 
+		__device__ __host__ inline Texture& InitNoiseTextureWave(uint32_t texture_black_idx, uint32_t texture_white_idx,
 			float freq_0 = 0.1f, float lacunarity_0 = 2.0f, float gain_0 = 0.5f, int layer_count_0 = 2,
 			float freq_1 = 2.0f, float lacunarity_1 = 2.0f, float gain_1 = 0.5f, int layer_count_1 = 4)
 		{

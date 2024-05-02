@@ -39,4 +39,29 @@ namespace YumeRT
 		transformed_ray.ray_ior = ray.ray_ior;
 		return transformed_ray;
 	}
+
+	struct RayDifferential 
+	{
+		glm::vec3 origin_x;
+		glm::vec3 direction_x;
+		glm::vec3 origin_y;
+		glm::vec3 direction_y;
+
+		float scale_x;
+		float scale_y;
+
+		__device__ __host__ inline RayDifferential(): scale_x(1.0f), scale_y(1.0f) {}
+		__device__ __host__ inline void SetInvalid() 
+		{
+			auto set_bits = [](float *fp)->void {(*(uint32_t*)(fp)) = INVALID_UINT_32; };
+			set_bits(&scale_x);
+			set_bits(&scale_y);
+		}
+		__device__ __host__ bool inline IsValid() const
+		{
+			auto get_bits = [](const float *fp)->uint32_t {return (*(uint32_t*)(fp)); };
+			return get_bits(&scale_x) == INVALID_UINT_32 &&
+				get_bits(&scale_y) == INVALID_UINT_32;
+		}
+	};
 };

@@ -446,21 +446,23 @@ namespace YumeRT
 
 
 	__device__ __host__ inline void FetchSphereShadingData(const Scene &scene,
-																					 const HitRecord &hit_record,
-																					 const PrimitiveInstance &hit_instance,
-																					 glm::vec3 *hit_position,
-																					 glm::vec3 *hit_shading_normal,
-																					 glm::vec3 *hit_geometry_normal,
-																					 glm::vec2 *hit_uv,
-																					 glm::vec3 *hit_dpdu,
-																					 glm::vec3 *hit_dpdv)
+																					const HitRecord &hit_record,
+																					const PrimitiveInstance &hit_instance,
+																					glm::vec3 *hit_position,
+																					glm::vec3 *hit_shading_normal,
+																					glm::vec3 *hit_geometry_normal,
+																					glm::vec2 *hit_uv,
+																					glm::vec3 *hit_dpdu,
+																					glm::vec3 *hit_dpdv, 
+																					glm::vec3 *hit_dndu,
+																					glm::vec3 *hit_dndv)
 	{
 		const Sphere &hit_sphere = scene.geometries[hit_instance.geometry_idx].sphere;
 
 		float radius = glm::max(hit_sphere.radius, 1E-8f);
 
-		glm::vec3 position_object = hit_record.hit_barycentric;
-		glm::vec3 normal_object = hit_record.hit_barycentric / radius;
+		const glm::vec3 position_object = hit_record.hit_barycentric;
+		const glm::vec3 normal_object = hit_record.hit_barycentric / radius;
 
 		*hit_position = position_object;
 		*hit_shading_normal = normal_object;
@@ -468,40 +470,57 @@ namespace YumeRT
 
 		float theta = glm::acos(normal_object.y);
 		float phi = glm::atan(normal_object.z, normal_object.x);
-		if (phi < 0.0f) { phi += TWO_PI; }
+		if (phi < 0.0f) { 
+			phi += TWO_PI; 
+		}
 		*hit_uv = glm::vec2(0.5f * phi * INV_PI, theta * INV_PI);
 
 		float sin_theta = 0.0f;
-		if (1.0f - normal_object.y * normal_object.y > 0.0f)
-		{
+		if (1.0f - normal_object.y * normal_object.y > 0.0f){
 			sin_theta = glm::sqrt(1.0f - normal_object.y * normal_object.y);
 		}
 
 		float cos_phi = 0.0f, sin_phi = 0.0f;
 		float r_xz = sin_theta;
-		if (r_xz > 0.0f)
-		{
+		if (r_xz > 0.0f){
 			cos_phi = normal_object.x / r_xz;
 			sin_phi = normal_object.z / r_xz;
 		}
-		else 
-		{
+		else {
 			cos_phi = 1.0f, sin_phi = 0.0f;
 		}
 
-		*hit_dpdu = glm::vec3(-position_object.z, 0.0f, position_object.x) * TWO_PI;
-		*hit_dpdv = glm::vec3(position_object.y * cos_phi, -radius * sin_theta, sin_phi * position_object.y) * ONE_PI;
+		// pbrt: sphere
+		glm::vec3 dpdu = glm::vec3(-position_object.z, 0.0f, position_object.x) * TWO_PI;
+		glm::vec3 dpdv = glm::vec3(position_object.y * cos_phi, -radius * sin_theta, sin_phi * position_object.y) * ONE_PI;
+		glm::vec3 dp_duu = -Sqr(TWO_PI) * glm::vec3(position_object.x, 0.0f, position_object.z);
+		glm::vec3 dp_duv = TWO_PI * ONE_PI * glm::vec3(-position_object.y * sin_phi, 0.0f, position_object.y * cos_phi);
+		glm::vec3 dp_dvv = -Sqr(ONE_PI) * glm::vec3(position_object.x, position_object.y, position_object.z);
+		float E = glm::dot(dpdu, dpdu);
+		float F = glm::dot(dpdu, dpdv);
+		float G = glm::dot(dpdv, dpdv);
+		float e = glm::dot(normal_object, dp_duu);
+		float f = glm::dot(normal_object, dp_duv);
+		float g = glm::dot(normal_object, dp_dvv);
+		float inv_EGF2 = 1.0f * SafeRcp(E * G - F * F);
+
+		*hit_dpdu = dpdu;
+		*hit_dpdv = dpdv;
+		*hit_dndu = glm::vec3((f * F - e * G) * inv_EGF2 * dpdu + (e * F - f * E) * inv_EGF2 * dpdv);
+		*hit_dndv = glm::vec3((g * F - f * G) * inv_EGF2 * dpdu + (f * F - g * E) * inv_EGF2 * dpdv);
 	}
 
 	__device__ __host__ inline void FetchMeshShadingData(const Scene &scene,
-																				   const HitRecord &hit_record,
-																				   const PrimitiveInstance &hit_instance,
-																				   glm::vec3 *hit_position,
-																				   glm::vec3 *hit_shading_normal,
-																				   glm::vec3 *hit_geometry_normal,
-																				   glm::vec2 *hit_uv,
-																				   glm::vec3 *hit_dpdu,
-																				   glm::vec3 *hit_dpdv)
+																				const HitRecord &hit_record,
+																				const PrimitiveInstance &hit_instance,
+																				glm::vec3 *hit_position,
+																				glm::vec3 *hit_shading_normal,
+																				glm::vec3 *hit_geometry_normal,
+																				glm::vec2 *hit_uv,
+																				glm::vec3 *hit_dpdu,
+																				glm::vec3 *hit_dpdv,
+																				glm::vec3 *hit_dndu,
+																				glm::vec3 *hit_dndv)
 	{
 		const TriangleMesh &hit_mesh = scene.geometries[hit_instance.geometry_idx].triangle_mesh;
 		
@@ -566,20 +585,25 @@ namespace YumeRT
 		}
 
 		glm::vec3 delta_p01 = p1 - p0, delta_p12 = p2 - p1;
+		glm::vec3 delta_n01 = n1 - n0, delta_n12 = n2 - n1;
 		float i_det = 1.0f / determinant;
 		*hit_dpdu = (delta_v12 * delta_p01 - delta_v01 * delta_p12) * i_det;
 		*hit_dpdv = (-delta_u12 * delta_p01 + delta_u01 * delta_p12) * i_det;
+		*hit_dndu = (delta_v12 * delta_n01 - delta_v01 * delta_n12) * i_det;
+		*hit_dndv = (-delta_u12 * delta_n01 + delta_u01 * delta_n12) * i_det;
 	}
 
 	__device__ __host__ inline void FetchShadingData(const Scene &scene,
-																					const HitRecord &hit_record,
-																					glm::vec3 *hit_position,
-																					glm::vec3 *hit_position_object_space,
-																					glm::vec3 *hit_shading_normal,
-																					glm::vec3 *hit_geometry_normal,
-																					glm::vec2 *hit_uv,
-																					glm::vec3 *hit_dpdu,
-																					glm::vec3 *hit_dpdv)
+																			const HitRecord &hit_record,
+																			glm::vec3 *hit_position,
+																			glm::vec3 *hit_position_object_space,
+																			glm::vec3 *hit_shading_normal,
+																			glm::vec3 *hit_geometry_normal,
+																			glm::vec2 *hit_uv,
+																			glm::vec3 *hit_dpdu,
+																			glm::vec3 *hit_dpdv, 
+																			glm::vec3 *hit_dndu, 
+																			glm::vec3 *hit_dndv)
 	{
 		if (hit_record.hit_instance_idx == INVALID_UINT_32) { return; }
 		const PrimitiveInstance &hit_instance = scene.prim_instances[hit_record.hit_instance_idx];
@@ -588,26 +612,30 @@ namespace YumeRT
 		if (geometry_type == GEOMETRY_TYPE::TRIANGLE_MESH)
 		{
 			FetchMeshShadingData(scene,
-													hit_record,
-													hit_instance,
-													hit_position,
-													hit_shading_normal,
-													hit_geometry_normal,
-													hit_uv,
-													hit_dpdu,
-													hit_dpdv);
+											hit_record,
+											hit_instance,
+											hit_position,
+											hit_shading_normal,
+											hit_geometry_normal,
+											hit_uv,
+											hit_dpdu,
+											hit_dpdv, 
+											hit_dndu, 
+											hit_dndv);
 		}
 		else if (geometry_type == GEOMETRY_TYPE::SPHERE)
 		{
 			FetchSphereShadingData(scene,
-													  hit_record,
-													  hit_instance,
-													  hit_position,
-													  hit_shading_normal,
-													  hit_geometry_normal,
-													  hit_uv,
-													  hit_dpdu,
-													  hit_dpdv);
+												hit_record,
+												hit_instance,
+												hit_position,
+												hit_shading_normal,
+												hit_geometry_normal,
+												hit_uv,
+												hit_dpdu,
+												hit_dpdv, 
+												hit_dndu,
+												hit_dndv);
 		}
 		else 
 		{

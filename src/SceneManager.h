@@ -139,7 +139,9 @@ namespace YumeRT
 																 uint32_t alpha_y_tex = INVALID_UINT_32,
 																 uint32_t specular_weight_tex = INVALID_UINT_32,
 																 uint32_t metalness_tex = INVALID_UINT_32,
-																 uint32_t transmission_weight_tex = INVALID_UINT_32);
+																 uint32_t transmission_weight_tex = INVALID_UINT_32, 
+																uint32_t normal_mapping_tex = INVALID_UINT_32,
+																uint32_t bump_mapping_tex = INVALID_UINT_32);
 		inline uint32_t RemoveMaterial(uint32_t material_idx);
 		inline void UpdateMaterial(uint32_t material_idx);
 		inline void AssignMaterialToPrim(uint32_t prim_idx, uint32_t material_idx); // you should use it when only the material change...
@@ -528,10 +530,11 @@ namespace YumeRT
 																				   uint32_t alpha_y_tex,
 																				   uint32_t specular_weight_tex,
 																				   uint32_t metalness_tex,
-																				   uint32_t transmission_weight_tex)
+																				   uint32_t transmission_weight_tex, uint32_t normal_mapping_tex,
+		uint32_t bump_mapping_tex)
 	{	
 		materials.push_back(Material().InitDefaultMtl(diffuse_albedo, specular_albedo, roughness_x, roughness_y, ior_n, metalness, specular_weight, transmission_weight, 
-			diffuse_albedo_tex, alpha_x_tex, specular_albedo_tex, alpha_y_tex, specular_weight_tex, metalness_tex, transmission_weight_tex));
+			diffuse_albedo_tex, alpha_x_tex, specular_albedo_tex, alpha_y_tex, specular_weight_tex, metalness_tex, transmission_weight_tex, normal_mapping_tex, bump_mapping_tex));
 		material_names.push_back(name);
 		material_reference_counters.push_back(0);
 	

@@ -27,6 +27,9 @@ namespace YumeRT
 
 #define Round_Block_Count(Total_Thread_Count, Block_Thread_Count) (((Block_Thread_Count) + (Total_Thread_Count) - 1) / (Block_Thread_Count))
 
+#define PRINT_FLOAT(f) printf("%s: %.4f\n", #f, f);
+#define PRINT_FLOAT3(v) printf("%s: [%.4f, %.4f, %.4f]\n", #v, v.x, v.y, v.z);
+
 	template<typename T>
 	__device__ __host__ inline void Swap(T &a, T &b)
 	{

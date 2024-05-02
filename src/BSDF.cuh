@@ -604,11 +604,76 @@ namespace YumeRT
 		};
 
 		__device__ __host__ inline MaterialBSDF(): material_type(INVALID_UINT_32){}
-		__device__ __host__ inline void InitShadingSpace(const glm::vec3 &hit_normal, const glm::vec3 &hit_tangent)
+		__device__ __host__ inline void InitShadingSpace(const Material &mtl,
+			const int hit_back,
+			const Ray &ray,
+			const glm::vec3 &hit_geometry_normal,
+			const glm::vec3 &hit_shading_normal, 
+			const glm::vec3 &hit_dpdu,
+			const glm::vec3 &hit_dpdv, 
+			const glm::mat4 &otw,
+			const glm::mat4 &wto,
+			const Texture *textures,
+			const ImageTileCache &Image_tile_cache,
+			const TextureCoordinate &texture_coordinate)
 		{
-			normal = hit_normal;
-			tangent = glm::normalize(hit_tangent - normal * glm::dot(hit_tangent, normal));
+			glm::vec3 shading_normal = hit_back ? -hit_shading_normal : hit_shading_normal;
+
+			glm::vec3 shading_dpdu = hit_back ? -hit_dpdu : hit_dpdu;
+			shading_dpdu = shading_dpdu - shading_normal * glm::dot(shading_dpdu, shading_normal);
+			glm::vec3 shading_dpdv = hit_back ? -hit_dpdv : hit_dpdv;
+			shading_dpdv = shading_dpdv - shading_normal * glm::dot(shading_dpdv, shading_normal);
+
+			// the untextured setting
+			normal = shading_normal;
+			tangent = glm::normalize(shading_dpdu);
 			bitangent = glm::cross(normal, tangent);
+
+			// TODO: fix shading normal if ray is below the surface
+			const uint32_t  normal_mapping_tex = mtl.GetNormalMappingTex();
+			if (normal_mapping_tex != INVALID_UINT_32) 
+			{
+				const glm::vec3 textured_normal = glm::normalize(TextureEval(textures[normal_mapping_tex], textures, Image_tile_cache, texture_coordinate) * 2.0f - glm::vec3(1.0f));
+				
+				normal = textured_normal.x * tangent + textured_normal.y * bitangent + textured_normal.z * normal;
+				tangent = glm::normalize(tangent - normal * glm::dot(tangent, normal));
+				bitangent = glm::cross(normal, tangent);
+
+				return;
+			}
+
+			const uint32_t bump_mapping_tex = mtl.GetBumpMappingTex();
+			if (bump_mapping_tex != INVALID_UINT_32) 
+			{
+				TextureCoordinate bump_texture_coordinate = texture_coordinate;
+				const glm::vec3 object_space_dpdu = glm::mat3(wto) * shading_dpdu;
+				const glm::vec3 object_space_dpdv = glm::mat3(wto) * shading_dpdv;
+
+				// bump mapping should only access the mip0 texture
+				float delta_u = glm::max((glm::abs(texture_coordinate.dudx) + glm::abs(texture_coordinate.dudy)) * 0.5f, 0.0005f);
+				if (!(delta_u > 0.0f)) { delta_u = 0.001f; }
+				bump_texture_coordinate.st = glm::vec2(texture_coordinate.st.x + delta_u, texture_coordinate.st.y);
+				bump_texture_coordinate.p_world = texture_coordinate.p_world + shading_dpdu * delta_u;
+				bump_texture_coordinate.p_object = texture_coordinate.p_object + object_space_dpdu * delta_u;
+				const float height_delta_u = TextureEval(textures[bump_mapping_tex], textures, Image_tile_cache, bump_texture_coordinate).x;
+
+				float delta_v = glm::max((glm::abs(texture_coordinate.dvdx) + glm::abs(texture_coordinate.dvdy)) * 0.5f, 0.0005f);
+				if (!(delta_v > 0.0f)) { delta_v = 0.001f; }
+				bump_texture_coordinate.st = glm::vec2(texture_coordinate.st.x, texture_coordinate.st.y + delta_v);
+				bump_texture_coordinate.p_world = texture_coordinate.p_world + shading_dpdv * delta_v;
+				bump_texture_coordinate.p_object = texture_coordinate.p_object + object_space_dpdv * delta_v;
+				const float height_delta_v = TextureEval(textures[bump_mapping_tex], textures, Image_tile_cache, bump_texture_coordinate).x;
+				
+				const float height = TextureEval(textures[bump_mapping_tex], textures, Image_tile_cache, texture_coordinate).x;
+				shading_dpdu = shading_dpdu + (height_delta_u - height) * SafeRcp(delta_u) * shading_normal;
+				shading_dpdv = shading_dpdv + (height_delta_v - height) * SafeRcp(delta_v) * shading_normal;
+				
+				normal = glm::normalize(glm::cross(shading_dpdu, shading_dpdv));
+				tangent = glm::normalize(shading_dpdu - normal * glm::dot(shading_dpdu, normal));
+				bitangent = glm::cross(normal, tangent);
+
+				return;
+			}
 		}
 		__device__ __host__ inline glm::vec3 ShadingToWorld(const glm::vec3 &w)
 		{
@@ -618,6 +683,7 @@ namespace YumeRT
 		{
 			return glm::vec3(glm::dot(w, tangent), glm::dot(w, bitangent), glm::dot(w, normal));
 		}
+		__device__ __host__ inline glm::vec3 GetShadingNormal() const { return normal; }
 		__device__ __host__ inline void InitBSDFSettings(const Material &mtl,
 			const Texture *textures,
 			const ImageTileCache &Image_tile_cache,

@@ -470,14 +470,12 @@ namespace YumeRT
 			if (render_setting.sampler_type == PCG) 
 			{
 				sampler.InitPCGSampler(pixel_idx, sample_idx, 0, frame_count - 1);
-				
 				pixel_offset = sampler.SamplePixelOffset();
 			}
 			else if (render_setting.sampler_type == HALTON)
 			{
 				const uint64_t sample_index = halton_enumerator.GetIndex(px, py, (frame_count - 1) * render_setting.ssp + sample_idx);
 				sampler.InitHaltonSampler(sample_index, 2, scene.sampler_data.halton_permute_table);
-
 				pixel_offset = sampler.SamplePixelOffset();
 				pixel_offset.x = halton_enumerator.ScaleX(pixel_offset.x) - float(px);
 				pixel_offset.y = halton_enumerator.ScaleY(pixel_offset.y) - float(py);
@@ -486,7 +484,6 @@ namespace YumeRT
 			else if (render_setting.sampler_type == SOBOL)
 			{
 				sampler.InitSobolSampler(render_setting.ssp, sample_idx, frame_count - 1, 1, pixel_idx,  scene.sampler_data.sobol_matrices);
-			
 				pixel_offset = sampler.SamplePixelOffset();
 			}
 			else 
@@ -494,7 +491,7 @@ namespace YumeRT
 				pixel_offset = glm::vec2(0.5f);
 			}
 
-			Ray ray = scene.camera->generateRay(float(px + pixel_offset.x) / float(width), float(py + pixel_offset.y) / float(height));
+			Ray ray = scene.camera->GenerateRay(float(px + pixel_offset.x) / float(width), float(py + pixel_offset.y) / float(height));
 
 			glm::vec3 L(0.0f), throughput(1.0f);
 			bool never_scatter = true;
@@ -563,6 +560,8 @@ namespace YumeRT
 					glm::vec2	hit_uv;
 					glm::vec3	hit_dpdu;
 					glm::vec3	hit_dpdv;
+					glm::vec3 hit_dndu;
+					glm::vec3 hit_dndv;
 
 					FetchShadingData(scene,
 												hit_record,
@@ -572,7 +571,20 @@ namespace YumeRT
 												&hit_geometry_normal,
 												&hit_uv,
 												&hit_dpdu,
-												&hit_dpdv);
+												&hit_dpdv, 
+												&hit_dndu, 
+												&hit_dndv);
+
+					const glm::vec4 tex_coordinates_differentials = scene.camera->TextureCoordinatesDifferential(ray, 
+						hit_position, 
+						hit_shading_normal, 
+						hit_geometry_normal, 
+						hit_dpdu, 
+						hit_dpdv, 
+						width, 
+						height, 
+						0.125f, 
+						0.125f);
 
 					const PrimitiveInstance &prim = scene.prim_instances[hit_record.hit_instance_idx];
 					const Material &mtl = scene.materials[prim.material_idx];
@@ -597,17 +609,32 @@ namespace YumeRT
 
 					// indirect light
 					MaterialBSDF material_bsdf;
-					material_bsdf.InitShadingSpace(hit_record.hit_back? -hit_shading_normal : hit_shading_normal,
-																  hit_record.hit_back? -hit_dpdu: hit_dpdu);
-					// instance's internal ior is implicitly specified by its material
-					TextureCoordinate texture_coordinate(hit_uv, hit_position, hit_position_object_space);
-					material_bsdf.InitBSDFSettings(mtl,
-																scene.textures, 
-																image_tile_cache,
-																texture_coordinate,
-																ray, 
-																hit_record.hit_back, 
-																prim.external_ior);
+					{
+						TextureCoordinate texture_coordinate(hit_uv, hit_position, hit_position_object_space, tex_coordinates_differentials);
+
+						// eval normal mapping or bump mapping, the hit_shading_normal, and dpdu and dpdv will get modified here
+						material_bsdf.InitShadingSpace(mtl, 
+							hit_record.hit_back,
+							ray, 
+							hit_geometry_normal, 
+							hit_shading_normal, 
+							hit_dpdu, 
+							hit_dpdv, 
+							scene.transforms[prim.transform_idx],
+							scene.i_transforms[prim.transform_idx],
+							scene.textures,
+							image_tile_cache,
+							texture_coordinate);
+						
+						// instance's internal ior is implicitly specified by its material
+						material_bsdf.InitBSDFSettings(mtl,
+																	scene.textures,
+																	image_tile_cache,
+																	texture_coordinate,
+																	ray,
+																	hit_record.hit_back,
+																	prim.external_ior);
+					}
 					
 					if (true) 
 					{
@@ -622,7 +649,7 @@ namespace YumeRT
 								ray.direction,
 								prim,
 								hit_position,
-								hit_shading_normal,
+								material_bsdf.GetShadingNormal(),
 								hit_geometry_normal,
 								sampler);
 						}
@@ -635,7 +662,7 @@ namespace YumeRT
 							ray.direction,
 							prim,
 							hit_position,
-							hit_shading_normal,
+							material_bsdf.GetShadingNormal(),
 							hit_geometry_normal,
 							sampler);
 					}
