@@ -454,8 +454,8 @@ namespace YumeRT
 																					glm::vec2 *hit_uv,
 																					glm::vec3 *hit_dpdu,
 																					glm::vec3 *hit_dpdv, 
-																					glm::vec3 *hit_dndu,
-																					glm::vec3 *hit_dndv)
+																					glm::vec3 *hit_dndu = nullptr,
+																					glm::vec3 *hit_dndv = nullptr)
 	{
 		const Sphere &hit_sphere = scene.geometries[hit_instance.geometry_idx].sphere;
 
@@ -493,21 +493,28 @@ namespace YumeRT
 		// pbrt: sphere
 		glm::vec3 dpdu = glm::vec3(-position_object.z, 0.0f, position_object.x) * TWO_PI;
 		glm::vec3 dpdv = glm::vec3(position_object.y * cos_phi, -radius * sin_theta, sin_phi * position_object.y) * ONE_PI;
-		glm::vec3 dp_duu = -Sqr(TWO_PI) * glm::vec3(position_object.x, 0.0f, position_object.z);
-		glm::vec3 dp_duv = TWO_PI * ONE_PI * glm::vec3(-position_object.y * sin_phi, 0.0f, position_object.y * cos_phi);
-		glm::vec3 dp_dvv = -Sqr(ONE_PI) * glm::vec3(position_object.x, position_object.y, position_object.z);
-		float E = glm::dot(dpdu, dpdu);
-		float F = glm::dot(dpdu, dpdv);
-		float G = glm::dot(dpdv, dpdv);
-		float e = glm::dot(normal_object, dp_duu);
-		float f = glm::dot(normal_object, dp_duv);
-		float g = glm::dot(normal_object, dp_dvv);
-		float inv_EGF2 = 1.0f * SafeRcp(E * G - F * F);
-
 		*hit_dpdu = dpdu;
 		*hit_dpdv = dpdv;
-		*hit_dndu = glm::vec3((f * F - e * G) * inv_EGF2 * dpdu + (e * F - f * E) * inv_EGF2 * dpdv);
-		*hit_dndv = glm::vec3((g * F - f * G) * inv_EGF2 * dpdu + (f * F - g * E) * inv_EGF2 * dpdv);
+
+		if (hit_dndu != nullptr || hit_dndv != nullptr) 
+		{
+			glm::vec3 dp_duu = -Sqr(TWO_PI) * glm::vec3(position_object.x, 0.0f, position_object.z);
+			glm::vec3 dp_duv = TWO_PI * ONE_PI * glm::vec3(-position_object.y * sin_phi, 0.0f, position_object.y * cos_phi);
+			glm::vec3 dp_dvv = -Sqr(ONE_PI) * glm::vec3(position_object.x, position_object.y, position_object.z);
+			float E = glm::dot(dpdu, dpdu);
+			float F = glm::dot(dpdu, dpdv);
+			float G = glm::dot(dpdv, dpdv);
+			float e = glm::dot(normal_object, dp_duu);
+			float f = glm::dot(normal_object, dp_duv);
+			float g = glm::dot(normal_object, dp_dvv);
+			float inv_EGF2 = 1.0f * SafeRcp(E * G - F * F);
+			if (hit_dndu != nullptr) { 
+				*hit_dndu = glm::vec3((f * F - e * G) * inv_EGF2 * dpdu + (e * F - f * E) * inv_EGF2 * dpdv); 
+			}
+			if (hit_dndv != nullptr) {
+				*hit_dndv = glm::vec3((g * F - f * G) * inv_EGF2 * dpdu + (f * F - g * E) * inv_EGF2 * dpdv);
+			}
+		}
 	}
 
 	__device__ __host__ inline void FetchMeshShadingData(const Scene &scene,
@@ -519,8 +526,8 @@ namespace YumeRT
 																				glm::vec2 *hit_uv,
 																				glm::vec3 *hit_dpdu,
 																				glm::vec3 *hit_dpdv,
-																				glm::vec3 *hit_dndu,
-																				glm::vec3 *hit_dndv)
+																				glm::vec3 *hit_dndu = nullptr,
+																				glm::vec3 *hit_dndv = nullptr)
 	{
 		const TriangleMesh &hit_mesh = scene.geometries[hit_instance.geometry_idx].triangle_mesh;
 		
@@ -584,13 +591,21 @@ namespace YumeRT
 			determinant = 1.0f;
 		}
 
-		glm::vec3 delta_p01 = p1 - p0, delta_p12 = p2 - p1;
-		glm::vec3 delta_n01 = n1 - n0, delta_n12 = n2 - n1;
 		float i_det = 1.0f / determinant;
+		glm::vec3 delta_p01 = p1 - p0, delta_p12 = p2 - p1;
 		*hit_dpdu = (delta_v12 * delta_p01 - delta_v01 * delta_p12) * i_det;
 		*hit_dpdv = (-delta_u12 * delta_p01 + delta_u01 * delta_p12) * i_det;
-		*hit_dndu = (delta_v12 * delta_n01 - delta_v01 * delta_n12) * i_det;
-		*hit_dndv = (-delta_u12 * delta_n01 + delta_u01 * delta_n12) * i_det;
+
+		if (hit_dndu != nullptr || hit_dndv != nullptr)
+		{
+			glm::vec3 delta_n01 = n1 - n0, delta_n12 = n2 - n1;
+			if (hit_dndu != nullptr) { 
+				*hit_dndu = (delta_v12 * delta_n01 - delta_v01 * delta_n12) * i_det; 
+			}
+			if (hit_dndv != nullptr) {
+				*hit_dndv = (-delta_u12 * delta_n01 + delta_u01 * delta_n12) * i_det;
+			}
+		}
 	}
 
 	__device__ __host__ inline void FetchShadingData(const Scene &scene,
@@ -602,8 +617,8 @@ namespace YumeRT
 																			glm::vec2 *hit_uv,
 																			glm::vec3 *hit_dpdu,
 																			glm::vec3 *hit_dpdv, 
-																			glm::vec3 *hit_dndu, 
-																			glm::vec3 *hit_dndv)
+																			glm::vec3 *hit_dndu = nullptr, 
+																			glm::vec3 *hit_dndv = nullptr)
 	{
 		if (hit_record.hit_instance_idx == INVALID_UINT_32) { return; }
 		const PrimitiveInstance &hit_instance = scene.prim_instances[hit_record.hit_instance_idx];
@@ -646,16 +661,13 @@ namespace YumeRT
 		const glm::mat4 &transform = scene.transforms[hit_instance.transform_idx];
 		const glm::mat4 &i_transform = scene.i_transforms[hit_instance.transform_idx];
 
-		auto otw_position = [&](const glm::vec3 &pos)->glm::vec3 
-		{
+		auto otw_position = [&](const glm::vec3 &pos)->glm::vec3 {
 			return glm::vec3(transform * glm::vec4(pos, 1.0f));
 		};
-		auto otw_vector = [&](const glm::vec3 &vec)->glm::vec3
-		{
+		auto otw_vector = [&](const glm::vec3 &vec)->glm::vec3{
 			return glm::vec3(transform * glm::vec4(vec, 0.0f));
 		};
-		auto otw_normal = [&](const glm::vec3 &n)->glm::vec3
-		{
+		auto otw_normal = [&](const glm::vec3 &n)->glm::vec3{
 			return glm::vec3(glm::transpose(i_transform) * glm::vec4(n, 0.0f));
 		};
 
@@ -665,6 +677,12 @@ namespace YumeRT
 		*hit_geometry_normal = glm::normalize(otw_normal(*hit_geometry_normal));
 		*hit_dpdu = otw_vector(*hit_dpdu);
 		*hit_dpdv = otw_vector(*hit_dpdv);
+		if (hit_dndu != nullptr) {
+			*hit_dndu = otw_vector(*hit_dndu);
+		}
+		if (hit_dndv != nullptr) {
+			*hit_dndv = otw_vector(*hit_dndv);
+		}
 
 		// TODO: maybe flipped the shading normal to match geometry normal
 	}

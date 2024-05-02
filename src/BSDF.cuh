@@ -630,12 +630,16 @@ namespace YumeRT
 			bitangent = glm::cross(normal, tangent);
 
 			// TODO: fix shading normal if ray is below the surface
+			auto flip_shading_normal = [&ray, &hit_geometry_normal](const glm::vec3 &sn)->glm::vec3 {
+				return glm::dot(-ray.direction, sn) < 0.0f ? Reflect(sn, glm::dot(sn, hit_geometry_normal) > 0.0f? hit_geometry_normal : -hit_geometry_normal) : sn;
+			};
+
 			const uint32_t  normal_mapping_tex = mtl.GetNormalMappingTex();
 			if (normal_mapping_tex != INVALID_UINT_32) 
 			{
 				const glm::vec3 textured_normal = glm::normalize(TextureEval(textures[normal_mapping_tex], textures, Image_tile_cache, texture_coordinate) * 2.0f - glm::vec3(1.0f));
 				
-				normal = textured_normal.x * tangent + textured_normal.y * bitangent + textured_normal.z * normal;
+				normal = flip_shading_normal(textured_normal.x * tangent + textured_normal.y * bitangent + textured_normal.z * normal);
 				tangent = glm::normalize(tangent - normal * glm::dot(tangent, normal));
 				bitangent = glm::cross(normal, tangent);
 
@@ -668,7 +672,7 @@ namespace YumeRT
 				shading_dpdu = shading_dpdu + (height_delta_u - height) * SafeRcp(delta_u) * shading_normal;
 				shading_dpdv = shading_dpdv + (height_delta_v - height) * SafeRcp(delta_v) * shading_normal;
 				
-				normal = glm::normalize(glm::cross(shading_dpdu, shading_dpdv));
+				normal = flip_shading_normal(glm::normalize(glm::cross(shading_dpdu, shading_dpdv)));
 				tangent = glm::normalize(shading_dpdu - normal * glm::dot(shading_dpdu, normal));
 				bitangent = glm::cross(normal, tangent);
 

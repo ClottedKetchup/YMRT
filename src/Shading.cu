@@ -560,8 +560,6 @@ namespace YumeRT
 					glm::vec2	hit_uv;
 					glm::vec3	hit_dpdu;
 					glm::vec3	hit_dpdv;
-					glm::vec3 hit_dndu;
-					glm::vec3 hit_dndv;
 
 					FetchShadingData(scene,
 												hit_record,
@@ -571,9 +569,7 @@ namespace YumeRT
 												&hit_geometry_normal,
 												&hit_uv,
 												&hit_dpdu,
-												&hit_dpdv, 
-												&hit_dndu, 
-												&hit_dndv);
+												&hit_dpdv);
 
 					const glm::vec4 tex_coordinates_differentials = scene.camera->TextureCoordinatesDifferential(ray, 
 						hit_position, 
@@ -583,12 +579,11 @@ namespace YumeRT
 						hit_dpdv, 
 						width, 
 						height, 
-						0.125f, 
-						0.125f);
+						0.25f, 
+						0.25f);
 
 					const PrimitiveInstance &prim = scene.prim_instances[hit_record.hit_instance_idx];
 					const Material &mtl = scene.materials[prim.material_idx];
-
 					if (mtl.material_type == LIGHT_MTL)
 					{
 						if (never_scatter) { L += throughput * mtl.light_mtl.light_color * mtl.light_mtl.intensity; }
