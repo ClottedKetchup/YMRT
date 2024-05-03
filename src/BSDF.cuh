@@ -456,10 +456,10 @@ namespace YumeRT
 			float prim_outer_ior) 
 		{
 			auto fetch_color = [&](uint32_t tex_idx, const glm::vec3 &default_color)->glm::vec3{
-				return tex_idx != INVALID_UINT_32 ? TextureEval(textures[tex_idx], textures, Image_tile_cache, texture_coordinate) : default_color;
+				return tex_idx != EMPTY_UINT32 ? TextureEval(textures[tex_idx], textures, Image_tile_cache, texture_coordinate) : default_color;
 			};
 			auto fetch_float = [&](uint32_t tex_idx, const float default_float)->float {
-				return tex_idx != INVALID_UINT_32 ? TextureEval(textures[tex_idx], textures, Image_tile_cache, texture_coordinate).x : default_float;
+				return tex_idx != EMPTY_UINT32 ? TextureEval(textures[tex_idx], textures, Image_tile_cache, texture_coordinate).x : default_float;
 			};
 
 			const DefaultMtl& default_mtl = mtl.default_mtl;
@@ -603,7 +603,7 @@ namespace YumeRT
 			DefaultMtlBSDF default_mtl_bsdf;
 		};
 
-		__device__ __host__ inline MaterialBSDF(): material_type(INVALID_UINT_32){}
+		__device__ __host__ inline MaterialBSDF(): material_type(EMPTY_UINT32){}
 		__device__ __host__ inline void InitShadingSpace(const Material &mtl,
 			const int hit_back,
 			const Ray &ray,
@@ -635,7 +635,7 @@ namespace YumeRT
 			};
 
 			const uint32_t  normal_mapping_tex = mtl.GetNormalMappingTex();
-			if (normal_mapping_tex != INVALID_UINT_32) 
+			if (normal_mapping_tex != EMPTY_UINT32)
 			{
 				const glm::vec3 textured_normal = glm::normalize(TextureEval(textures[normal_mapping_tex], textures, Image_tile_cache, texture_coordinate) * 2.0f - glm::vec3(1.0f));
 				
@@ -647,7 +647,7 @@ namespace YumeRT
 			}
 
 			const uint32_t bump_mapping_tex = mtl.GetBumpMappingTex();
-			if (bump_mapping_tex != INVALID_UINT_32) 
+			if (bump_mapping_tex != EMPTY_UINT32)
 			{
 				TextureCoordinate bump_texture_coordinate = texture_coordinate;
 				const glm::vec3 object_space_dpdu = glm::mat3(wto) * shading_dpdu;

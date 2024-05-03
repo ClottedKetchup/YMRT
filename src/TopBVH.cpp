@@ -8,7 +8,7 @@ namespace YumeRT
 		uint32_t i = (node_count++);
 		const RawTopNode &raw_node = raw_nodes[raw_node_idx];
 		top_nodes[i].bbox = raw_node.bbox;
-		if (raw_node.left == INVALID_UINT_32 || raw_node.right == INVALID_UINT_32)
+		if (raw_node.left == EMPTY_UINT32 || raw_node.right == EMPTY_UINT32)
 		{
 			top_nodes[i].leaf.offset = raw_node.offset;
 			top_nodes[i].leaf.count = raw_node.count;
@@ -16,7 +16,7 @@ namespace YumeRT
 		}
 
 		FlattenRecursive(raw_nodes, raw_node.left, top_nodes, node_count);
-		top_nodes[i].internal.left = INVALID_UINT_32;
+		top_nodes[i].internal.left = EMPTY_UINT32;
 		top_nodes[i].internal.right = FlattenRecursive(raw_nodes, raw_node.right, top_nodes, node_count);
 		return i;
 	}
@@ -69,7 +69,7 @@ namespace YumeRT
 
 					auto make_leaf = [&]()
 					{
-						raw_node.left = raw_node.right = INVALID_UINT_32;
+						raw_node.left = raw_node.right = EMPTY_UINT32;
 					};
 
 					auto make_mid_split = [&]()
@@ -119,7 +119,7 @@ namespace YumeRT
 
 					uint32_t split_index = BVHNodePartition(node_prims, raw_node.count, split_pos, split_axis);
 
-					if (split_index == INVALID_UINT_32 || split_index == raw_node.count - 1)
+					if (split_index == EMPTY_UINT32 || split_index == raw_node.count - 1)
 					{
 						make_mid_split();
 						return;
@@ -166,7 +166,7 @@ namespace YumeRT
 		uint32_t node_idx = (node_count++);
 		const RawTopNode &raw_node = raw_nodes[root_idx];
 		top_nodes[node_idx].bbox = raw_node.bbox;
-		if (raw_node.left == INVALID_UINT_32 || raw_node.right == INVALID_UINT_32)
+		if (raw_node.left == EMPTY_UINT32 || raw_node.right == EMPTY_UINT32)
 		{
 			assert(raw_node.count == 1);
 			top_nodes[node_idx].leaf.count = raw_node.count;
@@ -177,7 +177,7 @@ namespace YumeRT
 
 		top_nodes[node_idx].internal.left = FlattenACRecursive(raw_nodes, raw_node.left, top_nodes, node_count, dst_prims, prim_count);
 		top_nodes[node_idx].internal.right = FlattenACRecursive(raw_nodes, raw_node.right, top_nodes, node_count, dst_prims, prim_count);
-		top_nodes[node_idx].internal.left = INVALID_UINT_32;
+		top_nodes[node_idx].internal.left = EMPTY_UINT32;
 		return node_idx;
 	}
 
@@ -204,7 +204,7 @@ namespace YumeRT
 		if (prim_instance_count == 0)
 		{
 			*time = 0.0f;
-			*highlight_prim_idx = INVALID_UINT_32;
+			*highlight_prim_idx = EMPTY_UINT32;
 			return 0;
 		}
 
@@ -218,7 +218,7 @@ namespace YumeRT
 				const GeometryData &geometry = geometries[prim_instances[i].geometry_idx];
 
 				raw_nodes[i].bbox = BBox3Transform(GetGeometryBound(geometry), transform);
-				raw_nodes[i].left = raw_nodes[i].right = INVALID_UINT_32;
+				raw_nodes[i].left = raw_nodes[i].right = EMPTY_UINT32;
 				raw_nodes[i].offset = i;
 				raw_nodes[i].count = 1;
 
@@ -263,7 +263,7 @@ namespace YumeRT
 			});
 		memcpy(prim_instances, temp_prims.data(), sizeof(PrimitiveInstance) * prim_instance_count);
 
-		if (highlight_prim_idx != nullptr && (*highlight_prim_idx) != INVALID_UINT_32)
+		if (highlight_prim_idx != nullptr && (*highlight_prim_idx) != EMPTY_UINT32)
 		{
 			assert((*highlight_prim_idx) >= 0 && (*highlight_prim_idx) < prim_instance_count);
 			*highlight_prim_idx = dst_prims_interleave[*highlight_prim_idx];
@@ -286,7 +286,7 @@ namespace YumeRT
 			return BBox3Area(BBox3Union(bbox_a, bbox_b));
 		};
 		float min_cost = YumeRT_FLOAT_MAX;
-		uint32_t candidate = INVALID_UINT_32;
+		uint32_t candidate = EMPTY_UINT32;
 		for (uint32_t i = 0; i < cluster_count; ++i)
 		{
 			if (i == idx) { continue; }

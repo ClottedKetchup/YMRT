@@ -43,7 +43,7 @@ namespace YumeRT
 	{
 		assert(count > 0);
 		uint32_t left = 0, right = count - 1;
-		while (left <= right && right != INVALID_UINT_32)
+		while (left <= right && right != EMPTY_UINT32)
 		{
 			if (types[left].GetCenter()[axis] <= pivot) { ++left; }
 			else { Swap(types[left], types[right--]); }
@@ -145,7 +145,7 @@ namespace YumeRT
 	{
 		uint32_t n_th = (count - 1) / 2;
 		uint32_t n_pass = count - n_th;
-		for (uint32_t i = count / 2 - 1; i >= 0 && i != INVALID_UINT_32; --i)
+		for (uint32_t i = count / 2 - 1; i >= 0 && i != EMPTY_UINT32; --i)
 		{
 			HeapDown(types, i, count - 1, axis);
 		}

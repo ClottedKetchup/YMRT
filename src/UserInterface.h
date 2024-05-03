@@ -159,7 +159,7 @@ namespace YumeRT
 
 		uint32_t m_click_pixel_x = 0;
 		uint32_t m_click_pixel_y = 0;
-		uint32_t m_click_prim_idx = INVALID_UINT_32;
+		uint32_t m_click_prim_idx = EMPTY_UINT32;
 		glm::vec4 m_click_color = glm::vec4(0.0f);
 		
 		bool m_show_move_control_menu = false;
@@ -527,7 +527,7 @@ namespace YumeRT
 		ImGui::Text("Total Geometry Count: %d", (uint32_t)geometries.size());
 		ImGui::Text("Geometries:");
 
-		static uint32_t display_geometry_info_idx = INVALID_UINT_32;
+		static uint32_t display_geometry_info_idx = EMPTY_UINT32;
 		display_geometry_info_idx = glm::clamp(display_geometry_info_idx, 0u, (uint32_t)geometries.size() - 1);
 
 		if (ImGui::BeginListBox(""))
@@ -555,7 +555,7 @@ namespace YumeRT
 		}
 
 		ImGui::Separator();
-		if (!geometries.empty() && display_geometry_info_idx != INVALID_UINT_32)
+		if (!geometries.empty() && display_geometry_info_idx != EMPTY_UINT32)
 		{
 			ImGui::Text("Geometry Index: %d", display_geometry_info_idx);
 			ImGui::Text("Geometry Type: %s", geometries[display_geometry_info_idx].geometry_type == TRIANGLE_MESH ? "Mesh" : "Sphere");
@@ -566,7 +566,7 @@ namespace YumeRT
 				display_geometry_info_idx = scene_manager->RemoveGeometry(display_geometry_info_idx);
 				if (prim_count != scene_manager->GetPrimInstances().size())
 				{
-					m_click_prim_idx = INVALID_UINT_32;
+					m_click_prim_idx = EMPTY_UINT32;
 				}
 			}
 		}
@@ -584,12 +584,12 @@ namespace YumeRT
 		const std::vector<std::string> &material_names = scene_manager->GetMaterialNames();
 
 		const PrimitiveInstance *prim_ptr = scene_manager->GetPrimitiveInstance(m_click_prim_idx);
-		const uint32_t selected_prim_material_idx = prim_ptr != nullptr ? (*prim_ptr).material_idx : INVALID_UINT_32;
+		const uint32_t selected_prim_material_idx = prim_ptr != nullptr ? (*prim_ptr).material_idx : EMPTY_UINT32;
 
 		ImGui::Text("Total Material Count: %d", (uint32_t)materials.size());
 		ImGui::Text("Materials:");
 
-		static uint32_t highlight_material_idx = INVALID_UINT_32;
+		static uint32_t highlight_material_idx = EMPTY_UINT32;
 		highlight_material_idx = glm::clamp(highlight_material_idx, 0u, (uint32_t)materials.size() - 1);
 		ImVec2 button_size;
 		if (ImGui::BeginListBox(""))
@@ -658,7 +658,7 @@ namespace YumeRT
 		}
 
 		ImGui::Separator();
-		if (!materials.empty() && highlight_material_idx != INVALID_UINT_32)
+		if (!materials.empty() && highlight_material_idx != EMPTY_UINT32)
 		{
 			ImGui::Text("Material Index: %d", highlight_material_idx);
 			ImGui::Text("Reference Instance Count: %d", material_counters[highlight_material_idx]);
@@ -758,7 +758,7 @@ namespace YumeRT
 		ImGui::Text("Total DistantLight Count: %d", (uint32_t)distant_lights.size());
 		ImGui::Text("DistantLights:");
 
-		static uint32_t highlight_distant_light_idx = INVALID_UINT_32;
+		static uint32_t highlight_distant_light_idx = EMPTY_UINT32;
 		highlight_distant_light_idx = glm::clamp(highlight_distant_light_idx, 0u, (uint32_t)distant_lights.size() - 1);
 		ImVec2 button_size;
 		if (ImGui::BeginListBox(""))
@@ -852,7 +852,7 @@ namespace YumeRT
 		ImGui::Text("Total Volume Count: %d", (uint32_t)volumes.size());
 		ImGui::Text("Volumes:");
 
-		static uint32_t highlight_volume_idx = INVALID_UINT_32;
+		static uint32_t highlight_volume_idx = EMPTY_UINT32;
 		highlight_volume_idx = glm::clamp(highlight_volume_idx, 0u, (uint32_t)volumes.size() - 1);
 		ImVec2 button_size;
 		if (ImGui::BeginListBox(""))
@@ -954,7 +954,7 @@ namespace YumeRT
 		ImGui::Text("Total Texture Count: %d", (uint32_t)textures.size());
 		ImGui::Text("Textures:");
 
-		static uint32_t highlight_tex_idx = INVALID_UINT_32;
+		static uint32_t highlight_tex_idx = EMPTY_UINT32;
 		highlight_tex_idx = glm::clamp(highlight_tex_idx, 0u, (uint32_t)textures.size() - 1);
 		ImVec2 button_size;
 		if (ImGui::BeginListBox(""))
@@ -1322,7 +1322,7 @@ namespace YumeRT
 		if (!m_show_move_control_menu) { return; }
 		ImGui::Begin("Control Menu");
 		ImGui::Text("Total Primitive Instance Count: %d", (uint32_t)scene_manager->GetPrimInstances().size());
-		ImGui::Text("Highlighted Instance ID: %d", m_click_prim_idx == INVALID_UINT_32 ? (int)(-1) : (uint32_t)m_click_prim_idx);
+		ImGui::Text("Highlighted Instance ID: %d", m_click_prim_idx == EMPTY_UINT32 ? (int)(-1) : (uint32_t)m_click_prim_idx);
 
 		PrimitiveInstance *prim_ptr = scene_manager->GetPrimitiveInstance(m_click_prim_idx);
 		if (prim_ptr != nullptr)
@@ -1396,7 +1396,7 @@ namespace YumeRT
 		}
 		if (ImGui::CollapsingHeader("Instance Transform"))
 		{
-			if (m_click_prim_idx != INVALID_UINT_32)
+			if (m_click_prim_idx != EMPTY_UINT32)
 			{
 				if (ImGui::TreeNode("Translate"))
 				{
@@ -1533,7 +1533,7 @@ namespace YumeRT
 			ImGui::SameLine();
 			if (ImGui::Button("Delete Instance", ImVec2(button_size.x * 0.5f, button_size.y)))
 			{
-				if (m_click_prim_idx != INVALID_UINT_32)
+				if (m_click_prim_idx != EMPTY_UINT32)
 				{
 					m_click_prim_idx = scene_manager->RemovePrimInstance(m_click_prim_idx);
 				}

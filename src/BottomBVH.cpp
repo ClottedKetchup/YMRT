@@ -8,7 +8,7 @@ namespace YumeRT
 		uint32_t i = (node_count++);
 		const RawBottomNode &raw_node = raw_nodes[raw_node_idx];
 		bottom_nodes[i].bbox = raw_node.bbox;
-		if (raw_node.left == INVALID_UINT_32 || raw_node.right == INVALID_UINT_32)
+		if (raw_node.left == EMPTY_UINT32 || raw_node.right == EMPTY_UINT32)
 		{
 			bottom_nodes[i].leaf.offset = raw_node.offset;
 			bottom_nodes[i].leaf.count = raw_node.count;
@@ -16,7 +16,7 @@ namespace YumeRT
 		}
 
 		FlattenRecursive(raw_nodes, raw_node.left, bottom_nodes, node_count);
-		bottom_nodes[i].internal.left = INVALID_UINT_32;
+		bottom_nodes[i].internal.left = EMPTY_UINT32;
 		bottom_nodes[i].internal.right = FlattenRecursive(raw_nodes, raw_node.right, bottom_nodes, node_count);
 		return i;
 	}
@@ -77,7 +77,7 @@ namespace YumeRT
 
 				auto make_leaf = [&]()
 				{
-					raw_node.left = raw_node.right = INVALID_UINT_32;
+					raw_node.left = raw_node.right = EMPTY_UINT32;
 				};
 
 				auto make_mid_split = [&]()
@@ -127,7 +127,7 @@ namespace YumeRT
 
 				uint32_t split_index = BVHNodePartition(node_tris, raw_node.count, split_pos, split_axis);
 
-				if (split_index == INVALID_UINT_32 || split_index == raw_node.count - 1)
+				if (split_index == EMPTY_UINT32 || split_index == raw_node.count - 1)
 				{
 					make_mid_split();
 					return;

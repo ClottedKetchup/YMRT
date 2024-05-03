@@ -53,15 +53,15 @@ namespace YumeRT
 		__device__ __host__ inline RayDifferential(): scale_x(1.0f), scale_y(1.0f) {}
 		__device__ __host__ inline void SetInvalid() 
 		{
-			auto set_bits = [](float *fp)->void {(*(uint32_t*)(fp)) = INVALID_UINT_32; };
+			auto set_bits = [](float *fp)->void {(*(uint32_t*)(fp)) = EMPTY_UINT32; };
 			set_bits(&scale_x);
 			set_bits(&scale_y);
 		}
 		__device__ __host__ bool inline IsValid() const
 		{
 			auto get_bits = [](const float *fp)->uint32_t {return (*(uint32_t*)(fp)); };
-			return get_bits(&scale_x) == INVALID_UINT_32 &&
-				get_bits(&scale_y) == INVALID_UINT_32;
+			return get_bits(&scale_x) == EMPTY_UINT32 &&
+				get_bits(&scale_y) == EMPTY_UINT32;
 		}
 	};
 };

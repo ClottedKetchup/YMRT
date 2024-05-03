@@ -12,7 +12,7 @@ namespace YumeRT
 	public:
 		__device__ __host__ inline Camera()
 		{
-			InitPerspective();
+			
 		}
 
 		__device__ __host__ inline void SetDir(const glm::vec3 &dir)
@@ -34,7 +34,7 @@ namespace YumeRT
 			{
 				cp.x = -cp.x, cp.y = -cp.y, cp.z = -cp.z;
 			}
-			cp = Matrix_S(glm::vec3(inv_y_extent * aspect_ratio, inv_y_extent, 1.0f)) * perspective * cp;
+			cp = Matrix_S(glm::vec3(inv_y_extent * aspect_ratio, inv_y_extent, 1.0f)) * GetPerspective() * cp;
 
 			float inv_w = 1.0f / cp.w;
 			cp.x *= inv_w, cp.y *= inv_w, cp.z *= inv_w;
@@ -282,12 +282,11 @@ namespace YumeRT
 		float camera_ior = 1.0f;
 		int volume_idx = -1;
 
-		glm::mat4 perspective;
-
-
-		__device__ __host__ inline void InitPerspective()
+		__device__ __host__ inline glm::mat4 GetPerspective() const
 		{
 			float z_near = 1.0f, z_far = 100.f;
+
+			glm::mat4 perspective;
 
 			perspective[0][0] = 1.0f;
 			perspective[0][1] = 0.0f;
@@ -308,6 +307,8 @@ namespace YumeRT
 			perspective[3][1] = 0.0f;
 			perspective[3][2] = (z_near * z_far) / (z_near - z_far);
 			perspective[3][3] = 0.0f;
+
+			return perspective;
 		}
 
 		__device__ __host__ inline void MakeCameraBasis()

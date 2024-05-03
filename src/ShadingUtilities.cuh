@@ -21,10 +21,10 @@ namespace YumeRT
 		// for sphere, it is the object space position
 		glm::vec3 hit_barycentric = glm::vec3(1.0f, 1.0f, 1.0f); 
 		float hit_t = TMAX;
-		uint32_t hit_instance_idx = INVALID_UINT_32;
+		uint32_t hit_instance_idx = EMPTY_UINT32;
 
 		// for mesh only
-		uint32_t hit_triangle_idx = INVALID_UINT_32;
+		uint32_t hit_triangle_idx = EMPTY_UINT32;
 		int hit_back = 0;
 		int volume_hit = 0;
 		// may have to store if the ray hit the object back face
@@ -129,7 +129,7 @@ namespace YumeRT
 			uint32_t node_idx = stack[p_top--];
 			const BottomNode &node = bottom_nodes[node_idx];
 
-			if (node.internal.left != INVALID_UINT_32)
+			if (node.internal.left != EMPTY_UINT32)
 			{
 				const Triangle *tris = triangles + node.leaf.offset;
 				for (uint32_t i = 0; i < node.leaf.count; ++i)
@@ -258,7 +258,7 @@ namespace YumeRT
 			uint32_t node_idx = stack[p_top--];
 			TopNode &node = scene.top_nodes[node_idx];
 
-			if (node.internal.left != INVALID_UINT_32)
+			if (node.internal.left != EMPTY_UINT32)
 			{
 				PrimitiveInstance *prim_instances = scene.prim_instances + node.leaf.offset;
 				for (uint32_t i = 0; i < node.leaf.count; ++i)
@@ -325,7 +325,7 @@ namespace YumeRT
 			uint32_t node_idx = stack[p_top--];
 			TopNode &node = scene.top_nodes[node_idx];
 
-			if (node.internal.left != INVALID_UINT_32)
+			if (node.internal.left != EMPTY_UINT32)
 			{
 				PrimitiveInstance *prim_instances = scene.prim_instances + node.leaf.offset;
 				for (uint32_t i = 0; i < node.leaf.count; ++i)
@@ -393,7 +393,7 @@ namespace YumeRT
 			uint32_t node_idx = stack[p_top--];
 			TopNode &node = scene.top_nodes[node_idx];
 
-			if (node.internal.left != INVALID_UINT_32)
+			if (node.internal.left != EMPTY_UINT32)
 			{
 				PrimitiveInstance *prim_instances = scene.prim_instances + node.leaf.offset;
 				for (uint32_t i = 0; i < node.leaf.count; ++i)
@@ -620,7 +620,7 @@ namespace YumeRT
 																			glm::vec3 *hit_dndu = nullptr, 
 																			glm::vec3 *hit_dndv = nullptr)
 	{
-		if (hit_record.hit_instance_idx == INVALID_UINT_32) { return; }
+		if (hit_record.hit_instance_idx == EMPTY_UINT32) { return; }
 		const PrimitiveInstance &hit_instance = scene.prim_instances[hit_record.hit_instance_idx];
 		const GeometryData &hit_geometry = scene.geometries[hit_instance.geometry_idx];
 		uint32_t geometry_type = hit_geometry.geometry_type;
@@ -734,7 +734,7 @@ namespace YumeRT
 																						glm::vec3 *hit_position,
 																						glm::vec3 *hit_geometry_normal)
 	{
-		if (hit_record.hit_instance_idx == INVALID_UINT_32) { return; }
+		if (hit_record.hit_instance_idx == EMPTY_UINT32) { return; }
 		const PrimitiveInstance &hit_instance = scene.prim_instances[hit_record.hit_instance_idx];
 		const GeometryData &hit_geometry = scene.geometries[hit_instance.geometry_idx];
 		uint32_t geometry_type = hit_geometry.geometry_type;

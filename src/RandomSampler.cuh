@@ -492,7 +492,7 @@ namespace YumeRT
 		{
 			glm::uvec4 pcg_num = pcg4d(glm::uvec4(pixel_idx, dim_idx, pixel_sample_idx, frame_idx));
 			dim_idx += 1;
-			return pcg_num.x / float(uint32_t(INVALID_UINT_32));
+			return pcg_num.x / float(uint32_t(EMPTY_UINT32));
 		}
 		__device__ __host__ inline glm::vec2 Random2D()
 		{

@@ -133,15 +133,15 @@ namespace YumeRT
 																 float metalness = 0.0f,
 																 float specular_weight = 1.0f,
 																 float transmission_weight = 0.0f, 
-																 uint32_t diffuse_albedo_tex = INVALID_UINT_32,
-																 uint32_t alpha_x_tex = INVALID_UINT_32,
-																 uint32_t specular_albedo_tex = INVALID_UINT_32,
-																 uint32_t alpha_y_tex = INVALID_UINT_32,
-																 uint32_t specular_weight_tex = INVALID_UINT_32,
-																 uint32_t metalness_tex = INVALID_UINT_32,
-																 uint32_t transmission_weight_tex = INVALID_UINT_32, 
-																uint32_t normal_mapping_tex = INVALID_UINT_32,
-																uint32_t bump_mapping_tex = INVALID_UINT_32);
+																 uint32_t diffuse_albedo_tex = EMPTY_UINT32,
+																 uint32_t alpha_x_tex = EMPTY_UINT32,
+																 uint32_t specular_albedo_tex = EMPTY_UINT32,
+																 uint32_t alpha_y_tex = EMPTY_UINT32,
+																 uint32_t specular_weight_tex = EMPTY_UINT32,
+																 uint32_t metalness_tex = EMPTY_UINT32,
+																 uint32_t transmission_weight_tex = EMPTY_UINT32, 
+																uint32_t normal_mapping_tex = EMPTY_UINT32,
+																uint32_t bump_mapping_tex = EMPTY_UINT32);
 		inline uint32_t RemoveMaterial(uint32_t material_idx);
 		inline void UpdateMaterial(uint32_t material_idx);
 		inline void AssignMaterialToPrim(uint32_t prim_idx, uint32_t material_idx); // you should use it when only the material change...
@@ -329,13 +329,13 @@ namespace YumeRT
 	}
 	inline uint32_t SceneManager::RemoveGeometry(uint32_t geometry_idx)
 	{
-		if (geometries.empty()) { return INVALID_UINT_32; }
-		if (geometry_idx >(uint32_t)geometries.size() - 1) { return INVALID_UINT_32; }
+		if (geometries.empty()) { return EMPTY_UINT32; }
+		if (geometry_idx >(uint32_t)geometries.size() - 1) { return EMPTY_UINT32; }
 
 		// first clear all the instance
 		bool instances_are_change = false;
 		uint32_t head = 0, tail = (uint32_t)prim_instances.size() - 1;
-		for (; head <= tail && tail != INVALID_UINT_32; )
+		for (; head <= tail && tail != EMPTY_UINT32; )
 		{
 			if (prim_instances[head].geometry_idx < geometry_idx)
 			{
@@ -368,7 +368,7 @@ namespace YumeRT
 
 		AddSceneFlag(SCENECHANGE_FLAG::GEOMETRY_REMOVE);
 
-		if (geometries.empty()) { return INVALID_UINT_32; }
+		if (geometries.empty()) { return EMPTY_UINT32; }
 		// give the first element back
 		return 0;
 	}
@@ -463,8 +463,8 @@ namespace YumeRT
 	}
 	inline uint32_t SceneManager::RemovePrimInstance(uint32_t selected_prim_idx)
 	{
-		if (prim_instances.empty()) { return INVALID_UINT_32; }
-		if (selected_prim_idx >(uint32_t)prim_instances.size() - 1) { return INVALID_UINT_32; }
+		if (prim_instances.empty()) { return EMPTY_UINT32; }
+		if (selected_prim_idx >(uint32_t)prim_instances.size() - 1) { return EMPTY_UINT32; }
 
 		const uint32_t transform_idx = prim_instances[selected_prim_idx].transform_idx;
 		const uint32_t geometry_idx = prim_instances[selected_prim_idx].geometry_idx;
@@ -485,7 +485,7 @@ namespace YumeRT
 
 		AddSceneFlag(SCENECHANGE_FLAG::INSTANCE_REMOVE);
 
-		if (prim_instances.empty()) { return INVALID_UINT_32; }
+		if (prim_instances.empty()) { return EMPTY_UINT32; }
 
 		// give the first element back
 		return 0;
@@ -543,8 +543,8 @@ namespace YumeRT
 	}
 	inline uint32_t SceneManager::RemoveMaterial(uint32_t material_idx)
 	{
-		if (materials.empty()) { return INVALID_UINT_32; }
-		if (material_idx < 0 || material_idx >(uint32_t)materials.size() - 1) { return INVALID_UINT_32; }
+		if (materials.empty()) { return EMPTY_UINT32; }
+		if (material_idx < 0 || material_idx >(uint32_t)materials.size() - 1) { return EMPTY_UINT32; }
 
 		// always preserve a default material...
 		if (material_idx == 0) { return 0; }
@@ -588,7 +588,7 @@ namespace YumeRT
 		AddSceneFlag(SCENECHANGE_FLAG::MATERIAL_REMOVE);
 		CUDA_CHECK(cudaDeviceSynchronize());
 
-		return materials.empty()? INVALID_UINT_32: 0;
+		return materials.empty()? EMPTY_UINT32: 0;
 	}
 	inline void SceneManager::UpdateMaterial(uint32_t material_idx)
 	{
@@ -657,8 +657,8 @@ namespace YumeRT
 	}
 	inline uint32_t SceneManager::RemoveDistantLight(uint32_t light_idx)
 	{
-		if (distant_lights.empty()) { return INVALID_UINT_32; }
-		if (light_idx >(uint32_t)distant_lights.size() - 1) { return INVALID_UINT_32; }
+		if (distant_lights.empty()) { return EMPTY_UINT32; }
+		if (light_idx >(uint32_t)distant_lights.size() - 1) { return EMPTY_UINT32; }
 
 		transform_states[distant_lights[light_idx].transform_idx].SetInvalid();
 
@@ -668,7 +668,7 @@ namespace YumeRT
 		
 		AddSceneFlag(SCENECHANGE_FLAG::DISTANT_LIGHT_ADD_REMOVE);
 
-		return distant_lights.empty() ? INVALID_UINT_32 : 0;
+		return distant_lights.empty() ? EMPTY_UINT32 : 0;
 	}
 	inline void SceneManager::UpdateDistantLight(uint32_t distant_light_idx)
 	{
@@ -741,7 +741,7 @@ namespace YumeRT
 
 				ShapeLight shape_light;
 				shape_light.instance_idx = prim_idx;
-				shape_light.triangle_idx = INVALID_UINT_32;
+				shape_light.triangle_idx = EMPTY_UINT32;
 				shape_light.power = irradiance * area;
 				shape_light.area = area;
 
@@ -790,8 +790,8 @@ namespace YumeRT
 	}
 	inline uint32_t SceneManager::RemoveVolume(uint32_t volume_idx)
 	{
-		if (volumes.empty()) { return INVALID_UINT_32; }
-		if (volume_idx > (uint32_t)volumes.size() - 1) { return INVALID_UINT_32; }
+		if (volumes.empty()) { return EMPTY_UINT32; }
+		if (volume_idx > (uint32_t)volumes.size() - 1) { return EMPTY_UINT32; }
 
 		transform_states[volumes[volume_idx].transform_idx].SetInvalid();
 
@@ -802,7 +802,7 @@ namespace YumeRT
 		AddSceneFlag(VOLUME_ADD_REMOVE);
 		CUDA_CHECK(cudaDeviceSynchronize());
 
-		return volumes.empty() ? INVALID_UINT_32 : 0;
+		return volumes.empty() ? EMPTY_UINT32 : 0;
 	}
 	inline void SceneManager::UpdateVolume(uint32_t volume_idx)
 	{

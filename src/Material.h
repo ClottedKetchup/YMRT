@@ -135,7 +135,7 @@ namespace YumeRT
 			}
 			else 
 			{
-				return INVALID_UINT_32;
+				return EMPTY_UINT32;
 			}
 		}
 		__device__ __host__ inline uint32_t GetBumpMappingTex() const
@@ -146,7 +146,7 @@ namespace YumeRT
 			}
 			else
 			{
-				return INVALID_UINT_32;
+				return EMPTY_UINT32;
 			}
 		}
 		__device__ __host__ inline Material& InitDefaultMtl(const glm::vec3 &diffuse_albedo = glm::vec3(0.5f),
@@ -157,15 +157,15 @@ namespace YumeRT
 																						  float metalness = 0.0f,
 																						  float specular_weight = 1.0f,
 																						  float transmission_weight = 0.0f,
-																						  uint32_t diffuse_albedo_tex = INVALID_UINT_32,
-																						  uint32_t alpha_x_tex = INVALID_UINT_32,
-																						  uint32_t specular_albedo_tex = INVALID_UINT_32,
-																						  uint32_t alpha_y_tex = INVALID_UINT_32,
-																						  uint32_t specular_weight_tex = INVALID_UINT_32,
-																						  uint32_t metalness_tex = INVALID_UINT_32,
-																						  uint32_t transmission_weight_tex = INVALID_UINT_32, 
-																						  uint32_t normal_mapping_tex = INVALID_UINT_32,
-																						  uint32_t bump_mapping_tex = INVALID_UINT_32)
+																						  uint32_t diffuse_albedo_tex = EMPTY_UINT32,
+																						  uint32_t alpha_x_tex = EMPTY_UINT32,
+																						  uint32_t specular_albedo_tex = EMPTY_UINT32,
+																						  uint32_t alpha_y_tex = EMPTY_UINT32,
+																						  uint32_t specular_weight_tex = EMPTY_UINT32,
+																						  uint32_t metalness_tex = EMPTY_UINT32,
+																						  uint32_t transmission_weight_tex = EMPTY_UINT32, 
+																						  uint32_t normal_mapping_tex = EMPTY_UINT32,
+																						  uint32_t bump_mapping_tex = EMPTY_UINT32)
 		{
 			material_type = DEFAULT_MTL;
 			default_mtl = DefaultMtl(diffuse_albedo, specular_albedo, roughness_x, roughness_y, ior_n, metalness, specular_weight, transmission_weight, 

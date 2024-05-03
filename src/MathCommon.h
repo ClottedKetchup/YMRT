@@ -18,8 +18,8 @@ namespace YumeRT
 #define YumeRT_FLOAT_MAX  1E36f
 #define YumeRT_FLOAT_MIN  -1E36f
 
-#define INVALID_UINT_32 0xFFFFFFFF
-#define INVALID_UINT_16 0xFFFF
+#define EMPTY_UINT32 0xFFFFFFFF
+#define EMPTY_UINT16 0xFFFF
 
 #define Matrix_T(t) (glm::translate(glm::mat4(1.0f), t))
 #define Matrix_S(s) (glm::scale(glm::mat4(1.0f), s))

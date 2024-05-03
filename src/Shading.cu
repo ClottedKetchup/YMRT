@@ -504,7 +504,7 @@ namespace YumeRT
 
 				if (sample_idx == 0 && depth == 1)
 				{
-					prim_idx_buffer[pixel_idx] = hit_surface? hit_record.hit_instance_idx : INVALID_UINT_32;
+					prim_idx_buffer[pixel_idx] = hit_surface? hit_record.hit_instance_idx : EMPTY_UINT32;
 				}
 
 				// volume scatter
@@ -905,7 +905,7 @@ namespace YumeRT
 		
 		RenderSetting rt_settings = render_setting;
 
-		if (select_prim_idx != INVALID_UINT_32 && !disable_object_highlight) 
+		if (select_prim_idx != EMPTY_UINT32 && !disable_object_highlight) 
 		{
 			void *args[] = { &postprocess_image,
 									 &prim_idx_buffer,
