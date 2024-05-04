@@ -15,25 +15,26 @@ namespace YumeRT
 	struct DefaultMtl 
 	{
 		glm::vec3 diffuse_albedo = glm::vec3(0.5f);
-		float alpha_x = 0.2f;
-		glm::vec3 specular_albedo = glm::vec3(1.0f);
-		float	alpha_y = 0.2f;
-
-		float specular_weight = 1.0f;
-		float metalness = 0.0f;
-		float transmission_weight = 0.0f;
-		float	ior_n = 1.3f;
-
 		uint32_t diffuse_albedo_tex;
-		uint32_t alpha_x_tex;
+		glm::vec3 specular_albedo = glm::vec3(1.0f);
 		uint32_t specular_albedo_tex;
+
+		float alpha_x = 0.2f;
+		uint32_t alpha_x_tex;
+		float	alpha_y = 0.2f;
 		uint32_t	alpha_y_tex;
 
+		float specular_weight = 1.0f;
 		uint32_t specular_weight_tex;
+		float metalness = 0.0f;
 		uint32_t metalness_tex;
-		uint32_t transmission_weight_tex;
-		uint32_t normal_mapping_tex;
 
+		float transmission_weight = 0.0f;
+		uint32_t transmission_weight_tex;
+		float	ior_n = 1.3f;
+		uint32_t ior_priority = 0;
+
+		uint32_t normal_mapping_tex;
 		uint32_t bump_mapping_tex;
 
 		__device__ __host__ inline DefaultMtl(const glm::vec3 &diffuse_albedo,
@@ -44,6 +45,8 @@ namespace YumeRT
 			float metalness,
 			float specular_weight,
 			float transmission_weight,
+			uint32_t ior_priority,
+
 			uint32_t diffuse_albedo_tex,
 			uint32_t alpha_x_tex,
 			uint32_t specular_albedo_tex,
@@ -53,10 +56,26 @@ namespace YumeRT
 			uint32_t transmission_weight_tex,
 			uint32_t normal_mapping_tex,
 			uint32_t bump_mapping_tex) :
-			diffuse_albedo(diffuse_albedo), specular_albedo(specular_albedo), alpha_x(roughness_x), alpha_y(roughness_y), ior_n(ior_n), metalness(metalness), specular_weight(specular_weight), transmission_weight(transmission_weight), 
-			diffuse_albedo_tex(diffuse_albedo_tex), alpha_x_tex(alpha_x_tex), specular_albedo_tex(specular_albedo_tex), alpha_y_tex(alpha_y_tex), 
-			specular_weight_tex(specular_weight_tex), metalness_tex(metalness_tex), transmission_weight_tex(transmission_weight_tex),
-			normal_mapping_tex(normal_mapping_tex), bump_mapping_tex(bump_mapping_tex){}
+
+			diffuse_albedo(diffuse_albedo), 
+			specular_albedo(specular_albedo), 
+			alpha_x(roughness_x), 
+			alpha_y(roughness_y), 
+			ior_n(ior_n), 
+			ior_priority(ior_priority),
+			metalness(metalness), 
+			specular_weight(specular_weight), 
+			transmission_weight(transmission_weight), 
+			diffuse_albedo_tex(diffuse_albedo_tex), 
+			alpha_x_tex(alpha_x_tex), 
+			specular_albedo_tex(specular_albedo_tex), 
+			alpha_y_tex(alpha_y_tex), 
+			specular_weight_tex(specular_weight_tex), 
+			metalness_tex(metalness_tex), 
+			transmission_weight_tex(transmission_weight_tex),
+			normal_mapping_tex(normal_mapping_tex), 
+			bump_mapping_tex(bump_mapping_tex){}
+
 		__device__ __host__ inline DefaultMtl& operator=(const DefaultMtl& other)
 		{
 			diffuse_albedo = other.diffuse_albedo;
@@ -80,6 +99,7 @@ namespace YumeRT
 			normal_mapping_tex = other.normal_mapping_tex;
 
 			bump_mapping_tex = other.bump_mapping_tex;
+			ior_priority = other.ior_priority;
 			
 			return *this;
 		}
@@ -157,6 +177,8 @@ namespace YumeRT
 																						  float metalness = 0.0f,
 																						  float specular_weight = 1.0f,
 																						  float transmission_weight = 0.0f,
+																						  uint32_t ior_priority = 0,
+
 																						  uint32_t diffuse_albedo_tex = EMPTY_UINT32,
 																						  uint32_t alpha_x_tex = EMPTY_UINT32,
 																						  uint32_t specular_albedo_tex = EMPTY_UINT32,
@@ -168,10 +190,25 @@ namespace YumeRT
 																						  uint32_t bump_mapping_tex = EMPTY_UINT32)
 		{
 			material_type = DEFAULT_MTL;
-			default_mtl = DefaultMtl(diffuse_albedo, specular_albedo, roughness_x, roughness_y, ior_n, metalness, specular_weight, transmission_weight, 
-				diffuse_albedo_tex, alpha_x_tex, specular_albedo_tex, alpha_y_tex, 
-				specular_weight_tex, metalness_tex, transmission_weight_tex, 
-				normal_mapping_tex, bump_mapping_tex);
+			default_mtl = DefaultMtl(diffuse_albedo, 
+				specular_albedo, 
+				roughness_x, 
+				roughness_y, 
+				ior_n, 
+				metalness, 
+				specular_weight, 
+				transmission_weight, 
+				ior_priority,
+				diffuse_albedo_tex, 
+				alpha_x_tex, 
+				specular_albedo_tex, 
+				alpha_y_tex, 
+				specular_weight_tex, 
+				metalness_tex, 
+				transmission_weight_tex, 
+				normal_mapping_tex, 
+				bump_mapping_tex);
+			
 			return *this;
 		}
 		__device__ __host__ inline Material& InitLightMtl(const glm::vec3 &light_color = glm::vec3(0.5f), float intensity = 1.0f)
