@@ -502,8 +502,7 @@ namespace YumeRT
 				HitRecord hit_record;
 				bool hit_surface = BVHTraverse(scene, ray, &hit_record);
 
-				if (sample_idx == 0 && depth == 1)
-				{
+				if (sample_idx == 0 && depth == 1){
 					prim_idx_buffer[pixel_idx] = hit_surface? hit_record.hit_instance_idx : EMPTY_UINT32;
 				}
 
