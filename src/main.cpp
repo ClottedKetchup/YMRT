@@ -46,12 +46,12 @@ void TestScene_CornellBox(const std::string &exec_path, std::shared_ptr<YumeRT::
 	const uint32_t bunny_inner_vol_idx_0 = scene_manager->AddVolume("bunny_inner_vol_0", scene_manager->AddTransform(), glm::vec3(0.085f), glm::vec3(0.001f));
 	const uint32_t bunny_inner_vol_idx_1 = scene_manager->AddVolume("bunny_inner_vol_1", scene_manager->AddTransform(), glm::vec3(0.085f), glm::vec3(0.001f));
 
-	// fog bound
-	scene_manager->AddPrimInstance(cube_idx,
-		scene_manager->AddTransform(glm::vec3(0.0f, 9.0f, -5.0f), glm::vec3(150.0f)),
-		default_mtl,
-		1.0f,
-		-1, world_volume_idx, true);
+	//// fog bound
+	//scene_manager->AddPrimInstance(cube_idx,
+	//	scene_manager->AddTransform(glm::vec3(0.0f, 9.0f, -5.0f), glm::vec3(150.0f)),
+	//	default_mtl,
+	//	1.0f,
+	//	-1, world_volume_idx, true);
 
 	// left
 	scene_manager->AddPrimInstance(cube_idx,
@@ -114,19 +114,19 @@ void TestScene_CornellBox(const std::string &exec_path, std::shared_ptr<YumeRT::
 		1.0f,
 		world_volume_idx, -1);
 
-	// light
-	scene_manager->AddPrimInstance(cube_idx,
-		scene_manager->AddTransform(glm::vec3(-3.0f, 4.15f, -5.0f), glm::vec3(0.3, 0.3f, 0.3)),
-		scene_manager->AddLightMaterial("ceil light", glm::vec3(1.0f), 150.0f),
-		1.0f,
-		world_volume_idx, -1);
+	//// light
+	//scene_manager->AddPrimInstance(cube_idx,
+	//	scene_manager->AddTransform(glm::vec3(-3.0f, 4.15f, -5.0f), glm::vec3(0.3, 0.3f, 0.3)),
+	//	scene_manager->AddLightMaterial("ceil light", glm::vec3(1.0f), 150.0f),
+	//	1.0f,
+	//	world_volume_idx, -1);
 
-	// sphere light
-	scene_manager->AddPrimInstance(sphere_idx,
-		scene_manager->AddTransform(glm::vec3(3.0f, 3.35f, -5.0f), glm::vec3(0.15f, 0.15f, 0.15f)),
-		scene_manager->AddLightMaterial("sphere light", glm::vec3(1.0f), 200.0f),
-		1.0f,
-		world_volume_idx, -1);
+	//// sphere light
+	//scene_manager->AddPrimInstance(sphere_idx,
+	//	scene_manager->AddTransform(glm::vec3(3.0f, 3.35f, -5.0f), glm::vec3(0.15f, 0.15f, 0.15f)),
+	//	scene_manager->AddLightMaterial("sphere light", glm::vec3(1.0f), 200.0f),
+	//	1.0f,
+	//	world_volume_idx, -1);
 
 	const uint32_t glass_tex_black_idx = scene_manager->AddTexture("glass_tex_black", YumeRT::Texture().InitConstantTextureFloat(0.65f));
 	const uint32_t glass_tex_white_idx = scene_manager->AddTexture("glass_tex_white", YumeRT::Texture().InitConstantTextureFloat(0.05f));
@@ -158,12 +158,12 @@ void TestScene_CornellBox(const std::string &exec_path, std::shared_ptr<YumeRT::
 		1.0f,
 		world_volume_idx, -1);
 
-	uint32_t cube_volume = scene_manager->AddVolume("cube volume", scene_manager->AddTransform(), glm::vec3(0.085f), glm::vec3(0.001f), 0.0f, fog_tex);
+	/*uint32_t cube_volume = scene_manager->AddVolume("cube volume", scene_manager->AddTransform(), glm::vec3(0.085f), glm::vec3(0.001f), 0.0f, fog_tex);
 	scene_manager->AddPrimInstance(cube_idx,
 		scene_manager->AddTransform(glm::vec3(0.0f, 9.0f, 0.0f), glm::vec3(15.0f, 2.0f, 15.0f)),
 		scene_manager->AddSurfaceMaterial("extra cube"),
 		1.0f,
-		world_volume_idx, cube_volume, true);
+		world_volume_idx, cube_volume, true);*/
 
 	scene_manager->AddDistantLight("Distant Light", scene_manager->AddTransform(glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)), glm::vec3(1.0f), 2.0f, 8.0f);
 }
