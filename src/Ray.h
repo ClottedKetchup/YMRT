@@ -9,7 +9,8 @@ namespace YumeRT
 #define	TMAX 1E36f
 #define	TMIN  1E-7f
 #define    DEFAULT_IOR 1.0f
-#define	MAX_BOUNDARY_RECORD 6
+#define	MAX_BOUNDARY_RECORD 4
+
 	struct Ray 
 	{
 		//TODO: ior
@@ -85,6 +86,16 @@ namespace YumeRT
 
 		BoundaryRecord boundary_records[MAX_BOUNDARY_RECORD];
 		
+		__device__ __host__ inline RayTransfer() : max_priority_record_index(-1), record_count(0) {}
+
+		__device__ __host__ inline const BoundaryRecord& GetMaxPriorityRecord()const
+		{
+			return max_priority_record_index != -1? boundary_records[max_priority_record_index] : BoundaryRecord();
+		}
+		__device__ __host__ inline bool empty() const 
+		{ 
+			return record_count == 0; 
+		}
 		__device__ __host__ inline int FindRecordWithPrim(uint32_t prim_idx) const 
 		{
 			for (int record_idx = record_count - 1; record_idx >= 0; --record_idx) {
@@ -134,9 +145,11 @@ namespace YumeRT
 		}
 		__device__ __host__ inline bool PopRecord(uint32_t hit_prim_idx)
 		{
+			if (record_count == 0) {
+				return false;
+			}
 			const int record_idx = FindRecordWithPrim(hit_prim_idx);
-			if (record_count == 0 || record_idx == -1) {
-				printf("Can't find corresponding prim's record, there may be some single-sided prim.\n");
+			if ( record_idx == -1) {
 				return false;
 			}
 			for (int idx = record_idx + 1; idx < record_count; ++idx) {

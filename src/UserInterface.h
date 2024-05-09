@@ -711,6 +711,10 @@ namespace YumeRT
 					highlight_material.default_mtl.ior_n = glm::max(0.0f, highlight_material.default_mtl.ior_n);
 					scene_manager->UpdateMaterial(highlight_material_idx);
 				}
+				if (ImGui::InputInt("IOR Priority", (int*)&highlight_material.default_mtl.ior_priority))
+				{
+					scene_manager->UpdateMaterial(highlight_material_idx);
+				}
 				if (ImGui::SliderFloat("Roughness X", &highlight_material.default_mtl.alpha_x, 0.0f, 1.0f))
 				{
 					scene_manager->UpdateMaterial(highlight_material_idx);
@@ -1343,7 +1347,7 @@ namespace YumeRT
 				// no need to clamp volume idx, why?
 				scene_manager->ChangePrimVolumeAttribute(m_click_prim_idx, nullptr, nullptr, nullptr);
 			}
-			if (ImGui::Checkbox("Treat as Volume Boundary", &prim_inst.is_volume_boundary)) 
+			if (ImGui::Checkbox("Treat as Volume Boundary", &prim_inst.treat_as_boundary)) 
 			{
 				scene_manager->ChangePrimVolumeAttribute(m_click_prim_idx, nullptr, nullptr, nullptr);
 			}

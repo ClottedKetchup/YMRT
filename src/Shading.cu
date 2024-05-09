@@ -492,6 +492,8 @@ namespace YumeRT
 			}
 
 			Ray ray = scene.camera->GenerateRay(float(px + pixel_offset.x) / float(width), float(py + pixel_offset.y) / float(height));
+			RayTransfer ray_transfer;
+			assert(ray_transfer.record_count == 0);
 
 			glm::vec3 L(0.0f), throughput(1.0f);
 			bool never_scatter = true;
@@ -502,8 +504,8 @@ namespace YumeRT
 				HitRecord hit_record;
 				bool hit_surface = BVHTraverse(scene, ray, &hit_record);
 
-				if (sample_idx == 0 && depth == 1){
-					prim_idx_buffer[pixel_idx] = hit_surface? hit_record.hit_instance_idx : EMPTY_UINT32;
+				if (sample_idx == 0 && depth == 1) {
+					prim_idx_buffer[pixel_idx] = hit_surface ? hit_record.hit_instance_idx : EMPTY_UINT32;
 				}
 
 				// volume scatter
@@ -559,7 +561,6 @@ namespace YumeRT
 					glm::vec2	hit_uv;
 					glm::vec3	hit_dpdu;
 					glm::vec3	hit_dpdv;
-
 					FetchShadingData(scene,
 												hit_record,
 												&hit_position,
@@ -570,35 +571,58 @@ namespace YumeRT
 												&hit_dpdu,
 												&hit_dpdv);
 
-					const glm::vec4 tex_coordinates_differentials = scene.camera->TextureCoordinatesDifferential(ray, 
-						hit_position, 
-						hit_shading_normal, 
-						hit_geometry_normal, 
-						hit_dpdu, 
-						hit_dpdv, 
-						width, 
-						height, 
-						0.25f, 
-						0.25f);
-
 					const PrimitiveInstance &prim = scene.prim_instances[hit_record.hit_instance_idx];
 					const Material &mtl = scene.materials[prim.material_idx];
-					if (mtl.material_type == LIGHT_MTL)
+					
+					float mtl_ior; 
+					uint32_t mtl_ior_priority;
+					mtl.FetchIOR(&mtl_ior, &mtl_ior_priority);
+					if (!ray_transfer.empty() && mtl_ior_priority < ray_transfer.GetMaxPriorityRecord().ior_priority)
 					{
-						if (never_scatter) { L += throughput * mtl.light_mtl.light_color * mtl.light_mtl.intensity; }
-						break;
-					}
-
-					if (prim.is_volume_boundary)
-					{
-						glm::vec3 new_direction = ray.direction;
-						bool front_side_bounce = glm::dot(hit_geometry_normal, new_direction) >= 0.0f;
-						glm::vec3 new_origin = OffsetRayOrigin(hit_position, front_side_bounce ? hit_geometry_normal : -hit_geometry_normal);
-
-						ray = Ray(new_origin, new_direction, ray.ray_ior, front_side_bounce ? prim.outer_volume_idx : prim.inner_volume_idx);
-						// keep never scatter unchanged
+						bool bounce_outside = glm::dot(hit_geometry_normal, ray.direction) > 0.0f;
+						if (bounce_outside) {
+							ray_transfer.PopRecord(hit_record.hit_instance_idx);
+						}
+						else {
+							ray_transfer.PushRecord(hit_record.hit_instance_idx, mtl_ior, mtl_ior_priority, prim.inner_volume_idx);
+						}
+						ray = Ray(OffsetRayOrigin(hit_position, bounce_outside ? hit_geometry_normal : -hit_geometry_normal),
+							ray.direction,
+							ray.ray_ior,
+							bounce_outside ? prim.outer_volume_idx : prim.inner_volume_idx);
 						++depth;
 						continue;
+					}
+
+					if (prim.treat_as_boundary)
+					{
+						bool bounce_outside = glm::dot(hit_geometry_normal, ray.direction) > 0.0f;
+						if (bounce_outside) {
+							ray_transfer.PopRecord(hit_record.hit_instance_idx);
+						}
+						else {
+							ray_transfer.PushRecord(hit_record.hit_instance_idx, mtl_ior, mtl_ior_priority, prim.inner_volume_idx);
+						}
+						ray = Ray(OffsetRayOrigin(hit_position, bounce_outside ? hit_geometry_normal : -hit_geometry_normal),
+							ray.direction, 
+							ray.ray_ior, 
+							bounce_outside ? prim.outer_volume_idx : prim.inner_volume_idx);
+						++depth;
+						continue;
+					}
+
+					const glm::vec4 tex_coordinates_differentials =
+						scene.camera->TextureCoordinatesDifferential(ray,
+							hit_position,
+							hit_shading_normal,
+							hit_geometry_normal,
+							hit_dpdu, hit_dpdv,
+							width, height,
+							0.25f, 0.25f);
+
+					if (mtl.material_type == LIGHT_MTL) {
+						if (never_scatter) { L += throughput * mtl.light_mtl.light_color * mtl.light_mtl.intensity; }
+						break;
 					}
 
 					// indirect light
@@ -627,7 +651,8 @@ namespace YumeRT
 																	texture_coordinate,
 																	ray,
 																	hit_record.hit_back,
-																	prim.external_ior);
+																	ray_transfer.GetRayIOR(),
+																	ray_transfer.GetExIOR(hit_record.hit_instance_idx));
 					}
 					
 					if (true) 
@@ -675,17 +700,26 @@ namespace YumeRT
 					float rr = glm::max(throughput.x, glm::max(throughput.y, throughput.z));
 					if (depth + 1 > render_setting.ray_depth)
 					{
-						// break;
 						if (render_setting.enable_russian_roulette && sampler.Random1D() < rr) { throughput /= glm::max(rr, 1E-20f); }
 						else { break; }
 					}
 
 					glm::vec3 new_direction = material_bsdf.ShadingToWorld(wi);
-					bool front_side_bounce = glm::dot(hit_geometry_normal, new_direction) >= 0.0f;
+					if (wi.z < 0.0f) // refract
+					{
+						bool bounce_outside = glm::dot(hit_geometry_normal, new_direction) > 0.0f;
+						if (bounce_outside) {
+							ray_transfer.PopRecord(hit_record.hit_instance_idx);
+						}
+						else {
+							//printf("push record, prim_idx = %d.\n", hit_record.hit_instance_idx);
+							ray_transfer.PushRecord(hit_record.hit_instance_idx, mtl_ior, mtl_ior_priority, prim.inner_volume_idx);
+						}
+					}
+
 					// this method to avoid self intersection is still not robust, it makes the sphere self-intersection when radius is big
-					glm::vec3 new_origin = OffsetRayOrigin(hit_position, front_side_bounce? hit_geometry_normal : -hit_geometry_normal);
-					
-					ray = Ray(new_origin, 
+					bool front_side_bounce = glm::dot(hit_geometry_normal, new_direction) >= 0.0f;
+					ray = Ray(OffsetRayOrigin(hit_position, front_side_bounce ? hit_geometry_normal : -hit_geometry_normal),
 									new_direction,
 									front_side_bounce? prim.external_ior : mtl.default_mtl.ior_n, 
 									front_side_bounce? prim.outer_volume_idx : prim.inner_volume_idx);

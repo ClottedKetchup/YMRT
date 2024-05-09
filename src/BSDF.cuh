@@ -453,7 +453,8 @@ namespace YumeRT
 			const Ray &ray_in,
 			const glm::vec3 &normal,
 			int hit_back,
-			float prim_outer_ior) 
+			const float ray_ior,
+			const float ex_ior)
 		{
 			auto fetch_color = [&](uint32_t tex_idx, const glm::vec3 &default_color)->glm::vec3{
 				return tex_idx != EMPTY_UINT32 ? TextureEval(textures[tex_idx], textures, Image_tile_cache, texture_coordinate) : default_color;
@@ -464,8 +465,8 @@ namespace YumeRT
 
 			const DefaultMtl& default_mtl = mtl.default_mtl;
 
-			const float i_ior = glm::max(ray_in.ray_ior, 0.0001f);
-			const float o_ior = glm::max(hit_back ? prim_outer_ior : default_mtl.ior_n, 0.0001f);
+			const float i_ior = glm::max(ray_ior, 0.0001f);
+			const float o_ior = glm::max(hit_back ? ex_ior : default_mtl.ior_n, 0.0001f);
 			const float eta = o_ior * SafeRcp(i_ior);
 			const float fr = FresnelDielectricDielectric(eta, glm::max(glm::dot(normal, -ray_in.direction), 0.0f));
 
@@ -694,14 +695,15 @@ namespace YumeRT
 			const TextureCoordinate &texture_coordinate,
 			const Ray &ray_in,
 			int hit_back,
-			float prim_outer_ior) 
+			const float ray_ior,
+			const float ex_ior) 
 		{
 			material_type = mtl.material_type;
 			
 			assert(material_type != INVALID_UINT_32);
 			if (material_type == DEFAULT_MTL) 
 			{
-				default_mtl_bsdf.InitBSDFSettings(mtl, textures, Image_tile_cache, texture_coordinate, ray_in, normal, hit_back, prim_outer_ior);
+				default_mtl_bsdf.InitBSDFSettings(mtl, textures, Image_tile_cache, texture_coordinate, ray_in, normal, hit_back, ray_ior, ex_ior);
 			}
 			else if (material_type == LIGHT_MTL)
 			{

@@ -134,7 +134,13 @@ void TestScene_CornellBox(const std::string &exec_path, std::shared_ptr<YumeRT::
 
 	scene_manager->AddPrimInstance(sphere_idx,
 		scene_manager->AddTransform(glm::vec3(0.0f, 0.6f, 3.0f), glm::vec3(1.2f)),
-		scene_manager->AddSurfaceMaterial("extra sphere", glm::vec3(0.75f, 0.75f, 0.75f), glm::vec3(1.0f), 0.1, 0.1, 1.33, 0.0f, 1.0f, 1.0f, 0),
+		scene_manager->AddSurfaceMaterial("extra sphere", glm::vec3(0.75f, 0.75f, 0.75f), glm::vec3(1.0f), 0.1, 0.1, 1.33, 0.0f, 1.0f, 1.0f, 1),
+		1.0f,
+		world_volume_idx, -1);
+
+	scene_manager->AddPrimInstance(sphere_idx,
+		scene_manager->AddTransform(glm::vec3(1.0f, 0.6f, 3.0f), glm::vec3(1.2f)),
+		scene_manager->AddSurfaceMaterial("extra sphere 2", glm::vec3(0.75f, 0.75f, 0.75f), glm::vec3(1.0f, 0.15f, 0.15f), 0.1, 0.1, 1.33, 0.0f, 1.0f, 1.0f, 1),
 		1.0f,
 		world_volume_idx, -1);
 

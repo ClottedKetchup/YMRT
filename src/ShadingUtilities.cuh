@@ -330,7 +330,7 @@ namespace YumeRT
 				PrimitiveInstance *prim_instances = scene.prim_instances + node.leaf.offset;
 				for (uint32_t i = 0; i < node.leaf.count; ++i)
 				{
-					if (!prim_instances[i].is_volume_boundary) { continue; }
+					if (!prim_instances[i].treat_as_boundary) { continue; }
 
 					const PrimitiveInstance &prim = prim_instances[i];
 					const glm::mat4 &i_transform = scene.i_transforms[prim.transform_idx];
@@ -399,7 +399,7 @@ namespace YumeRT
 				for (uint32_t i = 0; i < node.leaf.count; ++i)
 				{
 					// skip the test of volume boundary
-					if (prim_instances[i].is_volume_boundary) { continue; }
+					if (prim_instances[i].treat_as_boundary) { continue; }
 
 					const glm::mat4 &i_transform = scene.i_transforms[prim_instances[i].transform_idx];
 					Ray object_ray = TransformRay(ray, i_transform);

@@ -14,7 +14,7 @@ namespace YumeRT
 		int outer_volume_idx = -1;
 		int inner_volume_idx = -1;
 		float external_ior = 1.0f;
-		bool is_volume_boundary = false;
+		bool treat_as_boundary = false;
 
 		__device__ __host__ inline PrimitiveInstance() {};
 		__device__ __host__ inline PrimitiveInstance(uint32_t geometry_idx,
@@ -29,6 +29,6 @@ namespace YumeRT
 			material_idx(material_idx), 
 			external_ior(external_ior), 
 			outer_volume_idx(outer_volume_idx), 
-			inner_volume_idx(inner_volume_idx), is_volume_boundary(is_volume_boundary) {}
+			inner_volume_idx(inner_volume_idx), treat_as_boundary(is_volume_boundary) {}
 	};
 };
