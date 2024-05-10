@@ -713,6 +713,7 @@ namespace YumeRT
 				}
 				if (ImGui::InputInt("IOR Priority", (int*)&highlight_material.default_mtl.ior_priority))
 				{
+					highlight_material.default_mtl.ior_priority = glm::max(highlight_material.default_mtl.ior_priority, 0u);
 					scene_manager->UpdateMaterial(highlight_material_idx);
 				}
 				if (ImGui::SliderFloat("Roughness X", &highlight_material.default_mtl.alpha_x, 0.0f, 1.0f))

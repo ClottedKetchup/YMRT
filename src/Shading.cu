@@ -52,19 +52,25 @@ namespace YumeRT
 
 
 	__device__ glm::vec3 EvalDistantLight(const RenderSetting &render_setting,
-																const Scene &scene, 
-																const ImageTileCache& image_tile_cache,
-																MaterialBSDF &material_bsdf,
-																const glm::vec3 &ray_direction, 
-																const PrimitiveInstance& hit_prim,
-																const glm::vec3 &hit_position, 
-																const glm::vec3 &hit_shading_normal, 
-																const glm::vec3 &hit_geometry_normal,
-		RandomSampler &sampler)
+															const Scene &scene, 
+															const ImageTileCache& image_tile_cache,
+															MaterialBSDF &material_bsdf,
+															const glm::vec3 &ray_direction, 
+															const RayTransfer &ray_transfer,
+															const BoundaryRecord& hit_boundary_record,
+															const PrimitiveInstance& hit_prim,
+															const glm::vec3 &hit_position, 
+															const glm::vec3 &hit_shading_normal, 
+															const glm::vec3 &hit_geometry_normal,
+															RandomSampler &sampler)
 	{
 		assert(scene.distant_lights != nullptr);
-		if (scene.distant_lights == nullptr || scene.distant_light_count == 0) {return glm::vec3(0.0f);}
-		auto random = [&]()->float {return sampler.Random1D(); };
+		if (scene.distant_lights == nullptr || scene.distant_light_count == 0) {
+			return glm::vec3(0.0f);
+		}
+		auto random = [&]()->float {
+			return sampler.Random1D(); 
+		};
 		
 		glm::vec3 direct_lighting(0.0f);
 		const glm::vec3 wo = material_bsdf.WorldToShading(-ray_direction);
@@ -76,7 +82,7 @@ namespace YumeRT
 		{
 			glm::vec3 light_dir, light_pos;
 			float light_sample_pdf;
-			glm::vec3 Li = scene.distant_lights[selected_distant_light_idx].SampleLi(scene, hit_position, random(), random(), &light_dir, &light_pos, &light_sample_pdf);
+			const glm::vec3 Li = scene.distant_lights[selected_distant_light_idx].SampleLi(scene, hit_position, random(), random(), &light_dir, &light_pos, &light_sample_pdf);
 
 			glm::vec3 light_wi = material_bsdf.WorldToShading(light_dir);
 			float light_wi_pdf = 0.0f;
@@ -84,8 +90,8 @@ namespace YumeRT
 
 			if (bsdf_weight.x + bsdf_weight.y + bsdf_weight.z > 1E-16f)
 			{
-				bool front_side_light = glm::dot(light_dir, hit_geometry_normal) >= 0.0f;
-				const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position,  front_side_light ? hit_geometry_normal : -hit_geometry_normal);
+				const bool bounce_outside = glm::dot(light_dir, hit_geometry_normal) > 0.0f;
+				const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, bounce_outside ? hit_geometry_normal : -hit_geometry_normal);
 				Ray shadow_ray(shadow_ray_origin, light_dir);
 
 				HitRecord shadow_ray_record;
@@ -94,9 +100,19 @@ namespace YumeRT
 					glm::vec3 tr(1.0f);
 					if (render_setting.enable_volume_scattering)
 					{
-						// don't need ior, set it arbitrary value.
+						RayTransfer shadow_ray_transfer(ray_transfer);
+						if (!SameHemisphere(wo, light_wi)) // refract
+						{
+							if (bounce_outside) {
+								shadow_ray_transfer.PopRecord(hit_boundary_record.prim_idx);
+							}
+							else {
+								shadow_ray_transfer.PushRecord(hit_boundary_record.prim_idx, hit_boundary_record.ior, hit_boundary_record.ior_priority, hit_boundary_record.vol_idx);
+							}
+						}
+
 						shadow_ray = Ray(shadow_ray_origin, light_dir, 1.0f,
-													  front_side_light ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
+							bounce_outside ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
 						shadow_ray.t = TMAX;
 						tr = TraceTr(scene, image_tile_cache, shadow_ray, sampler);
 					}
@@ -117,12 +133,12 @@ namespace YumeRT
 			{
 				const glm::vec3 light_dir = material_bsdf.ShadingToWorld(bsdf_wi);
 				float bsdf_wi_pdf = 0.0f;
-				glm::vec3 Li = scene.distant_lights[selected_distant_light_idx].EvalLi(scene, light_dir, &bsdf_wi_pdf);
+				const glm::vec3 Li = scene.distant_lights[selected_distant_light_idx].EvalLi(scene, light_dir, &bsdf_wi_pdf);
 
 				if (Li.x + Li.y + Li.z > 1E-16f)
 				{
-					bool front_side_light = glm::dot(light_dir, hit_geometry_normal) >= 0.0f;
-					const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, front_side_light ? hit_geometry_normal : -hit_geometry_normal);
+					const bool bounce_outside = glm::dot(light_dir, hit_geometry_normal) > 0.0f;
+					const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, bounce_outside ? hit_geometry_normal : -hit_geometry_normal);
 					Ray shadow_ray(shadow_ray_origin, light_dir);
 
 					HitRecord shadow_ray_record;
@@ -131,9 +147,19 @@ namespace YumeRT
 						glm::vec3 tr(1.0f);
 						if (render_setting.enable_volume_scattering)
 						{
-							// don't need ior, set it arbitrary value.
+							RayTransfer shadow_ray_transfer(ray_transfer);
+							if (!SameHemisphere(wo, bsdf_wi)) // refract
+							{
+								if (bounce_outside) {
+									shadow_ray_transfer.PopRecord(hit_boundary_record.prim_idx);
+								}
+								else {
+									shadow_ray_transfer.PushRecord(hit_boundary_record.prim_idx, hit_boundary_record.ior, hit_boundary_record.ior_priority, hit_boundary_record.vol_idx);
+								}
+							}
+
 							shadow_ray = Ray(shadow_ray_origin, light_dir, 1.0f,
-														  front_side_light ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
+								bounce_outside ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
 							shadow_ray.t = TMAX;
 							tr = TraceTr(scene, image_tile_cache, shadow_ray, sampler);
 						}
@@ -151,23 +177,27 @@ namespace YumeRT
 
 
 	__device__ glm::vec3 EvalVolumeDistantLight(const RenderSetting &render_setting,
-																			 const Scene &scene,
-																			 const ImageTileCache& image_tile_cache,
-																			 const Volume &volume,
-																			 const Ray &ray,
-																			 const glm::vec3 &volume_hit_position,
-		RandomSampler &sampler)
+																		const Scene &scene,
+																		const ImageTileCache& image_tile_cache,
+																		const Volume &volume,
+																		const Ray &ray,
+																		const RayTransfer &ray_transfer,
+																		const glm::vec3 &volume_hit_position,
+																		RandomSampler &sampler)
 	{
-		if (scene.distant_lights == nullptr) { return glm::vec3(0.0f); }
+		if (scene.distant_lights == nullptr || scene.distant_light_count == 0) { return glm::vec3(0.0f); }
 		auto random = [&]()->float {return sampler.Random1D(); };
 
 		glm::vec3 direct_lighting(0.0f);
+
+		const float distant_light_select_pdf = 1.0f / float(scene.distant_light_count);
+		const int selected_distant_light_idx = glm::max(glm::min((int)(random() * scene.distant_light_count), (int)scene.distant_light_count - 1), 0);
 
 		// sample from light
 		{
 			glm::vec3 light_dir, light_pos;
 			float light_sample_pdf;
-			glm::vec3 Li = scene.distant_lights[0].SampleLi(scene, volume_hit_position, random(), random(), &light_dir, &light_pos, &light_sample_pdf);
+			const glm::vec3 Li = scene.distant_lights[selected_distant_light_idx].SampleLi(scene, volume_hit_position, random(), random(), &light_dir, &light_pos, &light_sample_pdf);
 
 			glm::vec3 light_wi = light_dir;
 			float light_wi_pdf = 0.0f;
@@ -181,7 +211,8 @@ namespace YumeRT
 				HitRecord shadow_ray_record;
 				if (!BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
 				{
-					// don't need ior, set it arbitrary value.
+					RayTransfer shadow_ray_transfer(ray_transfer);
+
 					shadow_ray = Ray(volume_hit_position, light_dir, 1.0f, ray.volume_idx);
 					shadow_ray.t = TMAX;
 					glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, sampler);
@@ -202,7 +233,7 @@ namespace YumeRT
 			{
 				const glm::vec3 light_dir = phase_wi;
 				float phase_wi_pdf = 0.0f;
-				glm::vec3 Li = scene.distant_lights[0].EvalLi(scene, light_dir, &phase_wi_pdf);
+				const glm::vec3 Li = scene.distant_lights[selected_distant_light_idx].EvalLi(scene, light_dir, &phase_wi_pdf);
 
 				if (Li.x + Li.y + Li.z > 1E-16f)
 				{
@@ -212,7 +243,8 @@ namespace YumeRT
 					HitRecord shadow_ray_record;
 					if (!BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
 					{
-						// don't need ior, set it arbitrary value.
+						RayTransfer shadow_ray_transfer(ray_transfer);
+						
 						shadow_ray = Ray(volume_hit_position, light_dir, 1.0f, ray.volume_idx);
 						shadow_ray.t = TMAX;
 						glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, sampler);
@@ -224,21 +256,24 @@ namespace YumeRT
 			}
 		}
 
-		return direct_lighting;
+		return direct_lighting / distant_light_select_pdf;
 	}
 
 
 	__device__ glm::vec3 EvalShapeLight(const RenderSetting &render_setting,
-																const Scene &scene,
-																const ImageTileCache& image_tile_cache,
-																MaterialBSDF &material_bsdf,
-																const glm::vec3 &ray_direction,
-																const PrimitiveInstance &hit_prim,
-																const glm::vec3 &hit_position,
-																const glm::vec3 &hit_shading_normal,
-																const glm::vec3 &hit_geometry_normal,
-		RandomSampler &sampler)
+															const Scene &scene,
+															const ImageTileCache& image_tile_cache,
+															MaterialBSDF &material_bsdf,
+															const glm::vec3 &ray_direction,
+															const RayTransfer &ray_transfer,
+															const BoundaryRecord &hit_boundary_record,
+															const PrimitiveInstance &hit_prim,
+															const glm::vec3 &hit_position,
+															const glm::vec3 &hit_shading_normal,
+															const glm::vec3 &hit_geometry_normal,
+															RandomSampler &sampler)
 	{
+		// NEXT TODO
 		if (scene.shape_light_count == 0 || scene.shape_lights == nullptr) { return glm::vec3(0.0f); }
 		auto random = [&]()->float {return sampler.Random1D(); };
 
@@ -254,7 +289,7 @@ namespace YumeRT
 		{
 			glm::vec3 light_dir, light_pos, light_geo_normal;
 			float light_sample_pdf;
-			glm::vec3 Li = shape_light.SampleLi(scene, hit_position, random(), random(), &light_dir, &light_pos, &light_geo_normal, &light_sample_pdf);
+			const glm::vec3 Li = shape_light.SampleLi(scene, hit_position, random(), random(), &light_dir, &light_pos, &light_geo_normal, &light_sample_pdf);
 
 			glm::vec3 light_wi = material_bsdf.WorldToShading(light_dir);
 			float light_wi_pdf = 0.0f;
@@ -262,8 +297,8 @@ namespace YumeRT
 
 			if (bsdf_weight.x + bsdf_weight.y + bsdf_weight.z > 1E-16f)
 			{
-				bool front_side_light = glm::dot(light_dir, hit_geometry_normal) >= 0.0f;
-				const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, front_side_light ? hit_geometry_normal : -hit_geometry_normal);
+				bool bounce_outside = glm::dot(light_dir, hit_geometry_normal) > 0.0f;
+				const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, bounce_outside ? hit_geometry_normal : -hit_geometry_normal);
 
 				// only for test occlusion, so we don't need ior and volume
 				Ray shadow_ray(shadow_ray_origin, light_dir);
@@ -276,9 +311,19 @@ namespace YumeRT
 					glm::vec3 tr(1.0f);
 					if (render_setting.enable_volume_scattering) 
 					{
-						// don't need ior, set it arbitrary value.
-						shadow_ray = Ray(shadow_ray_origin, light_dir, 1.0f, 
-													  front_side_light ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
+						RayTransfer shadow_ray_transfer(ray_transfer);
+						if (!SameHemisphere(wo, light_wi)) // refract
+						{
+							if (bounce_outside) {
+								shadow_ray_transfer.PopRecord(hit_boundary_record.prim_idx);
+							}
+							else {
+								shadow_ray_transfer.PushRecord(hit_boundary_record.prim_idx, hit_boundary_record.ior, hit_boundary_record.ior_priority, hit_boundary_record.vol_idx);
+							}
+						}
+
+						shadow_ray = Ray(shadow_ray_origin, light_dir, 1.0f,
+							bounce_outside ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
 						shadow_ray.t = max_trace_distance;
 						tr = TraceTr(scene, image_tile_cache, shadow_ray, sampler);
 					}
@@ -300,12 +345,12 @@ namespace YumeRT
 				glm::vec3 light_dir = material_bsdf.ShadingToWorld(bsdf_wi);
 				glm::vec3 light_pos, light_geo_normal;
 				float bsdf_wi_pdf = 0.0f;
-				glm::vec3 Li = shape_light.EvalLi(scene, hit_position, light_dir, &light_pos, &light_geo_normal, &bsdf_wi_pdf);
+				const glm::vec3 Li = shape_light.EvalLi(scene, hit_position, light_dir, &light_pos, &light_geo_normal, &bsdf_wi_pdf);
 
 				if (Li.x + Li.y + Li.z > 1E-16f)
 				{
-					bool front_side_light = glm::dot(light_dir, hit_geometry_normal) >= 0.0f;
-					glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position,  front_side_light? hit_geometry_normal : -hit_geometry_normal);
+					bool bounce_outside = glm::dot(light_dir, hit_geometry_normal) > 0.0f;
+					glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position,  bounce_outside? hit_geometry_normal : -hit_geometry_normal);
 					
 					// only for test occlusion, so we don't need ior and volume
 					Ray shadow_ray(shadow_ray_origin, light_dir);
@@ -318,9 +363,19 @@ namespace YumeRT
 						glm::vec3 tr(1.0f);
 						if (render_setting.enable_volume_scattering)
 						{
-							// don't need ior, set it arbitrary value.
-							shadow_ray = Ray(shadow_ray_origin, light_dir, 1.0f, 
-														  front_side_light ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
+							RayTransfer shadow_ray_transfer(ray_transfer);
+							if (!SameHemisphere(wo, bsdf_wi)) // refract
+							{
+								if (bounce_outside) {
+									shadow_ray_transfer.PopRecord(hit_boundary_record.prim_idx);
+								}
+								else {
+									shadow_ray_transfer.PushRecord(hit_boundary_record.prim_idx, hit_boundary_record.ior, hit_boundary_record.ior_priority, hit_boundary_record.vol_idx);
+								}
+							}
+							
+							shadow_ray = Ray(shadow_ray_origin, light_dir, 1.0f,
+								bounce_outside ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
 							shadow_ray.t = max_trace_distance;
 							tr = TraceTr(scene, image_tile_cache, shadow_ray, sampler);
 						}
@@ -337,12 +392,13 @@ namespace YumeRT
 	}
 
 	__device__ glm::vec3 EvalVolumeShapeLight(const RenderSetting &render_setting,
-																			const Scene &scene,
-																			const ImageTileCache& image_tile_cache,
-																			const Volume &volume,
-																			const Ray &ray,
-																			const glm::vec3 &volume_hit_position, 
-		RandomSampler &sampler)
+																		const Scene &scene,
+																		const ImageTileCache& image_tile_cache,
+																		const Volume &volume,
+																		const Ray &ray,
+																		const RayTransfer &ray_transfer,
+																		const glm::vec3 &volume_hit_position, 
+																		RandomSampler &sampler)
 	{
 		if (scene.shape_light_count == 0 || scene.shape_lights == nullptr) { return glm::vec3(0.0f); }
 		auto random = [&]()->float {return sampler.Random1D(); };
@@ -358,7 +414,7 @@ namespace YumeRT
 		{
 			glm::vec3 light_dir, light_pos, light_geo_normal;
 			float light_sample_pdf;
-			glm::vec3 Li = shape_light.SampleLi(scene, volume_hit_position, random(), random(), &light_dir, &light_pos, &light_geo_normal, &light_sample_pdf);
+			const glm::vec3 Li = shape_light.SampleLi(scene, volume_hit_position, random(), random(), &light_dir, &light_pos, &light_geo_normal, &light_sample_pdf);
 
 			float light_wi_pdf = 0.0f;
 			float phase_weight = volume.EvalPhase(-ray.direction ,light_dir, &light_wi_pdf);
@@ -372,11 +428,9 @@ namespace YumeRT
 				HitRecord shadow_ray_record;
 				if (!BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
 				{
-					// don't need ior, set it arbitrary value.
-					shadow_ray = Ray(volume_hit_position,
-												  light_dir,
-												  1.0f,
-												  ray.volume_idx);
+					RayTransfer shadow_ray_transfer(ray_transfer);
+
+					shadow_ray = Ray(volume_hit_position, light_dir, 1.0f, ray.volume_idx);
 					shadow_ray.t = max_trace_distance;
 					glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, sampler);
 					
@@ -397,11 +451,10 @@ namespace YumeRT
 				glm::vec3 light_dir = phase_wi;
 				glm::vec3 light_pos, light_geo_normal;
 				float phase_wi_pdf = 0.0f;
-				glm::vec3 Li = shape_light.EvalLi(scene, volume_hit_position, light_dir, &light_pos, &light_geo_normal, &phase_wi_pdf);
+				const glm::vec3 Li = shape_light.EvalLi(scene, volume_hit_position, light_dir, &light_pos, &light_geo_normal, &phase_wi_pdf);
 
 				if (Li.x + Li.y + Li.z > 1E-16f)
 				{
-					// only for test occlusion, so we don't need ior and volume
 					Ray shadow_ray(volume_hit_position, light_dir);
 					float max_trace_distance = glm::length(OffsetRayOrigin(light_pos, light_geo_normal) - volume_hit_position) * 0.9996f;
 
@@ -409,11 +462,9 @@ namespace YumeRT
 					HitRecord shadow_ray_record;
 					if (!BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
 					{
-						// don't need ior, set it arbitrary value.
-						shadow_ray = Ray(volume_hit_position,
-													  light_dir,
-													  1.0f,
-													  ray.volume_idx);
+						RayTransfer shadow_ray_transfer(ray_transfer);
+						
+						shadow_ray = Ray(volume_hit_position, light_dir, 1.0f, ray.volume_idx);
 						shadow_ray.t = max_trace_distance;
 						glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, sampler);
 						
@@ -424,7 +475,7 @@ namespace YumeRT
 			}
 		}
 
-		return light_select_pdf == 0.0f ? glm::vec3(0.0f) : (direct_lighting / light_select_pdf);
+		return light_select_pdf > 0.0f ? (direct_lighting / light_select_pdf) : glm::vec3(0.0f);
 	}
 
 	__global__ void RenderImage(Scene *scene_ptr,
@@ -517,14 +568,14 @@ namespace YumeRT
 					const Volume &vol = scene.volumes[ray.volume_idx];
 
 					throughput *= tr_weight;
-					glm::vec3 volume_hit_position = ray.PositionAtT(sampled_distance);
+					const glm::vec3 volume_hit_position = ray.PositionAtT(sampled_distance);
 
 					if (render_setting.enable_distant_light)
 					{
-						L += throughput * EvalVolumeDistantLight(render_setting, scene, image_tile_cache, vol, ray, volume_hit_position, sampler);
+						L += throughput * EvalVolumeDistantLight(render_setting, scene, image_tile_cache, vol, ray, ray_transfer, volume_hit_position, sampler);
 					}
 
-					L += throughput * EvalVolumeShapeLight(render_setting, scene, image_tile_cache, vol, ray, volume_hit_position, sampler);
+					L += throughput * EvalVolumeShapeLight(render_setting, scene, image_tile_cache, vol, ray, ray_transfer, volume_hit_position, sampler);
 					
 					// sample phase function
 					// multiply phase weight
@@ -666,6 +717,8 @@ namespace YumeRT
 								image_tile_cache,
 								material_bsdf,
 								ray.direction,
+								ray_transfer,
+								BoundaryRecord(hit_record.hit_instance_idx, mtl_ior, mtl_ior_priority, prim.inner_volume_idx),
 								prim,
 								hit_position,
 								material_bsdf.GetShadingNormal(),
@@ -679,6 +732,8 @@ namespace YumeRT
 							image_tile_cache, 
 							material_bsdf,
 							ray.direction,
+							ray_transfer,
+							BoundaryRecord(hit_record.hit_instance_idx, mtl_ior, mtl_ior_priority, prim.inner_volume_idx),
 							prim,
 							hit_position,
 							material_bsdf.GetShadingNormal(),
@@ -712,7 +767,6 @@ namespace YumeRT
 							ray_transfer.PopRecord(hit_record.hit_instance_idx);
 						}
 						else {
-							//printf("push record, prim_idx = %d.\n", hit_record.hit_instance_idx);
 							ray_transfer.PushRecord(hit_record.hit_instance_idx, mtl_ior, mtl_ior_priority, prim.inner_volume_idx);
 						}
 					}
@@ -733,7 +787,6 @@ namespace YumeRT
 					break;
 				}
 			} // for depth
-			// if (render_setting.sampler_type == SOBOL) printf("per pixel dim:%d \n", sampler.sobol_sampler.GetDim());
 			col += L;
 		} // for sample_idx
 

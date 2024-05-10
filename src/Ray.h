@@ -77,6 +77,7 @@ namespace YumeRT
 		int vol_idx;
 
 		__device__ __host__ inline BoundaryRecord() :prim_idx(EMPTY_UINT32), ior(1.0f), ior_priority(0), vol_idx(-1) {}
+		__device__ __host__ inline BoundaryRecord(uint32_t prim_idx, float ior, uint32_t ior_priority, int vol_idx) : prim_idx(prim_idx), ior(ior), ior_priority(ior_priority), vol_idx(vol_idx) {}
 	};
 
 	struct RayTransfer 
@@ -87,6 +88,13 @@ namespace YumeRT
 		BoundaryRecord boundary_records[MAX_BOUNDARY_RECORD];
 		
 		__device__ __host__ inline RayTransfer() : max_priority_record_index(-1), record_count(0) {}
+
+		__device__ __host__ inline RayTransfer(const RayTransfer& other) : max_priority_record_index(other.max_priority_record_index), record_count(other.record_count)
+		{
+			for (int record_idx = 0; record_idx < record_count; ++record_idx) {
+				boundary_records[record_idx] = other.boundary_records[record_idx];
+			}
+		}
 
 		__device__ __host__ inline const BoundaryRecord& GetMaxPriorityRecord()const
 		{
