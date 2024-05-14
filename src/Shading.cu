@@ -101,20 +101,15 @@ namespace YumeRT
 					if (render_setting.enable_volume_scattering)
 					{
 						RayTransfer shadow_ray_transfer(ray_transfer);
-						if (!SameHemisphere(wo, light_wi)) // refract
-						{
-							if (bounce_outside) {
-								shadow_ray_transfer.PopRecord(hit_boundary_record.prim_idx);
-							}
-							else {
-								shadow_ray_transfer.PushRecord(hit_boundary_record.prim_idx, hit_boundary_record.ior, hit_boundary_record.ior_priority, hit_boundary_record.vol_idx);
-							}
+						if (!SameHemisphere(wo, light_wi)) { // refract
+							shadow_ray_transfer.BoundaryTransition(light_dir, hit_geometry_normal, 
+								hit_boundary_record.prim_idx, hit_boundary_record.ior, hit_boundary_record.ior_priority, hit_boundary_record.vol_idx);
 						}
 
 						shadow_ray = Ray(shadow_ray_origin, light_dir, 1.0f,
 							bounce_outside ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
 						shadow_ray.t = TMAX;
-						tr = TraceTr(scene, image_tile_cache, shadow_ray, sampler);
+						tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 					}
 
 					float mis_weight = PowerHeuristic(light_sample_pdf, light_wi_pdf);
@@ -148,20 +143,15 @@ namespace YumeRT
 						if (render_setting.enable_volume_scattering)
 						{
 							RayTransfer shadow_ray_transfer(ray_transfer);
-							if (!SameHemisphere(wo, bsdf_wi)) // refract
-							{
-								if (bounce_outside) {
-									shadow_ray_transfer.PopRecord(hit_boundary_record.prim_idx);
-								}
-								else {
-									shadow_ray_transfer.PushRecord(hit_boundary_record.prim_idx, hit_boundary_record.ior, hit_boundary_record.ior_priority, hit_boundary_record.vol_idx);
-								}
+							if (!SameHemisphere(wo, bsdf_wi)) { // refract
+								shadow_ray_transfer.BoundaryTransition(light_dir, hit_geometry_normal,
+									hit_boundary_record.prim_idx, hit_boundary_record.ior, hit_boundary_record.ior_priority, hit_boundary_record.vol_idx);
 							}
 
 							shadow_ray = Ray(shadow_ray_origin, light_dir, 1.0f,
 								bounce_outside ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
 							shadow_ray.t = TMAX;
-							tr = TraceTr(scene, image_tile_cache, shadow_ray, sampler);
+							tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 						}
 
 						float mis_weight = PowerHeuristic(bsdf_sample_pdf, bsdf_wi_pdf);
@@ -179,17 +169,23 @@ namespace YumeRT
 	__device__ glm::vec3 EvalVolumeDistantLight(const RenderSetting &render_setting,
 																		const Scene &scene,
 																		const ImageTileCache& image_tile_cache,
-																		const Volume &volume,
+																		const int volume_count,
+																		const float gs[],
+																		const float volume_weighs[],
 																		const Ray &ray,
 																		const RayTransfer &ray_transfer,
 																		const glm::vec3 &volume_hit_position,
 																		RandomSampler &sampler)
 	{
-		if (scene.distant_lights == nullptr || scene.distant_light_count == 0) { return glm::vec3(0.0f); }
+		if (scene.distant_lights == nullptr || scene.distant_light_count == 0) { 
+			return glm::vec3(0.0f); 
+		}
+		if (volume_count == 0) { 
+			return glm::vec3(0.0f); 
+		}
 		auto random = [&]()->float {return sampler.Random1D(); };
 
 		glm::vec3 direct_lighting(0.0f);
-
 		const float distant_light_select_pdf = 1.0f / float(scene.distant_light_count);
 		const int selected_distant_light_idx = glm::max(glm::min((int)(random() * scene.distant_light_count), (int)scene.distant_light_count - 1), 0);
 
@@ -201,7 +197,7 @@ namespace YumeRT
 
 			glm::vec3 light_wi = light_dir;
 			float light_wi_pdf = 0.0f;
-			const float phase_weight = volume.EvalPhase(-ray.direction, light_wi, &light_wi_pdf);
+			const float phase_weight = EvalMixedPhases(volume_weighs, gs, volume_count, -ray.direction, light_wi, &light_wi_pdf);
 
 			if (phase_weight > 1E16f)
 			{
@@ -215,7 +211,7 @@ namespace YumeRT
 
 					shadow_ray = Ray(volume_hit_position, light_dir, 1.0f, ray.volume_idx);
 					shadow_ray.t = TMAX;
-					glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, sampler);
+					glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 
 					float mis_weight = PowerHeuristic(light_sample_pdf, light_wi_pdf);
 					direct_lighting += mis_weight * tr * glm::min(phase_weight, 1E16f) * glm::min(Li, glm::vec3(1E16f));
@@ -227,7 +223,7 @@ namespace YumeRT
 		{
 			glm::vec3 phase_wi;
 			float phase_sample_pdf = 0.0f, phase_weight = 0.0f;
-			bool sample_valid = volume.SamplePhase(random(), random(), -ray.direction, &phase_weight, &phase_wi, &phase_sample_pdf);
+			bool sample_valid = SampleMixedPhases(volume_weighs, gs, volume_count, random(), random(), -ray.direction, &phase_weight, &phase_wi, &phase_sample_pdf);
 
 			if (sample_valid)
 			{
@@ -247,7 +243,7 @@ namespace YumeRT
 						
 						shadow_ray = Ray(volume_hit_position, light_dir, 1.0f, ray.volume_idx);
 						shadow_ray.t = TMAX;
-						glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, sampler);
+						glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 
 						float mis_weight = PowerHeuristic(phase_sample_pdf, phase_wi_pdf);
 						direct_lighting += mis_weight * tr * glm::min(phase_weight, 1E16f) * glm::min(Li, glm::vec3(1E16f));
@@ -312,20 +308,15 @@ namespace YumeRT
 					if (render_setting.enable_volume_scattering) 
 					{
 						RayTransfer shadow_ray_transfer(ray_transfer);
-						if (!SameHemisphere(wo, light_wi)) // refract
-						{
-							if (bounce_outside) {
-								shadow_ray_transfer.PopRecord(hit_boundary_record.prim_idx);
-							}
-							else {
-								shadow_ray_transfer.PushRecord(hit_boundary_record.prim_idx, hit_boundary_record.ior, hit_boundary_record.ior_priority, hit_boundary_record.vol_idx);
-							}
+						if (!SameHemisphere(wo, light_wi)) {
+							shadow_ray_transfer.BoundaryTransition(light_dir, hit_geometry_normal,
+								hit_boundary_record.prim_idx, hit_boundary_record.ior, hit_boundary_record.ior_priority, hit_boundary_record.vol_idx);
 						}
 
 						shadow_ray = Ray(shadow_ray_origin, light_dir, 1.0f,
 							bounce_outside ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
 						shadow_ray.t = max_trace_distance;
-						tr = TraceTr(scene, image_tile_cache, shadow_ray, sampler);
+						tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 					}
 					
 					float mis_weight = PowerHeuristic(light_sample_pdf, light_wi_pdf);
@@ -364,20 +355,15 @@ namespace YumeRT
 						if (render_setting.enable_volume_scattering)
 						{
 							RayTransfer shadow_ray_transfer(ray_transfer);
-							if (!SameHemisphere(wo, bsdf_wi)) // refract
-							{
-								if (bounce_outside) {
-									shadow_ray_transfer.PopRecord(hit_boundary_record.prim_idx);
-								}
-								else {
-									shadow_ray_transfer.PushRecord(hit_boundary_record.prim_idx, hit_boundary_record.ior, hit_boundary_record.ior_priority, hit_boundary_record.vol_idx);
-								}
+							if (!SameHemisphere(wo, bsdf_wi)) {
+								shadow_ray_transfer.BoundaryTransition(light_dir, hit_geometry_normal,
+									hit_boundary_record.prim_idx, hit_boundary_record.ior, hit_boundary_record.ior_priority, hit_boundary_record.vol_idx);
 							}
 							
 							shadow_ray = Ray(shadow_ray_origin, light_dir, 1.0f,
 								bounce_outside ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
 							shadow_ray.t = max_trace_distance;
-							tr = TraceTr(scene, image_tile_cache, shadow_ray, sampler);
+							tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 						}
 						
 						float mis_weight = PowerHeuristic(bsdf_sample_pdf, bsdf_wi_pdf);
@@ -394,13 +380,20 @@ namespace YumeRT
 	__device__ glm::vec3 EvalVolumeShapeLight(const RenderSetting &render_setting,
 																		const Scene &scene,
 																		const ImageTileCache& image_tile_cache,
-																		const Volume &volume,
+																		const int volume_count,
+																		const float gs[],
+																		const float volume_weighs[],
 																		const Ray &ray,
 																		const RayTransfer &ray_transfer,
 																		const glm::vec3 &volume_hit_position, 
 																		RandomSampler &sampler)
 	{
-		if (scene.shape_light_count == 0 || scene.shape_lights == nullptr) { return glm::vec3(0.0f); }
+		if (scene.shape_light_count == 0 || scene.shape_lights == nullptr) {
+			return glm::vec3(0.0f);
+		}
+		if (volume_count == 0) {
+			return glm::vec3(0.0f);
+		}
 		auto random = [&]()->float {return sampler.Random1D(); };
 
 		glm::vec3 direct_lighting(0.0f);
@@ -417,7 +410,7 @@ namespace YumeRT
 			const glm::vec3 Li = shape_light.SampleLi(scene, volume_hit_position, random(), random(), &light_dir, &light_pos, &light_geo_normal, &light_sample_pdf);
 
 			float light_wi_pdf = 0.0f;
-			float phase_weight = volume.EvalPhase(-ray.direction ,light_dir, &light_wi_pdf);
+			float phase_weight = EvalMixedPhases(volume_weighs, gs, volume_count, -ray.direction ,light_dir, &light_wi_pdf);
 
 			if (phase_weight > 1E-16f)
 			{
@@ -432,7 +425,7 @@ namespace YumeRT
 
 					shadow_ray = Ray(volume_hit_position, light_dir, 1.0f, ray.volume_idx);
 					shadow_ray.t = max_trace_distance;
-					glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, sampler);
+					glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 					
 					float mis_weight = PowerHeuristic(light_sample_pdf, light_wi_pdf);
 					direct_lighting += mis_weight * tr * glm::min(phase_weight, 1E16f) * glm::min(Li, glm::vec3(1E16f));
@@ -444,7 +437,7 @@ namespace YumeRT
 		{
 			glm::vec3 phase_wi;
 			float phase_sample_pdf = 0.0f, phase_weight = 0.0f;
-			bool sample_valid = volume.SamplePhase(random(), random(), -ray.direction, &phase_weight, &phase_wi, &phase_sample_pdf);
+			bool sample_valid = SampleMixedPhases(volume_weighs, gs, volume_count, random(), random(), -ray.direction, &phase_weight, &phase_wi, &phase_sample_pdf);
 
 			if (sample_valid)
 			{
@@ -466,7 +459,7 @@ namespace YumeRT
 						
 						shadow_ray = Ray(volume_hit_position, light_dir, 1.0f, ray.volume_idx);
 						shadow_ray.t = max_trace_distance;
-						glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, sampler);
+						glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 						
 						float mis_weight = PowerHeuristic(phase_sample_pdf, phase_wi_pdf);
 						direct_lighting += mis_weight * tr * glm::min(phase_weight, 1E16f) * glm::min(Li, glm::vec3(1E16f));
@@ -492,7 +485,9 @@ namespace YumeRT
 	{
 		uint32_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 		uint32_t total_pixel_count = TILE_PIXEL_COUNT * tile_count_x * tile_count_y;
-		if (!(idx < total_pixel_count)) { return; }
+		if (!(idx < total_pixel_count)) { 
+			return;
+		}
 
 		uint32_t tile_id = idx / TILE_PIXEL_COUNT;
 		uint32_t tile_x = tile_id % tile_count_x;
@@ -504,8 +499,10 @@ namespace YumeRT
 
 		uint32_t px = tile_x * TILE_X_RES + tile_pixel_x;
 		uint32_t py = tile_y * TILE_Y_RES + tile_pixel_y;
-		if (!(px < width && py < height)) { return; }
 		uint32_t pixel_idx = py * width + px;
+		if (!(px < width && py < height)) {
+			return;
+		}
 		
 		Scene &scene = *scene_ptr;
 		ImageTileCache &image_tile_cache = *image_tile_cache_ptr;
@@ -550,59 +547,74 @@ namespace YumeRT
 			bool never_scatter = true;
 			for (int depth = 1;;)
 			{
-				if (depth > MAX_RAY_DEPTH) { break; }
+				if (depth > MAX_RAY_DEPTH) { 
+					break; 
+				}
 				
 				HitRecord hit_record;
 				bool hit_surface = BVHTraverse(scene, ray, &hit_record);
 
+				// prim index buffer
 				if (sample_idx == 0 && depth == 1) {
 					prim_idx_buffer[pixel_idx] = hit_surface ? hit_record.hit_instance_idx : EMPTY_UINT32;
 				}
 
 				// volume scatter
-				glm::vec3 tr_weight(1.0f);
-				float sampled_distance = 0.0f;
-				if (render_setting.enable_volume_scattering && 
-					SampleVolumeScattering(scene, image_tile_cache, ray, hit_surface? hit_record.hit_t : TMAX, &tr_weight, &sampled_distance, sampler))
+				if (render_setting.enable_volume_scattering)
 				{
-					const Volume &vol = scene.volumes[ray.volume_idx];
+					glm::vec3 tr_weight(1.0f);
+					float sampled_distance = 0.0f;
 
-					throughput *= tr_weight;
-					const glm::vec3 volume_hit_position = ray.PositionAtT(sampled_distance);
-
-					if (render_setting.enable_distant_light)
-					{
-						L += throughput * EvalVolumeDistantLight(render_setting, scene, image_tile_cache, vol, ray, ray_transfer, volume_hit_position, sampler);
+					// current exist volume
+					int volume_indices[MAX_BOUNDARY_RECORD];
+					float volume_weights[MAX_BOUNDARY_RECORD];
+					float gs[MAX_BOUNDARY_RECORD];
+					const int overlapped_volume_count = ray_transfer.GetCurrentVolumeIndices(volume_indices, scene.volume_count);
+					for (int idx = 0; idx < overlapped_volume_count; ++idx) {
+						gs[idx] = scene.volumes[volume_indices[idx]].g;
 					}
-
-					L += throughput * EvalVolumeShapeLight(render_setting, scene, image_tile_cache, vol, ray, ray_transfer, volume_hit_position, sampler);
 					
-					// sample phase function
-					// multiply phase weight
-					glm::vec3 wi;
-					float pdf = 0.0f, phase_weight = 0.0f;
-					bool continue_bounce = vol.SamplePhase(sampler.Random1D(), sampler.Random1D(), -ray.direction, &phase_weight, &wi, &pdf);
-					if (!continue_bounce) { break; }
-
-					throughput *= phase_weight;
-					float rr = glm::max(throughput.x, glm::max(throughput.y, throughput.z));
-					if (depth + 1 > render_setting.ray_depth)
+					if (SampleVolumeScattering(scene, image_tile_cache, ray, overlapped_volume_count, volume_indices,  hit_surface ? hit_record.hit_t : TMAX, 
+						&tr_weight, &sampled_distance, volume_weights, sampler))
 					{
-						if (render_setting.enable_russian_roulette && sampler.Random1D() < rr) { throughput /= glm::max(rr, 1E-20f); }
-						else { break; }
+						throughput *= tr_weight;
+
+						glm::vec3 volume_hit_position = ray.PositionAtT(sampled_distance);
+						if (render_setting.enable_distant_light) {
+							L += throughput * EvalVolumeDistantLight(render_setting, scene, image_tile_cache, overlapped_volume_count, gs, volume_weights, 
+								ray, ray_transfer, volume_hit_position, sampler);
+						}
+
+						L += throughput * EvalVolumeShapeLight(render_setting, scene, image_tile_cache, overlapped_volume_count, gs, volume_weights, 
+							ray, ray_transfer, volume_hit_position, sampler);
+
+						// sample phase function
+						// multiply phase weight
+						glm::vec3 wi;
+						float pdf = 0.0f, phase_weight = 0.0f;
+						const bool continue_bounce = SampleMixedPhases(volume_weights, gs, overlapped_volume_count, 
+							sampler.Random1D(), sampler.Random1D(), -ray.direction, &phase_weight, &wi, &pdf);
+						if (!continue_bounce) { break; }
+
+						throughput *= phase_weight;
+						float rr = glm::max(throughput.x, glm::max(throughput.y, throughput.z));
+						if (depth + 1 > render_setting.ray_depth)
+						{
+							if (render_setting.enable_russian_roulette && sampler.Random1D() < rr) { throughput /= glm::max(rr, 1E-20f); }
+							else { break; }
+						}
+
+						ray = Ray(volume_hit_position, wi, ray.ray_ior, ray.volume_idx);
+						never_scatter = false;
+						++depth;
+						continue;
 					}
-
-					ray = Ray(volume_hit_position, wi, ray.ray_ior, ray.volume_idx);
-					never_scatter = false;
-					++depth;
-					continue;
+					else {
+						throughput *= tr_weight;
+					}
 				}
-				else
-				{
-					throughput *= tr_weight;
-				}
-				
-
+			
+				// surface shading
 				if (hit_surface)
 				{
 					glm::vec3 hit_position;
@@ -625,18 +637,14 @@ namespace YumeRT
 					const PrimitiveInstance &prim = scene.prim_instances[hit_record.hit_instance_idx];
 					const Material &mtl = scene.materials[prim.material_idx];
 					
-					float mtl_ior; 
 					uint32_t mtl_ior_priority;
-					mtl.FetchIOR(&mtl_ior, &mtl_ior_priority);
+					const float mtl_ior = mtl.FetchIOR(&mtl_ior_priority);
+					
 					if (!ray_transfer.empty() && mtl_ior_priority < ray_transfer.GetMaxPriorityRecord().ior_priority)
 					{
 						bool bounce_outside = glm::dot(hit_geometry_normal, ray.direction) > 0.0f;
-						if (bounce_outside) {
-							ray_transfer.PopRecord(hit_record.hit_instance_idx);
-						}
-						else {
-							ray_transfer.PushRecord(hit_record.hit_instance_idx, mtl_ior, mtl_ior_priority, prim.inner_volume_idx);
-						}
+						ray_transfer.BoundaryTransition(ray.direction, hit_geometry_normal,
+							hit_record.hit_instance_idx, mtl_ior, mtl_ior_priority, prim.inner_volume_idx);
 						ray = Ray(OffsetRayOrigin(hit_position, bounce_outside ? hit_geometry_normal : -hit_geometry_normal),
 							ray.direction,
 							ray.ray_ior,
@@ -647,13 +655,10 @@ namespace YumeRT
 
 					if (prim.treat_as_boundary)
 					{
+						// note: although volume is treat as boundary, but the material's ior will still affect its attribute, so remember to set it!
 						bool bounce_outside = glm::dot(hit_geometry_normal, ray.direction) > 0.0f;
-						if (bounce_outside) {
-							ray_transfer.PopRecord(hit_record.hit_instance_idx);
-						}
-						else {
-							ray_transfer.PushRecord(hit_record.hit_instance_idx, mtl_ior, mtl_ior_priority, prim.inner_volume_idx);
-						}
+						ray_transfer.BoundaryTransition(ray.direction, hit_geometry_normal,
+							hit_record.hit_instance_idx, mtl_ior, mtl_ior_priority, prim.inner_volume_idx);
 						ray = Ray(OffsetRayOrigin(hit_position, bounce_outside ? hit_geometry_normal : -hit_geometry_normal),
 							ray.direction, 
 							ray.ray_ior, 
@@ -710,8 +715,7 @@ namespace YumeRT
 					{
 						// TODO: direct lighting
 						// TODO: switch to turn off direct light (done)
-						if (render_setting.enable_distant_light)
-						{
+						if (render_setting.enable_distant_light) {
 							L += throughput * EvalDistantLight(render_setting,
 								scene,
 								image_tile_cache,
@@ -760,15 +764,9 @@ namespace YumeRT
 					}
 
 					glm::vec3 new_direction = material_bsdf.ShadingToWorld(wi);
-					if (wi.z < 0.0f) // refract
-					{
-						bool bounce_outside = glm::dot(hit_geometry_normal, new_direction) > 0.0f;
-						if (bounce_outside) {
-							ray_transfer.PopRecord(hit_record.hit_instance_idx);
-						}
-						else {
-							ray_transfer.PushRecord(hit_record.hit_instance_idx, mtl_ior, mtl_ior_priority, prim.inner_volume_idx);
-						}
+					if (wi.z < 0.0f) {
+						ray_transfer.BoundaryTransition(new_direction, hit_geometry_normal,
+							hit_record.hit_instance_idx, mtl_ior, mtl_ior_priority, prim.inner_volume_idx);
 					}
 
 					// this method to avoid self intersection is still not robust, it makes the sphere self-intersection when radius is big

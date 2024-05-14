@@ -169,20 +169,20 @@ namespace YumeRT
 				return EMPTY_UINT32;
 			}
 		}
-		__device__ __host__ inline void FetchIOR(float *ior, uint32_t *priority) const 
+		__device__ __host__ inline float FetchIOR(uint32_t *priority) const 
 		{
 			if (material_type == DEFAULT_MTL)
 			{
-				*ior = default_mtl.ior_n;
 				*priority = default_mtl.ior_priority;
+				return default_mtl.ior_n;
 			}
 			else if (material_type == LIGHT_MTL)
 			{
-				
+				return 1.0f;
 			}
 			else
 			{
-
+				return 1.0f;
 			}
 		}
 		__device__ __host__ inline Material& InitDefaultMtl(const glm::vec3 &diffuse_albedo = glm::vec3(0.5f),

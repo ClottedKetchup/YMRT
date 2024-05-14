@@ -903,6 +903,7 @@ namespace YumeRT
 		{
 			Volume &volume = (*volume_ptr);
 			ImGui::Text("Volume Attribute");
+			ImGui::Text("Density Texture: %d", volume.density_texture_idx);
 			if (ImGui::ColorEdit3("Scatter Coefficient ", (float*)(&volume.sigma_s), ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR))
 			{
 				scene_manager->UpdateVolume(highlight_volume_idx);

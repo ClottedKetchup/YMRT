@@ -574,7 +574,7 @@ namespace YumeRT
 
 			float bsdf_wi_pdf = 0.0f;
 			bool sample_valid = bsdfs[selected_bsdf_idx].Sample(u1, u2, wo, weight, wi, &bsdf_wi_pdf);
-			if (!sample_valid || !(bsdf_wi_pdf * weights[selected_bsdf_idx] > 0.0f)) { return false; }
+			if (!sample_valid) { return false; }
 
 			float mix_pdf = bsdf_wi_pdf * weights[selected_bsdf_idx];
 			glm::vec3 mix_bsdf = (*weight) * bsdf_wi_pdf * weights[selected_bsdf_idx];

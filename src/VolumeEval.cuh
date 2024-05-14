@@ -17,77 +17,113 @@ namespace YumeRT {
 
 	__device__ __host__ inline bool SampleTrHomogeneous(const Scene& scene,
 		const ImageTileCache& image_tile_cache,
-		const Volume &vol,
+		const int volume_count,
+		const int volume_indices[],
 		const Ray& ray,
 		const float t_max,
 		glm::vec3 *tr_weight,
 		float *sampled_distance,
-		RandomSampler &sampler)
-	{
-		*tr_weight = glm::vec3(1.0f);
-		auto random = [&]()->float {return sampler.Random1D(); };
-
-		glm::vec3 sigma_t = vol.sigma_a + vol.sigma_s;
-		float channel_sum = sigma_t.x + sigma_t.y + sigma_t.z;
-		glm::vec3 channel_weight = channel_sum > 0.0f ? (sigma_t / channel_sum) : glm::vec3(1.0f / 3.0f);
-
-		const float u0 = random();
-		const float u1 = random();
-		int channel = 0;
-		if (u0 < channel_weight[0]) { channel = 0; }
-		else if (u0 < channel_weight[0] + channel_weight[1]) { channel = 1; }
-		else { channel = 2; }
-
-		float free_path_length = sigma_t[channel] > 0.0f ? (-glm::log(1.0f - u1) / sigma_t[channel]) : 1E36f;
-		bool volume_scatter = free_path_length < t_max;
-		glm::vec3 tr = glm::exp(-sigma_t * glm::min(t_max, free_path_length));
-		float pdf = volume_scatter ?
-			(channel_weight.x * sigma_t.x * tr.x + channel_weight.y * sigma_t.y * tr.y + channel_weight.z * sigma_t.z * tr.z) :
-			(channel_weight.x * tr.x + channel_weight.y * tr.y + channel_weight.z * tr.z);
-
-		if (glm::abs(pdf) == 0.0f) { return false; }
-
-		// don't forget to multiply the sigma_s
-		*tr_weight = volume_scatter ? (tr * vol.sigma_s / pdf) : (tr / pdf);
-		*sampled_distance = free_path_length;
-		return volume_scatter;
-	}
-
-	__device__ __host__ inline bool SampleTrHeterogeneous(const Scene& scene,
-		const ImageTileCache& image_tile_cache,
-		const Volume &vol,
-		const Ray& ray,
-		const float t_max,
-		glm::vec3 *tr_weight,
-		float *sampled_distance,
+		float volume_weights[],
 		RandomSampler &sampler)
 	{
 		*tr_weight = glm::vec3(1.0f);
 		*sampled_distance = YumeRT_FLOAT_MAX;
-
 		auto random = [&]()->float {return sampler.Random1D(); };
 
-		const glm::vec3 sigma_t = vol.sigma_a + vol.sigma_s;
-		const float channel_sum = sigma_t.x + sigma_t.y + sigma_t.z;
-		const glm::vec3 channel_weight = channel_sum > 0.0f ? (sigma_t / channel_sum) : glm::vec3(1.0f / 3.0f);
+		glm::vec3 mixed_sigma_t(0.0f);
+		glm::vec3 mixed_sigma_s(0.0f);
+		for (int idx = 0; idx < volume_count; ++idx) {
+			const Volume &vol = scene.volumes[volume_indices[idx]];
+			mixed_sigma_t += vol.sigma_a + vol.sigma_s;
+			mixed_sigma_s += vol.sigma_s;
+		}
 
+		float channel_sum = mixed_sigma_t.x + mixed_sigma_t.y + mixed_sigma_t.z;
+		glm::vec3 channel_weight = channel_sum > 0.0f ? (mixed_sigma_t / channel_sum) : glm::vec3(1.0f / 3.0f);
+		float u0 = random();
+		int channel = 0;
+		if (u0 < channel_weight[0]) { 
+			channel = 0; 
+			u0 = u0 * SafeRcp(channel_weight[0]);
+		}
+		else if (u0 < channel_weight[0] + channel_weight[1]) { 
+			channel = 1; 
+			u0 = (u0 - channel_weight[0]) * SafeRcp(channel_weight[1]);
+		}
+		else { 
+			channel = 2; 
+			u0 = (u0 - channel_weight[0] - channel_weight[1]) * SafeRcp(channel_weight[2]);
+		}
+
+		const float free_path_length = mixed_sigma_t[channel] > 0.0f ? (-glm::log(1.0f - u0) / mixed_sigma_t[channel]) : YumeRT_FLOAT_MAX;
+		const bool volume_scatter = free_path_length < t_max;
+		glm::vec3 tr = glm::exp(-mixed_sigma_t * glm::min(t_max, free_path_length));
+		float pdf = volume_scatter ?
+			(channel_weight.x * mixed_sigma_t.x * tr.x + channel_weight.y * mixed_sigma_t.y * tr.y + channel_weight.z * mixed_sigma_t.z * tr.z) :
+			(channel_weight.x * tr.x + channel_weight.y * tr.y + channel_weight.z * tr.z);
+
+		if (!(glm::abs(pdf) > 0.0f)) { 
+			return false; 
+		}
+
+		// currently just use uniform sampling for selecting g
+		const float vol_weight = 1.0f / float(volume_count);
+		for (int idx = 0; idx < volume_count; ++idx) {
+			volume_weights[idx] = vol_weight;
+		}
+
+		*tr_weight = volume_scatter ? (tr * mixed_sigma_s / pdf) : (tr / pdf); // don't forget to multiply the sigma_s
+		*sampled_distance = free_path_length;
+		return volume_scatter;
+	}
+
+	__device__ __host__ inline bool SampleTrHeterogeneous(const Scene &scene,
+		const ImageTileCache &image_tile_cache,
+		const int volume_count,
+		const int volume_indices[],
+		const Ray &ray,
+		const float t_max,
+		glm::vec3 *tr_weight,
+		float *sampled_distance,
+		float volume_weights[],
+		RandomSampler &sampler)
+	{
+		*tr_weight = glm::vec3(1.0f);
+		*sampled_distance = YumeRT_FLOAT_MAX;
+		auto random = [&]()->float {return sampler.Random1D(); };
+
+		const glm::vec3 channel_weight(1.0f / 3.0f);
 		const float u0 = random();
 		int channel = 0;
-		if (u0 < channel_weight[0]) { channel = 0; }
-		else if (u0 < channel_weight[0] + channel_weight[1]) { channel = 1; }
-		else { channel = 2; }
+		if (u0 < channel_weight[0]) { 
+			channel = 0; 
+		}
+		else if (u0 < channel_weight[0] + channel_weight[1]) { 
+			channel = 1; 
+		}
+		else { 
+			channel = 2; 
+		}
 
-		const glm::mat4 &i_transform = scene.i_transforms[vol.transform_idx];
-		const glm::vec3 ray_origin = glm::vec3(i_transform * glm::vec4(ray.origin, 1.0f));
-		const glm::vec3 ray_direction = glm::vec3(i_transform * glm::vec4(ray.direction, 0.0f));
+		glm::vec3 ray_origins[MAX_BOUNDARY_RECORD];
+		glm::vec3 ray_directions[MAX_BOUNDARY_RECORD];
+		glm::vec3 mixed_sigma_m(0.0f);
+		for (int idx = 0; idx < volume_count; ++idx)
+		{
+			const Volume &vol = scene.volumes[volume_indices[idx]];
 
-		// begin delta tracking
-		const Texture& density_texture = scene.textures[vol.density_texture_idx];
-		// TODO: you should add a texture function to calculate this density_upper_bound
-		const float density_upper_bound = density_texture.GetUpperBound(ray_origin, ray_direction, t_max);
-		const glm::vec3 sigma_m = sigma_t * density_upper_bound;
-		const glm::vec3 sigma_m_rcp = glm::vec3(SafeRcp(sigma_m.x), SafeRcp(sigma_m.y), SafeRcp(sigma_m.z));
-		if (!(sigma_m[channel] > 0.0f)) { return false; }
+			float density_upper_bound = 1.0f;
+			if (vol.density_texture_idx >= 0 && vol.density_texture_idx < scene.texture_count) {
+
+				const glm::mat4 &i_transform = scene.i_transforms[vol.transform_idx];
+				ray_origins[idx] = glm::vec3(i_transform * glm::vec4(ray.origin, 1.0f));
+				ray_directions[idx] = glm::vec3(i_transform * glm::vec4(ray.direction, 0.0f));
+
+				density_upper_bound = scene.textures[vol.density_texture_idx].GetUpperBound(ray_origins[idx], ray_directions[idx], t_max);
+			}
+			mixed_sigma_m += (vol.sigma_a + vol.sigma_s) * density_upper_bound;
+		}
+		glm::vec3 mixed_sigma_m_rcp = glm::vec3(SafeRcp(mixed_sigma_m.x), SafeRcp(mixed_sigma_m.y), SafeRcp(mixed_sigma_m.z));
 
 		glm::vec3 tr(1.0f);
 		glm::vec3 pdf(1.0f);
@@ -95,20 +131,19 @@ namespace YumeRT {
 		int iteration = 0;
 		while (true) 
 		{
-			// we reach the limit, sample fail
-			if (iteration >= MAX_FREE_PATH_LENGTH)
-			{ 
+			// reach the limit, sample fail
+			if (iteration >= MAX_FREE_PATH_LENGTH) {
 				printf("Max iteration reached at SampleTrHeterogeneous!\n");
-				break; 
+				break;
 			}
 
-			float free_path_length = -glm::log(1.0f - random()) / sigma_m[channel];
+			float free_path_length = -glm::log(1.0f - random()) / mixed_sigma_m[channel];
 			if (accumulate_distance + free_path_length > t_max)
 			{
 				// hit surface, we don't need to multiply the sigma_t
-				const glm::vec3 path_tr = glm::exp(-sigma_m * (t_max - accumulate_distance));
-				tr *= path_tr * sigma_m_rcp;
-				pdf *= path_tr * sigma_m_rcp;
+				const glm::vec3 path_tr = glm::exp(-mixed_sigma_m * (t_max - accumulate_distance));
+				tr *= path_tr * mixed_sigma_m_rcp;
+				pdf *= path_tr * mixed_sigma_m_rcp;
 				accumulate_distance += free_path_length;
 				break;
 			}
@@ -116,102 +151,153 @@ namespace YumeRT {
 			accumulate_distance += free_path_length;
 			// TODO: consider transform the ray to volume space
 			// fetch real density from texture
-			const TextureCoordinate texture_coordinate(glm::vec2(0.0f), 
-				ray.origin + ray.direction * accumulate_distance, 
-				ray_origin + ray_direction * accumulate_distance);
-			float density = glm::max(TextureEval(density_texture, scene.textures, image_tile_cache, texture_coordinate).x, 0.0f);
+			glm::vec3 mixed_sigma_t(0.0f);
+			glm::vec3 mixed_sigma_s(0.0f);
+			for (int idx = 0; idx < volume_count; ++idx)
+			{
+				const Volume &vol = scene.volumes[volume_indices[idx]];
+				float density = 1.0f;
+				if (vol.density_texture_idx >= 0 && vol.density_texture_idx < scene.texture_count)
+				{
+					const Texture &density_texture = scene.textures[vol.density_texture_idx];
+					const TextureCoordinate texture_coordinate(glm::vec2(0.0f),
+						ray.origin + ray.direction * accumulate_distance,
+						ray_origins[idx] + ray_directions[idx] * accumulate_distance);
+					density = glm::max(TextureEval(density_texture, scene.textures, image_tile_cache, texture_coordinate).x, 0.0f);
+				}
+				mixed_sigma_t += (vol.sigma_a + vol.sigma_s) * density;
+				mixed_sigma_s += vol.sigma_s * density;
+			}
 			glm::vec3 real_prob_channels;
-			real_prob_channels.x = glm::min(sigma_m.x > 0.0f ? sigma_t.x * density / sigma_m.x : 0.0f, 1.0f);
-			real_prob_channels.y = glm::min(sigma_m.y > 0.0f ? sigma_t.y * density / sigma_m.y : 0.0f, 1.0f);
-			real_prob_channels.z = glm::min(sigma_m.z > 0.0f ? sigma_t.z * density / sigma_m.z : 0.0f, 1.0f);
+			real_prob_channels.x = glm::min(mixed_sigma_m.x > 0.0f ? mixed_sigma_t.x * mixed_sigma_m_rcp.x : 0.0f, 1.0f);
+			real_prob_channels.y = glm::min(mixed_sigma_m.y > 0.0f ? mixed_sigma_t.y * mixed_sigma_m_rcp.y : 0.0f, 1.0f);
+			real_prob_channels.z = glm::min(mixed_sigma_m.z > 0.0f ? mixed_sigma_t.z * mixed_sigma_m_rcp.z : 0.0f, 1.0f);
 
-			const glm::vec3 path_tr = glm::exp(-sigma_m * free_path_length);
+			const glm::vec3 path_tr = glm::exp(-mixed_sigma_m * free_path_length);
 			if (random() < real_prob_channels[channel]) 
 			{
 				// note: sigma_m in pdf conceal
-				tr *= path_tr * vol.sigma_s * glm::min(density, density_upper_bound)  * sigma_m_rcp;
+				tr *= path_tr * mixed_sigma_s * mixed_sigma_m_rcp;
 				pdf *= path_tr * real_prob_channels;
 				break;
 			}
 			else 
 			{
 				// note: sigma_m in pdf and tr conceal
+				// note: tr = path_tr x sigma_null = path_tr x sigma_major * fake_prob
+				// note: pdf = path_tr x sigma_major * fake_prob
+
 				tr *= path_tr * (glm::vec3(1.0f) - real_prob_channels);
 				pdf *= path_tr * (glm::vec3(1.0f) - real_prob_channels);
 			}
 			++iteration;
 		}
 
+		const float vol_weight = 1.0f / float(volume_count);
+		for (int idx = 0; idx < volume_count; ++idx) {
+			volume_weights[idx] = vol_weight;
+		}
+
 		*tr_weight = tr * SafeRcp(glm::dot(channel_weight, pdf));
 		*sampled_distance = accumulate_distance;
-		// if stop due to hit surface or go out the max iteration, sample fail
-		return accumulate_distance > t_max || iteration >= MAX_FREE_PATH_LENGTH ? false : true;
+		return accumulate_distance > t_max || iteration >= MAX_FREE_PATH_LENGTH ? false : true; // if stop due to hit surface or go out the max iteration, sample fail
 	}
 
 	// give sampled distance
 	__device__ __host__ inline bool SampleVolumeScattering(const Scene& scene,
 		const ImageTileCache& image_tile_cache,
 		const Ray& ray,
+		const int overlapped_volume_count,
+		const int volume_indices[],
 		const float t_max,
 		glm::vec3 *tr_weight,
 		float *sampled_distance,
+		float volume_weights[],
 		RandomSampler &sampler)
 	{
-		if (scene.volumes == nullptr || scene.volume_count == 0) { return false; }
-		if (ray.volume_idx < 0 || ray.volume_idx > scene.volume_count - 1) { return false; }
+		if (scene.volumes == nullptr || scene.volume_count == 0 || overlapped_volume_count == 0) {
+			return false; 
+		}
+		
+		bool heterogeneous = false;
+		for (int idx = 0; idx < overlapped_volume_count; ++idx) {
+			const Volume &vol = scene.volumes[volume_indices[idx]];
+			if (vol.density_texture_idx >= 0 && vol.density_texture_idx < scene.texture_count) {
+				heterogeneous = true;
+				break;
+			}
+		}
 
-		const Volume &vol = scene.volumes[ray.volume_idx];
-		if (vol.density_texture_idx >= 0 && vol.density_texture_idx < scene.texture_count) 
+		if (heterogeneous) 
 		{
-			//TODO: delta tracking
-			return SampleTrHeterogeneous(scene, image_tile_cache, vol, ray, t_max, tr_weight, sampled_distance, sampler);
+			return SampleTrHeterogeneous(scene, image_tile_cache, overlapped_volume_count, volume_indices, ray, t_max, 
+				tr_weight, sampled_distance, volume_weights, sampler);
 		}
 		else 
 		{
-			return SampleTrHomogeneous(scene, image_tile_cache, vol, ray, t_max, tr_weight, sampled_distance, sampler);
+			return SampleTrHomogeneous(scene, image_tile_cache, overlapped_volume_count, volume_indices, ray, t_max, 
+				tr_weight, sampled_distance, volume_weights, sampler);
 		}
 	}
 
 	__device__ __host__ inline glm::vec3 EvalTrHomogeneous(const Scene& scene,
 		const ImageTileCache& image_tile_cache,
-		const Volume &vol,
+		const int volume_count,
+		const int volume_indices[],
 		const Ray& ray,
 		const float t_max,
 		RandomSampler &sampler)
 	{
-		return glm::exp(-(vol.sigma_a + vol.sigma_s) * t_max);
+		glm::vec3 mixed_sigma_t(0.0f);
+		for (int idx = 0; idx < volume_count; ++idx) {
+			const Volume &vol = scene.volumes[volume_indices[idx]];
+			mixed_sigma_t += vol.sigma_a + vol.sigma_s;
+		}
+		return glm::exp(-mixed_sigma_t * t_max);
 	}
 
 	__device__ __host__ inline glm::vec3 EvalTrHeterogeneous(const Scene& scene,
 		const ImageTileCache& image_tile_cache,
-		const Volume &vol,
+		const int volume_count,
+		const int volume_indices[],
 		const Ray& ray,
 		const float t_max,
 		RandomSampler &sampler)
 	{
 		auto random = [&]()->float {return sampler.Random1D(); };
 
-		const glm::vec3 sigma_t = vol.sigma_a + vol.sigma_s;
-		const float channel_sum = sigma_t.x + sigma_t.y + sigma_t.z;
-		const glm::vec3 channel_weight = channel_sum > 0.0f ? (sigma_t / channel_sum) : glm::vec3(1.0f / 3.0f);
-
+		const glm::vec3 channel_weight(1.0f / 3.0f);
 		const float u0 = random();
 		int channel = 0;
-		if (u0 < channel_weight[0]) { channel = 0; }
-		else if (u0 < channel_weight[0] + channel_weight[1]) { channel = 1; }
-		else { channel = 2; }
+		if (u0 < channel_weight[0]) { 
+			channel = 0; 
+		}
+		else if (u0 < channel_weight[0] + channel_weight[1]) {
+			channel = 1;
+		}
+		else { 
+			channel = 2; 
+		}
 
-		const glm::mat4 &i_transform = scene.i_transforms[vol.transform_idx];
-		const glm::vec3 ray_origin = glm::vec3(i_transform * glm::vec4(ray.origin, 1.0f));
-		const glm::vec3 ray_direction = glm::vec3(i_transform * glm::vec4(ray.direction, 0.0f));
+		glm::vec3 ray_origins[MAX_BOUNDARY_RECORD];
+		glm::vec3 ray_directions[MAX_BOUNDARY_RECORD];
+		glm::vec3 mixed_sigma_m(0.0f);
+		for (int idx = 0; idx < volume_count; ++idx)
+		{
+			const Volume &vol = scene.volumes[volume_indices[idx]];
+			
+			float density_upper_bound = 1.0f;
+			if (vol.density_texture_idx >= 0 && vol.density_texture_idx < scene.texture_count) {
 
-		// begin ratio tracking
-		const Texture& density_texture = scene.textures[vol.density_texture_idx];
-		// TODO: you should add a texture function to calculate this density_upper_bound
-		const float density_upper_bound = density_texture.GetUpperBound(ray_origin, ray_direction, t_max);
-		const glm::vec3 sigma_m = sigma_t * density_upper_bound;
-		const glm::vec3 sigma_m_rcp = glm::vec3(SafeRcp(sigma_m.x), SafeRcp(sigma_m.y), SafeRcp(sigma_m.z));
-		if (!(sigma_m[channel] > 0.0f)) { return glm::vec3(1.0f); }
+				const glm::mat4 &i_transform = scene.i_transforms[vol.transform_idx];
+				ray_origins[idx] = glm::vec3(i_transform * glm::vec4(ray.origin, 1.0f));
+				ray_directions[idx] = glm::vec3(i_transform * glm::vec4(ray.direction, 0.0f));
+
+				density_upper_bound = scene.textures[vol.density_texture_idx].GetUpperBound(ray_origins[idx], ray_directions[idx], t_max);
+			}
+			mixed_sigma_m += (vol.sigma_a + vol.sigma_s) * density_upper_bound;
+		}
+		glm::vec3 mixed_sigma_m_rcp = glm::vec3(SafeRcp(mixed_sigma_m.x), SafeRcp(mixed_sigma_m.y), SafeRcp(mixed_sigma_m.z));
 
 		constexpr int max_trace_time = 32;
 		glm::vec3 tr(1.0f);
@@ -220,34 +306,45 @@ namespace YumeRT {
 		int iteration = 0;
 		while(true)
 		{
-			if (iteration >= MAX_FREE_PATH_LENGTH)
-			{
+			if (iteration >= MAX_FREE_PATH_LENGTH) {
 				printf("Max iteration reached at EvalTrHeterogeneous!\n");
 				break;
 			}
 
-			float free_path_length = -glm::log(1.0f - random()) / sigma_m[channel];
+			float free_path_length = -glm::log(1.0f - random()) / mixed_sigma_m[channel];
 			if (accumulate_distance + free_path_length > t_max) 
 			{
-				const glm::vec3 path_tr = glm::exp(-sigma_m * (t_max - accumulate_distance));
-				tr *= path_tr * sigma_m_rcp;
-				pdf *= path_tr * sigma_m_rcp;
+				const glm::vec3 path_tr = glm::exp(-mixed_sigma_m * (t_max - accumulate_distance));
+				tr *= path_tr * mixed_sigma_m_rcp;
+				pdf *= path_tr * mixed_sigma_m_rcp;
 				break;
 			}
 
 			accumulate_distance += free_path_length;
+
 			// TODO: consider transform the ray to volume space
 			// fetch real density from texture
-			const TextureCoordinate texture_coordinate(glm::vec2(0.0f), 
-				ray.origin + ray.direction * accumulate_distance,
-				ray_origin + ray_direction * accumulate_distance);
-			float density = glm::max(TextureEval(density_texture, scene.textures, image_tile_cache, texture_coordinate).x, 0.0f);
+			glm::vec3 mixed_sigma_t(0.0f);
+			for (int idx = 0; idx < volume_count; ++idx)
+			{
+				const Volume &vol = scene.volumes[volume_indices[idx]];
+				float density = 1.0f;
+				if (vol.density_texture_idx >= 0 && vol.density_texture_idx < scene.texture_count)
+				{
+					const Texture &density_texture = scene.textures[vol.density_texture_idx];
+					const TextureCoordinate texture_coordinate(glm::vec2(0.0f), 
+						ray.origin + ray.direction * accumulate_distance,
+						ray_origins[idx] + ray_directions[idx] * accumulate_distance);
+					density = glm::max(TextureEval(density_texture, scene.textures, image_tile_cache, texture_coordinate).x, 0.0f);
+				}
+				mixed_sigma_t += (vol.sigma_a + vol.sigma_s) * density;
+			}
 			glm::vec3 real_prob_channels;
-			real_prob_channels.x = glm::min(sigma_m.x > 0.0f ? sigma_t.x * density / sigma_m.x : 0.0f, 1.0f);
-			real_prob_channels.y = glm::min(sigma_m.y > 0.0f ? sigma_t.y * density / sigma_m.y : 0.0f, 1.0f);
-			real_prob_channels.z = glm::min(sigma_m.z > 0.0f ? sigma_t.z * density / sigma_m.z : 0.0f, 1.0f);
+			real_prob_channels.x = glm::min(mixed_sigma_m.x > 0.0f ? mixed_sigma_t.x * mixed_sigma_m_rcp.x : 0.0f, 1.0f);
+			real_prob_channels.y = glm::min(mixed_sigma_m.y > 0.0f ? mixed_sigma_t.y * mixed_sigma_m_rcp.y : 0.0f, 1.0f);
+			real_prob_channels.z = glm::min(mixed_sigma_m.z > 0.0f ? mixed_sigma_t.z * mixed_sigma_m_rcp.z : 0.0f, 1.0f);
 
-			const glm::vec3 path_tr = glm::exp(-sigma_m * free_path_length);
+			const glm::vec3 path_tr = glm::exp(-mixed_sigma_m * free_path_length);
 			// note: sigma_m in pdf and tr conceal
 			tr *= path_tr * (glm::vec3(1.0f) - real_prob_channels);
 			pdf *= path_tr;
@@ -271,34 +368,49 @@ namespace YumeRT {
 	__device__ __host__ inline glm::vec3 EvalTr(const Scene& scene,
 		const ImageTileCache& image_tile_cache,
 		const Ray& ray,
+		const RayTransfer &shadow_ray_transfer,
 		const float t_max,
 		RandomSampler &sampler)
 	{
 		if (scene.volumes == nullptr || scene.volume_count == 0) { return glm::vec3(1.0f); }
-		if (ray.volume_idx < 0 || ray.volume_idx > (int)scene.volume_count - 1) { return glm::vec3(1.0f); }
+		
+		int volume_indices[MAX_BOUNDARY_RECORD];
+		int overlapped_volume_count = shadow_ray_transfer.GetCurrentVolumeIndices(volume_indices, scene.volume_count);
+		if (overlapped_volume_count == 0) { return glm::vec3(1.0f); }
 
-		const Volume &vol = scene.volumes[ray.volume_idx];
-		if (vol.density_texture_idx >= 0 && vol.density_texture_idx < scene.texture_count) 
+		bool heterogeneous = false;
+		for (int idx = 0; idx < overlapped_volume_count; ++idx) {
+			const Volume &vol = scene.volumes[volume_indices[idx]];
+			if (vol.density_texture_idx >= 0 && vol.density_texture_idx < scene.texture_count) {
+				heterogeneous = true;
+				break;
+			}
+		}
+
+		if (heterogeneous) 
 		{
-			// TODO: ratio tracking
-			return EvalTrHeterogeneous(scene, image_tile_cache, vol, ray, t_max, sampler); 
+			return EvalTrHeterogeneous(scene, image_tile_cache, overlapped_volume_count, volume_indices, ray, t_max, sampler);
 		}
 		else 
 		{
-			return EvalTrHomogeneous(scene, image_tile_cache, vol, ray, t_max, sampler);
+			return EvalTrHomogeneous(scene, image_tile_cache, overlapped_volume_count, volume_indices, ray, t_max, sampler);
 		}
 	}
 
 	__device__ __host__ inline glm::vec3 TraceTr(const Scene& scene,
 		const ImageTileCache& image_tile_cache,
 		const Ray& ray,
+		RayTransfer &shadow_ray_transfer,
 		RandomSampler &sampler)
 	{
-		if (scene.volumes == nullptr || scene.volume_count == 0) { return glm::vec3(1.0f); }
+	// NEXT TODO
+		if (scene.volumes == nullptr || scene.volume_count == 0) { 
+			return glm::vec3(1.0f); 
+		}
 
 		glm::vec3 tr(1.0f);
-		// distance from position to light
-		Ray tr_ray = ray;
+		
+		Ray tr_ray = ray; // distance from position to light
 		const float max_trace_distance = ray.t; // shadow ray length
 		float traced_distance = TMIN;
 		while (traced_distance < max_trace_distance)
@@ -308,28 +420,106 @@ namespace YumeRT {
 
 			if (!hit_boundary) // nothing hit, reach the light
 			{
-				tr *= EvalTr(scene, image_tile_cache, tr_ray, glm::max(max_trace_distance - traced_distance, 0.0f), sampler);
+				tr *= EvalTr(scene, image_tile_cache, tr_ray, shadow_ray_transfer, glm::max(max_trace_distance - traced_distance, 0.0f), sampler);
 				break;
 			}
 			else
 			{
-				tr *= EvalTr(scene, image_tile_cache, tr_ray, hit_record.hit_t, sampler);
+				tr *= EvalTr(scene, image_tile_cache, tr_ray, shadow_ray_transfer, hit_record.hit_t, sampler);
 
 				traced_distance += hit_record.hit_t;
 
 				// trace forward the ray
 				const PrimitiveInstance &prim = scene.prim_instances[hit_record.hit_instance_idx];
+				const Material &mtl = scene.materials[prim.material_idx];
+				
 				glm::vec3 hit_position, hit_geometry_normal;
 				FetchGeometryNormal(scene, hit_record, &hit_position, &hit_geometry_normal);
 
-				bool front_side_bounce = glm::dot(hit_geometry_normal, tr_ray.direction) >= 0.0f;
-				tr_ray = Ray(OffsetRayOrigin(hit_position, front_side_bounce ? hit_geometry_normal : -hit_geometry_normal),
+				uint32_t mtl_ior_priority;
+				float mtl_ior = mtl.FetchIOR(&mtl_ior_priority);
+
+				bool bounce_outside = glm::dot(hit_geometry_normal, tr_ray.direction) > 0.0f;
+				shadow_ray_transfer.BoundaryTransition(tr_ray.direction, hit_geometry_normal, 
+					hit_record.hit_instance_idx, mtl_ior, mtl_ior_priority, prim.inner_volume_idx);
+				tr_ray = Ray(OffsetRayOrigin(hit_position, bounce_outside ? hit_geometry_normal : -hit_geometry_normal),
 									tr_ray.direction,
 									tr_ray.ray_ior,
-									front_side_bounce ? prim.outer_volume_idx : prim.inner_volume_idx);
+									bounce_outside ? prim.outer_volume_idx : prim.inner_volume_idx);
 			}
 		}
 		return tr;
 	}
+
+	__device__ __host__ inline bool SampleMixedPhases(const float volume_weights[], const float gs[], const int volume_count, 
+		 float u0,  float u1, const glm::vec3 &wo, float *weight, glm::vec3 *wi, float *pdf)
+	{
+		if (volume_count == 0) {
+			return false;
+		}
+
+		float cdf = 0.0f;
+		int selected_vol_idx = -1;
+		for (int idx = 0; idx < volume_count; ++idx) {
+			if (u0 < cdf + volume_weights[idx]) {
+				selected_vol_idx = idx;
+				u0 = (u0 - cdf) * SafeRcp(volume_weights[idx]);
+				break;
+			}
+			cdf += volume_weights[idx];
+		}
+		if (selected_vol_idx == -1) { 
+			selected_vol_idx = volume_count - 1;
+		}
+		if (selected_vol_idx == -1) { 
+			return false; 
+		}
+
+		float phase_wi_pdf = 0.0f;
+		const bool sample_valid = SamplePhase(gs[selected_vol_idx], u0, u1, wo, weight, wi, &phase_wi_pdf);
+		if (!sample_valid) { 
+			return false; 
+		}
+
+		float mixed_pdf = phase_wi_pdf * volume_weights[selected_vol_idx];
+		float mixed_g = (*weight) * phase_wi_pdf * volume_weights[selected_vol_idx];
+		for (int idx = 0; idx < volume_count; ++idx)
+		{
+			if (idx == selected_vol_idx) {
+				continue; 
+			}
+			
+			float wi_pdf;
+			mixed_g += volume_weights[idx] * EvalPhase(gs[idx], wo, *wi, &wi_pdf);
+			mixed_pdf += volume_weights[idx] * wi_pdf;
+		}
+
+		*pdf = mixed_pdf;
+		*weight = mixed_g * SafeRcp(mixed_pdf);
+		return true;
+	}
+
+	__device__ __host__ inline float EvalMixedPhases(const float volume_weights[], const float gs[], const int volume_count, 
+		const glm::vec3 &wo, const glm::vec3 &wi, float *pdf)
+	{
+		if (volume_count == 0) { 
+			*pdf = 0.0f;
+			return 0.0f;
+		}
+
+		float mixed_g = 0.0f;
+		float mixed_pdf = 0.0f;
+		for (int idx = 0; idx < volume_count; ++idx)
+		{
+			float single_pdf = 0.0f;
+			float single_g = EvalPhase(gs[idx], wo, wi, &single_pdf);
+			mixed_g += volume_weights[idx] * single_g;
+			mixed_pdf += volume_weights[idx] * single_pdf;
+		}
+
+		*pdf = mixed_pdf;
+		return mixed_g;
+	}
+
 
 };

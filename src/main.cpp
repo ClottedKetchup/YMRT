@@ -164,12 +164,12 @@ void TestScene_CornellBox(const std::string &exec_path, std::shared_ptr<YumeRT::
 		1.0f,
 		world_volume_idx, -1);
 
-	/*uint32_t cube_volume = scene_manager->AddVolume("cube volume", scene_manager->AddTransform(), glm::vec3(0.085f), glm::vec3(0.001f), 0.0f, fog_tex);
+	const uint32_t cube_volume = scene_manager->AddVolume("cube volume", scene_manager->AddTransform(), glm::vec3(0.085f), glm::vec3(0.001f), 0.0f, fog_tex);
 	scene_manager->AddPrimInstance(cube_idx,
 		scene_manager->AddTransform(glm::vec3(0.0f, 9.0f, 0.0f), glm::vec3(15.0f, 2.0f, 15.0f)),
 		scene_manager->AddSurfaceMaterial("extra cube"),
 		1.0f,
-		world_volume_idx, cube_volume, true);*/
+		world_volume_idx, cube_volume, true);
 
 	scene_manager->AddDistantLight("Distant Light", scene_manager->AddTransform(glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(0.0f, 0.0f, 0.0f)), glm::vec3(1.0f), 2.0f, 8.0f);
 }

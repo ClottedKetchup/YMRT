@@ -119,4 +119,14 @@ namespace YumeRT
 	 {
 		 return l > 0.0031308f ? (1.055f * glm::pow(l, 1.0f / 2.4f) - 0.055f) : l * 12.92f;
 	 }
+
+	 __device__ __host__ inline float RGBToLuminance(const glm::vec3 &rgb) 
+	 {
+		 return 0.2126f * rgb.r + 0.7152 * rgb.g + 0.0722f * rgb.b;
+	 }
+
+	 __device__ __host__ inline double DoubleDot(const glm::vec3 &v0, const glm::vec3 &v1)
+	 {
+		 return (double)v0.x * (double)v1.x + (double)v0.y * (double)v1.y + (double)v0.z * (double)v1.z;
+	 }
 };

@@ -96,6 +96,24 @@ namespace YumeRT
 			}
 		}
 
+		// give the volume count
+		__device__ __host__ inline int GetCurrentVolumeIndices(int volume_indices[], const int scene_volume_count) const
+		{
+			if (record_count == 0 || max_priority_record_index == -1) {
+				return 0;
+			}
+			
+			const uint32_t max_priority = boundary_records[max_priority_record_index].ior_priority;
+			int overlapped_volume_count = 0;
+			for (int record_idx = record_count - 1; record_idx >= 0; --record_idx) {
+				if (boundary_records[record_idx].ior_priority == max_priority && 
+					(boundary_records[record_idx].vol_idx >= 0 && boundary_records[record_idx].vol_idx < scene_volume_count)) {
+					volume_indices[overlapped_volume_count++] = boundary_records[record_idx].vol_idx;
+				}
+			}
+			return overlapped_volume_count;
+		}
+
 		__device__ __host__ inline const BoundaryRecord& GetMaxPriorityRecord()const
 		{
 			return max_priority_record_index != -1? boundary_records[max_priority_record_index] : BoundaryRecord();
@@ -151,13 +169,12 @@ namespace YumeRT
 				return true;
 			}
 		}
-		__device__ __host__ inline bool PopRecord(uint32_t hit_prim_idx)
+		__device__ __host__ inline bool PopRecord(const int record_idx)
 		{
 			if (record_count == 0) {
 				return false;
 			}
-			const int record_idx = FindRecordWithPrim(hit_prim_idx);
-			if ( record_idx == -1) {
+			if (!(record_idx >= 0 && record_idx < record_count)) {
 				return false;
 			}
 			for (int idx = record_idx + 1; idx < record_count; ++idx) {
@@ -166,6 +183,23 @@ namespace YumeRT
 			--record_count;
 			max_priority_record_index = FindMaxPriorityRecord();
 			return true;
+		}
+		__device__ __host__ inline bool BoundaryTransition(const glm::vec3 &ray_dir, const glm::vec3 &geometry_normal,
+			uint32_t prim_idx, float ior, uint32_t ior_priority, int vol_idx)
+		{
+			const double dir_dot = DoubleDot(ray_dir, geometry_normal);
+			const int record_idx = FindRecordWithPrim(prim_idx);
+
+			if (dir_dot < double(0.0)) {
+				if (record_idx == -1) {
+					return PushRecord(prim_idx, ior, ior_priority, vol_idx);
+				}
+			}
+			else {
+				if (record_idx != -1) {
+					return PopRecord(record_idx);
+				}
+			}
 		}
 		__device__ __host__ inline float GetRayIOR() const
 		{
