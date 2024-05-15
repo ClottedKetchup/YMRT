@@ -8,13 +8,13 @@ namespace YumeRT
 {
 	struct Volume 
 	{
-		glm::vec3 sigma_s;
-		glm::vec3 sigma_a;
+		glm::vec3 sigma_t;
+		glm::vec3 albedo;
 		int density_texture_idx;
 		uint32_t transform_idx;
 		float g;
 
-		__device__ __host__ inline Volume(): density_texture_idx(-1), g(0.0f), transform_idx(EMPTY_UINT32){}
+		__device__ __host__ inline Volume() : density_texture_idx(-1), g(0.0f), transform_idx(EMPTY_UINT32), sigma_t(0.0f), albedo(0.0f) {}
 	};
 
 

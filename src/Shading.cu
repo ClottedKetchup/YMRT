@@ -106,8 +106,7 @@ namespace YumeRT
 								hit_boundary_record.prim_idx, hit_boundary_record.ior, hit_boundary_record.ior_priority, hit_boundary_record.vol_idx);
 						}
 
-						shadow_ray = Ray(shadow_ray_origin, light_dir, 1.0f,
-							bounce_outside ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
+						shadow_ray = Ray(shadow_ray_origin, light_dir);
 						shadow_ray.t = TMAX;
 						tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 					}
@@ -148,8 +147,7 @@ namespace YumeRT
 									hit_boundary_record.prim_idx, hit_boundary_record.ior, hit_boundary_record.ior_priority, hit_boundary_record.vol_idx);
 							}
 
-							shadow_ray = Ray(shadow_ray_origin, light_dir, 1.0f,
-								bounce_outside ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
+							shadow_ray = Ray(shadow_ray_origin, light_dir);
 							shadow_ray.t = TMAX;
 							tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 						}
@@ -209,7 +207,7 @@ namespace YumeRT
 				{
 					RayTransfer shadow_ray_transfer(ray_transfer);
 
-					shadow_ray = Ray(volume_hit_position, light_dir, 1.0f, ray.volume_idx);
+					shadow_ray = Ray(volume_hit_position, light_dir);
 					shadow_ray.t = TMAX;
 					glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 
@@ -241,7 +239,7 @@ namespace YumeRT
 					{
 						RayTransfer shadow_ray_transfer(ray_transfer);
 						
-						shadow_ray = Ray(volume_hit_position, light_dir, 1.0f, ray.volume_idx);
+						shadow_ray = Ray(volume_hit_position, light_dir);
 						shadow_ray.t = TMAX;
 						glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 
@@ -313,8 +311,7 @@ namespace YumeRT
 								hit_boundary_record.prim_idx, hit_boundary_record.ior, hit_boundary_record.ior_priority, hit_boundary_record.vol_idx);
 						}
 
-						shadow_ray = Ray(shadow_ray_origin, light_dir, 1.0f,
-							bounce_outside ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
+						shadow_ray = Ray(shadow_ray_origin, light_dir);
 						shadow_ray.t = max_trace_distance;
 						tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 					}
@@ -360,8 +357,7 @@ namespace YumeRT
 									hit_boundary_record.prim_idx, hit_boundary_record.ior, hit_boundary_record.ior_priority, hit_boundary_record.vol_idx);
 							}
 							
-							shadow_ray = Ray(shadow_ray_origin, light_dir, 1.0f,
-								bounce_outside ? hit_prim.outer_volume_idx : hit_prim.inner_volume_idx);
+							shadow_ray = Ray(shadow_ray_origin, light_dir);
 							shadow_ray.t = max_trace_distance;
 							tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 						}
@@ -423,7 +419,7 @@ namespace YumeRT
 				{
 					RayTransfer shadow_ray_transfer(ray_transfer);
 
-					shadow_ray = Ray(volume_hit_position, light_dir, 1.0f, ray.volume_idx);
+					shadow_ray = Ray(volume_hit_position, light_dir);
 					shadow_ray.t = max_trace_distance;
 					glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 					
@@ -457,7 +453,7 @@ namespace YumeRT
 					{
 						RayTransfer shadow_ray_transfer(ray_transfer);
 						
-						shadow_ray = Ray(volume_hit_position, light_dir, 1.0f, ray.volume_idx);
+						shadow_ray = Ray(volume_hit_position, light_dir);
 						shadow_ray.t = max_trace_distance;
 						glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 						
@@ -604,7 +600,7 @@ namespace YumeRT
 							else { break; }
 						}
 
-						ray = Ray(volume_hit_position, wi, ray.ray_ior, ray.volume_idx);
+						ray = Ray(volume_hit_position, wi);
 						never_scatter = false;
 						++depth;
 						continue;
@@ -645,10 +641,7 @@ namespace YumeRT
 						bool bounce_outside = glm::dot(hit_geometry_normal, ray.direction) > 0.0f;
 						ray_transfer.BoundaryTransition(ray.direction, hit_geometry_normal,
 							hit_record.hit_instance_idx, mtl_ior, mtl_ior_priority, prim.inner_volume_idx);
-						ray = Ray(OffsetRayOrigin(hit_position, bounce_outside ? hit_geometry_normal : -hit_geometry_normal),
-							ray.direction,
-							ray.ray_ior,
-							bounce_outside ? prim.outer_volume_idx : prim.inner_volume_idx);
+						ray = Ray(OffsetRayOrigin(hit_position, bounce_outside ? hit_geometry_normal : -hit_geometry_normal), ray.direction);
 						++depth;
 						continue;
 					}
@@ -659,10 +652,7 @@ namespace YumeRT
 						bool bounce_outside = glm::dot(hit_geometry_normal, ray.direction) > 0.0f;
 						ray_transfer.BoundaryTransition(ray.direction, hit_geometry_normal,
 							hit_record.hit_instance_idx, mtl_ior, mtl_ior_priority, prim.inner_volume_idx);
-						ray = Ray(OffsetRayOrigin(hit_position, bounce_outside ? hit_geometry_normal : -hit_geometry_normal),
-							ray.direction, 
-							ray.ray_ior, 
-							bounce_outside ? prim.outer_volume_idx : prim.inner_volume_idx);
+						ray = Ray(OffsetRayOrigin(hit_position, bounce_outside ? hit_geometry_normal : -hit_geometry_normal), ray.direction);
 						++depth;
 						continue;
 					}
@@ -771,10 +761,7 @@ namespace YumeRT
 
 					// this method to avoid self intersection is still not robust, it makes the sphere self-intersection when radius is big
 					bool front_side_bounce = glm::dot(hit_geometry_normal, new_direction) >= 0.0f;
-					ray = Ray(OffsetRayOrigin(hit_position, front_side_bounce ? hit_geometry_normal : -hit_geometry_normal),
-									new_direction,
-									front_side_bounce? prim.external_ior : mtl.default_mtl.ior_n, 
-									front_side_bounce? prim.outer_volume_idx : prim.inner_volume_idx);
+					ray = Ray(OffsetRayOrigin(hit_position, front_side_bounce ? hit_geometry_normal : -hit_geometry_normal), new_direction);
 					never_scatter = false;
 					++depth;
 				}

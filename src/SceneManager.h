@@ -159,7 +159,7 @@ namespace YumeRT
 
 		// volume
 		inline uint32_t AddVolume(const std::string &name, uint32_t transform_idx, 
-			const glm::vec3 &sigma_s = glm::vec3(0.0f), const glm::vec3 &sigma_a = glm::vec3(0.0f), float g = 0.0f, int density_texture_idx = -1);
+			const glm::vec3 &sigma_t = glm::vec3(0.0f), const glm::vec3 &albedo = glm::vec3(1.0f), float g = 0.0f, int density_texture_idx = -1);
 		inline uint32_t RemoveVolume(uint32_t volume_idx);
 		inline void UpdateVolume(uint32_t volume_idx);
 
@@ -791,11 +791,11 @@ namespace YumeRT
 
 	// TODO: volume GUI
 	inline uint32_t SceneManager::AddVolume(const std::string &name, uint32_t transform_idx,
-		const glm::vec3 &sigma_s, const glm::vec3 &sigma_a, float g, int density_texture_idx)
+		const glm::vec3 &sigma_t, const glm::vec3 &albedo, float g, int density_texture_idx)
 	{
 		Volume volume;
-		volume.sigma_a = sigma_a;
-		volume.sigma_s = sigma_s;
+		volume.sigma_t = sigma_t;
+		volume.albedo = albedo;
 		volume.transform_idx = transform_idx;
 		volume.density_texture_idx = density_texture_idx;
 		volume.g = g;

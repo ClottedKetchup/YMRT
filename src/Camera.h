@@ -156,7 +156,7 @@ namespace YumeRT
 			float height = 2.0f * tan_half_fov;
 			float width = height * aspect_ratio;
 			glm::vec3 dir = -w + (ndc_x - 0.5f) * width * u + (ndc_y - 0.5f) * height * v;
-			return Ray(position, dir, camera_ior, volume_idx);
+			return Ray(position, dir);
 		}
 
 		__device__ __host__ inline RayDifferential GenerateRayDifferential(const Ray& main_ray, 
@@ -217,26 +217,6 @@ namespace YumeRT
 			len_radius = r;
 		}
 
-		__device__ __host__ inline float GetIOR() const
-		{
-			return camera_ior;
-		}
-
-		__device__ __host__ inline void SetIOR(float refractive_index)
-		{
-			camera_ior = refractive_index;
-		}
-
-		__device__ __host__ inline float GetVolumeIndex() const
-		{
-			return volume_idx;
-		}
-
-		__device__ __host__ inline void SetVolumeIndex(int idx)
-		{
-			volume_idx = idx;
-		}
-
 		__device__ __host__ inline float GetAspectRatio() const
 		{
 			return aspect_ratio;
@@ -278,9 +258,6 @@ namespace YumeRT
 		float field_of_view;
 		float len_radius;
 		float tan_half_fov;
-
-		float camera_ior = 1.0f;
-		int volume_idx = -1;
 
 		__device__ __host__ inline glm::mat4 GetPerspective() const
 		{
@@ -325,8 +302,6 @@ namespace YumeRT
 				cam_a.GetW() == cam_b.GetW() &&
 				cam_a.GetAspectRatio() == cam_b.GetAspectRatio() &&
 				cam_a.GetFov() == cam_b.GetFov() &&
-				cam_a.GetLensRadius() == cam_b.GetLensRadius() &&
-				cam_a.GetIOR() == cam_b.GetIOR() &&
-				cam_a.GetVolumeIndex() == cam_b.GetVolumeIndex();
+				cam_a.GetLensRadius() == cam_b.GetLensRadius();
 	}
 };

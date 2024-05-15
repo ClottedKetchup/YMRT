@@ -455,18 +455,6 @@ namespace YumeRT
 		{}
 		if (ImGui::InputFloat("Rotate Speed", &trackball.rotate_speed))
 		{}
-		static float camera_ior = trackball.camera.GetIOR();
-		if (ImGui::InputFloat("External IOR", &camera_ior))
-		{
-			camera_ior = glm::max(camera_ior, 0.001f);
-			GetCamera().SetIOR(camera_ior);
-		}
-		static int camera_volume_idx = trackball.camera.GetVolumeIndex();
-		if (ImGui::InputInt("Volume Index", &camera_volume_idx))
-		{
-			// camera_volume_idx = glm::clamp(camera_volume_idx, 0, (int)(scene_manager->GetVolumes().size()) - 1);
-			GetCamera().SetVolumeIndex(camera_volume_idx);
-		}
 		ImGui::End();
 	}
 
@@ -904,12 +892,13 @@ namespace YumeRT
 			Volume &volume = (*volume_ptr);
 			ImGui::Text("Volume Attribute");
 			ImGui::Text("Density Texture: %d", volume.density_texture_idx);
-			if (ImGui::ColorEdit3("Scatter Coefficient ", (float*)(&volume.sigma_s), ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR))
+			if (ImGui::ColorEdit3("SigmaT", (float*)(&volume.sigma_t), ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR))
 			{
 				scene_manager->UpdateVolume(highlight_volume_idx);
 			}
-			if (ImGui::ColorEdit3("Absorb Coefficient ", (float*)(&volume.sigma_a), ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR))
+			if (ImGui::ColorEdit3("Albedo ", (float*)(&volume.albedo), ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR))
 			{
+				volume.albedo = glm::min(glm::vec3(1.0f), volume.albedo);
 				scene_manager->UpdateVolume(highlight_volume_idx);
 			}
 			if (ImGui::SliderFloat("Anisotropy", &volume.g, -0.9999f, 0.9999f)) 

@@ -34,8 +34,8 @@ namespace YumeRT {
 		glm::vec3 mixed_sigma_s(0.0f);
 		for (int idx = 0; idx < volume_count; ++idx) {
 			const Volume &vol = scene.volumes[volume_indices[idx]];
-			mixed_sigma_t += vol.sigma_a + vol.sigma_s;
-			mixed_sigma_s += vol.sigma_s;
+			mixed_sigma_t += vol.sigma_t;
+			mixed_sigma_s += vol.sigma_t * vol.albedo;
 		}
 
 		float channel_sum = mixed_sigma_t.x + mixed_sigma_t.y + mixed_sigma_t.z;
@@ -121,7 +121,7 @@ namespace YumeRT {
 
 				density_upper_bound = scene.textures[vol.density_texture_idx].GetUpperBound(ray_origins[idx], ray_directions[idx], t_max);
 			}
-			mixed_sigma_m += (vol.sigma_a + vol.sigma_s) * density_upper_bound;
+			mixed_sigma_m += vol.sigma_t * density_upper_bound;
 		}
 		glm::vec3 mixed_sigma_m_rcp = glm::vec3(SafeRcp(mixed_sigma_m.x), SafeRcp(mixed_sigma_m.y), SafeRcp(mixed_sigma_m.z));
 
@@ -165,8 +165,8 @@ namespace YumeRT {
 						ray_origins[idx] + ray_directions[idx] * accumulate_distance);
 					density = glm::max(TextureEval(density_texture, scene.textures, image_tile_cache, texture_coordinate).x, 0.0f);
 				}
-				mixed_sigma_t += (vol.sigma_a + vol.sigma_s) * density;
-				mixed_sigma_s += vol.sigma_s * density;
+				mixed_sigma_t += vol.sigma_t * density;
+				mixed_sigma_s += vol.sigma_t * vol.albedo * density;
 			}
 			glm::vec3 real_prob_channels;
 			real_prob_channels.x = glm::min(mixed_sigma_m.x > 0.0f ? mixed_sigma_t.x * mixed_sigma_m_rcp.x : 0.0f, 1.0f);
@@ -251,7 +251,7 @@ namespace YumeRT {
 		glm::vec3 mixed_sigma_t(0.0f);
 		for (int idx = 0; idx < volume_count; ++idx) {
 			const Volume &vol = scene.volumes[volume_indices[idx]];
-			mixed_sigma_t += vol.sigma_a + vol.sigma_s;
+			mixed_sigma_t += vol.sigma_t;
 		}
 		return glm::exp(-mixed_sigma_t * t_max);
 	}
@@ -295,7 +295,7 @@ namespace YumeRT {
 
 				density_upper_bound = scene.textures[vol.density_texture_idx].GetUpperBound(ray_origins[idx], ray_directions[idx], t_max);
 			}
-			mixed_sigma_m += (vol.sigma_a + vol.sigma_s) * density_upper_bound;
+			mixed_sigma_m += vol.sigma_t * density_upper_bound;
 		}
 		glm::vec3 mixed_sigma_m_rcp = glm::vec3(SafeRcp(mixed_sigma_m.x), SafeRcp(mixed_sigma_m.y), SafeRcp(mixed_sigma_m.z));
 
@@ -337,7 +337,7 @@ namespace YumeRT {
 						ray_origins[idx] + ray_directions[idx] * accumulate_distance);
 					density = glm::max(TextureEval(density_texture, scene.textures, image_tile_cache, texture_coordinate).x, 0.0f);
 				}
-				mixed_sigma_t += (vol.sigma_a + vol.sigma_s) * density;
+				mixed_sigma_t += vol.sigma_t * density;
 			}
 			glm::vec3 real_prob_channels;
 			real_prob_channels.x = glm::min(mixed_sigma_m.x > 0.0f ? mixed_sigma_t.x * mixed_sigma_m_rcp.x : 0.0f, 1.0f);
@@ -351,12 +351,10 @@ namespace YumeRT {
 			if (iteration + 1 > max_trace_time) 
 			{
 				float rr_factor = glm::max(tr.x, glm::max(tr.y, tr.z));
-				if (random() < rr_factor) 
-				{
+				if (random() < rr_factor) {
 					tr *= SafeRcp(rr_factor);
 				}
-				else 
-				{
+				else {
 					break;
 				}
 			}
@@ -442,10 +440,7 @@ namespace YumeRT {
 				bool bounce_outside = glm::dot(hit_geometry_normal, tr_ray.direction) > 0.0f;
 				shadow_ray_transfer.BoundaryTransition(tr_ray.direction, hit_geometry_normal, 
 					hit_record.hit_instance_idx, mtl_ior, mtl_ior_priority, prim.inner_volume_idx);
-				tr_ray = Ray(OffsetRayOrigin(hit_position, bounce_outside ? hit_geometry_normal : -hit_geometry_normal),
-									tr_ray.direction,
-									tr_ray.ray_ior,
-									bounce_outside ? prim.outer_volume_idx : prim.inner_volume_idx);
+				tr_ray = Ray(OffsetRayOrigin(hit_position, bounce_outside ? hit_geometry_normal : -hit_geometry_normal), tr_ray.direction);
 			}
 		}
 		return tr;
