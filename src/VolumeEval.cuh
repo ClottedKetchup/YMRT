@@ -90,20 +90,9 @@ namespace YumeRT {
 	{
 		*tr_weight = glm::vec3(1.0f);
 		*sampled_distance = YumeRT_FLOAT_MAX;
-		auto random = [&]()->float {return sampler.Random1D(); };
-
-		const glm::vec3 channel_weight(1.0f / 3.0f);
-		const float u0 = random();
-		int channel = 0;
-		if (u0 < channel_weight[0]) { 
-			channel = 0; 
-		}
-		else if (u0 < channel_weight[0] + channel_weight[1]) { 
-			channel = 1; 
-		}
-		else { 
-			channel = 2; 
-		}
+		auto random = [&]()->float {
+			return sampler.Random1D(); 
+		};
 
 		glm::vec3 ray_origins[MAX_BOUNDARY_RECORD];
 		glm::vec3 ray_directions[MAX_BOUNDARY_RECORD];
@@ -123,7 +112,27 @@ namespace YumeRT {
 			}
 			mixed_sigma_m += vol.sigma_t * density_upper_bound;
 		}
-		glm::vec3 mixed_sigma_m_rcp = glm::vec3(SafeRcp(mixed_sigma_m.x), SafeRcp(mixed_sigma_m.y), SafeRcp(mixed_sigma_m.z));
+
+		const float channel_sum = mixed_sigma_m.x + mixed_sigma_m.y + mixed_sigma_m.z;
+		const glm::vec3 channel_weight = channel_sum > 0.0f ? (mixed_sigma_m / channel_sum) : glm::vec3(1.0f / 3.0f);
+		const float u0 = random();
+		int channel = 0;
+		if (u0 < channel_weight[0]) {
+			channel = 0;
+		}
+		else if (u0 < channel_weight[0] + channel_weight[1]) {
+			channel = 1;
+		}
+		else {
+			channel = 2;
+		}
+
+		if (!(mixed_sigma_m[channel] > 0.0f)) {
+			return false;
+		}
+
+		const glm::vec3 normalize_factor = glm::vec3(SafeRcp(mixed_sigma_m.x + 1.0f), SafeRcp(mixed_sigma_m.y + 1.0f), SafeRcp(mixed_sigma_m.z + 1.0f));
+		const glm::vec3 mixed_sigma_m_rcp = glm::vec3(SafeRcp(mixed_sigma_m.x), SafeRcp(mixed_sigma_m.y), SafeRcp(mixed_sigma_m.z));
 
 		glm::vec3 tr(1.0f);
 		glm::vec3 pdf(1.0f);
@@ -142,8 +151,8 @@ namespace YumeRT {
 			{
 				// hit surface, we don't need to multiply the sigma_t
 				const glm::vec3 path_tr = glm::exp(-mixed_sigma_m * (t_max - accumulate_distance));
-				tr *= path_tr * mixed_sigma_m_rcp;
-				pdf *= path_tr * mixed_sigma_m_rcp;
+				tr *= path_tr * normalize_factor;
+				pdf *= path_tr * normalize_factor;
 				accumulate_distance += free_path_length;
 				break;
 			}
@@ -168,17 +177,19 @@ namespace YumeRT {
 				mixed_sigma_t += vol.sigma_t * density;
 				mixed_sigma_s += vol.sigma_t * vol.albedo * density;
 			}
+
 			glm::vec3 real_prob_channels;
 			real_prob_channels.x = glm::min(mixed_sigma_m.x > 0.0f ? mixed_sigma_t.x * mixed_sigma_m_rcp.x : 0.0f, 1.0f);
 			real_prob_channels.y = glm::min(mixed_sigma_m.y > 0.0f ? mixed_sigma_t.y * mixed_sigma_m_rcp.y : 0.0f, 1.0f);
 			real_prob_channels.z = glm::min(mixed_sigma_m.z > 0.0f ? mixed_sigma_t.z * mixed_sigma_m_rcp.z : 0.0f, 1.0f);
+			glm::vec3 fake_prob_channels = glm::vec3(1.0f) - real_prob_channels;
 
 			const glm::vec3 path_tr = glm::exp(-mixed_sigma_m * free_path_length);
 			if (random() < real_prob_channels[channel]) 
 			{
 				// note: sigma_m in pdf conceal
-				tr *= path_tr * mixed_sigma_s * mixed_sigma_m_rcp;
-				pdf *= path_tr * real_prob_channels;
+				tr *= path_tr * mixed_sigma_s * normalize_factor;
+				pdf *= path_tr * mixed_sigma_m * real_prob_channels * normalize_factor;
 				break;
 			}
 			else 
@@ -186,9 +197,8 @@ namespace YumeRT {
 				// note: sigma_m in pdf and tr conceal
 				// note: tr = path_tr x sigma_null = path_tr x sigma_major * fake_prob
 				// note: pdf = path_tr x sigma_major * fake_prob
-
-				tr *= path_tr * (glm::vec3(1.0f) - real_prob_channels);
-				pdf *= path_tr * (glm::vec3(1.0f) - real_prob_channels);
+				tr *= path_tr * mixed_sigma_m * fake_prob_channels * normalize_factor; 
+				pdf *= path_tr * mixed_sigma_m * fake_prob_channels * normalize_factor;
 			}
 			++iteration;
 		}
@@ -264,20 +274,9 @@ namespace YumeRT {
 		const float t_max,
 		RandomSampler &sampler)
 	{
-		auto random = [&]()->float {return sampler.Random1D(); };
-
-		const glm::vec3 channel_weight(1.0f / 3.0f);
-		const float u0 = random();
-		int channel = 0;
-		if (u0 < channel_weight[0]) { 
-			channel = 0; 
-		}
-		else if (u0 < channel_weight[0] + channel_weight[1]) {
-			channel = 1;
-		}
-		else { 
-			channel = 2; 
-		}
+		auto random = [&]()->float {
+			return sampler.Random1D(); 
+		};
 
 		glm::vec3 ray_origins[MAX_BOUNDARY_RECORD];
 		glm::vec3 ray_directions[MAX_BOUNDARY_RECORD];
@@ -297,7 +296,27 @@ namespace YumeRT {
 			}
 			mixed_sigma_m += vol.sigma_t * density_upper_bound;
 		}
-		glm::vec3 mixed_sigma_m_rcp = glm::vec3(SafeRcp(mixed_sigma_m.x), SafeRcp(mixed_sigma_m.y), SafeRcp(mixed_sigma_m.z));
+
+		const float channel_sum = mixed_sigma_m.x + mixed_sigma_m.y + mixed_sigma_m.z;
+		const glm::vec3 channel_weight = channel_sum > 0.0f ? (mixed_sigma_m / channel_sum) : glm::vec3(1.0f / 3.0f);
+		const float u0 = random();
+		int channel = 0;
+		if (u0 < channel_weight[0]) {
+			channel = 0;
+		}
+		else if (u0 < channel_weight[0] + channel_weight[1]) {
+			channel = 1;
+		}
+		else {
+			channel = 2;
+		}
+
+		if (!(mixed_sigma_m[channel] > 0.0f)) {
+			return glm::vec3(1.0f);
+		}
+
+		const glm::vec3 normalize_factor = glm::vec3(SafeRcp(mixed_sigma_m.x + 1.0f), SafeRcp(mixed_sigma_m.y + 1.0f), SafeRcp(mixed_sigma_m.z + 1.0f));
+		const glm::vec3 mixed_sigma_m_rcp = glm::vec3(SafeRcp(mixed_sigma_m.x), SafeRcp(mixed_sigma_m.y), SafeRcp(mixed_sigma_m.z));
 
 		constexpr int max_trace_time = 32;
 		glm::vec3 tr(1.0f);
@@ -315,8 +334,8 @@ namespace YumeRT {
 			if (accumulate_distance + free_path_length > t_max) 
 			{
 				const glm::vec3 path_tr = glm::exp(-mixed_sigma_m * (t_max - accumulate_distance));
-				tr *= path_tr * mixed_sigma_m_rcp;
-				pdf *= path_tr * mixed_sigma_m_rcp;
+				tr *= path_tr * normalize_factor;
+				pdf *= path_tr * normalize_factor;
 				break;
 			}
 
@@ -343,11 +362,12 @@ namespace YumeRT {
 			real_prob_channels.x = glm::min(mixed_sigma_m.x > 0.0f ? mixed_sigma_t.x * mixed_sigma_m_rcp.x : 0.0f, 1.0f);
 			real_prob_channels.y = glm::min(mixed_sigma_m.y > 0.0f ? mixed_sigma_t.y * mixed_sigma_m_rcp.y : 0.0f, 1.0f);
 			real_prob_channels.z = glm::min(mixed_sigma_m.z > 0.0f ? mixed_sigma_t.z * mixed_sigma_m_rcp.z : 0.0f, 1.0f);
+			glm::vec3 fake_prob_channels = glm::vec3(1.0f) - real_prob_channels;
 
 			const glm::vec3 path_tr = glm::exp(-mixed_sigma_m * free_path_length);
 			// note: sigma_m in pdf and tr conceal
-			tr *= path_tr * (glm::vec3(1.0f) - real_prob_channels);
-			pdf *= path_tr;
+			tr *= path_tr * mixed_sigma_m * fake_prob_channels * normalize_factor;
+			pdf *= path_tr * mixed_sigma_m * normalize_factor;
 			if (iteration + 1 > max_trace_time) 
 			{
 				float rr_factor = glm::max(tr.x, glm::max(tr.y, tr.z));
