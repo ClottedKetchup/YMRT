@@ -1323,24 +1323,15 @@ namespace YumeRT
 		if (prim_ptr != nullptr)
 		{
 			PrimitiveInstance &prim_inst = (*prim_ptr);
-			if (ImGui::InputFloat("External IOR", &prim_inst.external_ior))
-			{
-				prim_inst.external_ior = glm::max(0.001f, prim_inst.external_ior);
-				scene_manager->ChangePrimVolumeAttribute(m_click_prim_idx, nullptr, nullptr, nullptr);
-			}
-			if (ImGui::InputInt("External Volume Index", &prim_inst.outer_volume_idx))
-			{
-				// no need to clamp volume idx
-				scene_manager->ChangePrimVolumeAttribute(m_click_prim_idx, nullptr, nullptr, nullptr);
-			}
 			if (ImGui::InputInt("Internal Volume Index:", &prim_inst.inner_volume_idx))
 			{
-				// no need to clamp volume idx, why?
-				scene_manager->ChangePrimVolumeAttribute(m_click_prim_idx, nullptr, nullptr, nullptr);
+				scene_manager->UpdatePrimVolume(m_click_prim_idx);
 			}
-			if (ImGui::Checkbox("Treat as Volume Boundary", &prim_inst.treat_as_boundary)) 
+			bool treat_as_boundary = (bool)prim_inst.treat_as_boundary;
+			if (ImGui::Checkbox("Treat as Volume Boundary", &treat_as_boundary))
 			{
-				scene_manager->ChangePrimVolumeAttribute(m_click_prim_idx, nullptr, nullptr, nullptr);
+				prim_inst.treat_as_boundary = treat_as_boundary ? 1 : 0;
+				scene_manager->UpdatePrimVolume(m_click_prim_idx);
 			}
 			ImGui::Text("Instance Geometry: %s", scene_manager->GetGeometryNames()[prim_inst.geometry_idx].c_str());
 			ImGui::Text("Instance Material: %s", scene_manager->GetMaterialNames()[prim_inst.material_idx].c_str());

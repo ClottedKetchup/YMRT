@@ -118,9 +118,9 @@ namespace YumeRT
 		inline void UpdateVolumeTransform(uint32_t selected_volume_idx);
 		
 		// here actually generate the transform matrix, because I need the geometry info
-		inline uint32_t AddPrimInstance(uint32_t geometry_idx, uint32_t transform_idx, uint32_t material_idx, float external_ior = 1.0f, int outer_vol_idx = -1, int inner_vol_idx = -1, bool is_volume_boundary = false);
+		inline uint32_t AddPrimInstance(uint32_t geometry_idx, uint32_t transform_idx, uint32_t material_idx, int inner_volume_idx = -1, bool treat_as_boundary = 0);
 		inline uint32_t RemovePrimInstance(uint32_t selected_prim_idx);
-		inline void ChangePrimVolumeAttribute(uint32_t prim_idx, const int *outer_vol_idx, const int *inner_vol_idx, const float *outer_ior);
+		inline void UpdatePrimVolume(uint32_t selected_prim_idx);
 
 		// material
 		inline uint32_t AddLightMaterial(const std::string &name, const glm::vec3 &light_color = glm::vec3(0.5f), float intensity = 1.0f);
@@ -445,11 +445,11 @@ namespace YumeRT
 		AddSceneFlag(SCENECHANGE_FLAG::VOLUME_CHANGE);
 	}
 
-	inline uint32_t SceneManager::AddPrimInstance(uint32_t geometry_idx, uint32_t transform_idx, uint32_t material_idx, float external_ior, int outer_vol_idx, int inner_vol_idx, bool is_volume_boundary)
+	inline uint32_t SceneManager::AddPrimInstance(uint32_t geometry_idx, uint32_t transform_idx, uint32_t material_idx, int inner_volume_idx, bool treat_as_boundary)
 	{
 		assert(geometry_idx >= 0 && geometry_idx < geometries.size());
 		assert(material_idx >= 0 && material_idx < materials.size());
-		prim_instances.push_back(PrimitiveInstance(geometry_idx, transform_idx, material_idx, external_ior, outer_vol_idx, inner_vol_idx, is_volume_boundary));
+		prim_instances.push_back(PrimitiveInstance(geometry_idx, transform_idx, material_idx, inner_volume_idx, (int)treat_as_boundary));
 		
 		geometry_reference_counters[geometry_idx]++;
 		material_reference_counters[material_idx]++;
@@ -492,18 +492,17 @@ namespace YumeRT
 		// give the first element back
 		return 0;
 	}
-	inline void SceneManager::ChangePrimVolumeAttribute(uint32_t prim_idx, const int *outer_vol_idx, const int *inner_vol_idx, const float *outer_ior)
+	inline void SceneManager::UpdatePrimVolume(uint32_t selected_prim_idx)
 	{
-		if (prim_instances.empty() || prim_idx > (uint32_t)prim_instances.size() - 1) { return; }
-
-		if (outer_vol_idx != nullptr) { prim_instances[prim_idx].outer_volume_idx = *outer_vol_idx; }
-		if (inner_vol_idx != nullptr) { prim_instances[prim_idx].inner_volume_idx = *inner_vol_idx; }
-		if (outer_ior != nullptr) { prim_instances[prim_idx].external_ior = *outer_ior; }
-
+		if (prim_instances.empty() || 
+			selected_prim_idx > (uint32_t)prim_instances.size() - 1) { 
+			return; 
+		}
 		assert(scene.prim_instances != nullptr);
-		CUDA_CHECK(cudaMemcpy(scene.prim_instances + prim_idx, &prim_instances[prim_idx], sizeof(PrimitiveInstance), cudaMemcpyHostToDevice));
+		CUDA_CHECK(cudaMemcpy(scene.prim_instances + selected_prim_idx, 
+			&prim_instances[selected_prim_idx], 
+			sizeof(PrimitiveInstance), cudaMemcpyHostToDevice));
 		CUDA_CHECK(cudaDeviceSynchronize());
-
 		AddSceneFlag(SCENECHANGE_FLAG::INSTANCE_VOLUME_CHANGE);
 	}
 
