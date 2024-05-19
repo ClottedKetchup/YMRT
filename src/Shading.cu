@@ -88,7 +88,7 @@ namespace YumeRT
 			float light_wi_pdf = 0.0f;
 			const glm::vec3 bsdf_weight = material_bsdf.EvalWi(wo, light_wi, &light_wi_pdf);
 
-			if (bsdf_weight.x + bsdf_weight.y + bsdf_weight.z > 1E-16f)
+			if (MaxComponent(bsdf_weight) > MIN_COLOR_EPSILON)
 			{
 				const bool bounce_outside = glm::dot(light_dir, hit_geometry_normal) > 0.0f;
 				const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, bounce_outside ? hit_geometry_normal : -hit_geometry_normal);
@@ -112,7 +112,7 @@ namespace YumeRT
 					}
 
 					float mis_weight = PowerHeuristic(light_sample_pdf, light_wi_pdf);
-					direct_lighting += mis_weight * tr * glm::min(bsdf_weight, glm::vec3(1E16f)) * glm::min(Li, glm::vec3(1E16f));
+					direct_lighting += mis_weight * tr * glm::min(bsdf_weight, glm::vec3(MAX_COLOR_CLAMP)) * glm::min(Li, glm::vec3(MAX_COLOR_CLAMP));
 				}
 			}
 		}
@@ -129,7 +129,7 @@ namespace YumeRT
 				float bsdf_wi_pdf = 0.0f;
 				const glm::vec3 Li = scene.distant_lights[selected_distant_light_idx].EvalLi(scene, light_dir, &bsdf_wi_pdf);
 
-				if (Li.x + Li.y + Li.z > 1E-16f)
+				if (MaxComponent(Li) > MIN_COLOR_EPSILON)
 				{
 					const bool bounce_outside = glm::dot(light_dir, hit_geometry_normal) > 0.0f;
 					const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, bounce_outside ? hit_geometry_normal : -hit_geometry_normal);
@@ -153,7 +153,7 @@ namespace YumeRT
 						}
 
 						float mis_weight = PowerHeuristic(bsdf_sample_pdf, bsdf_wi_pdf);
-						direct_lighting += mis_weight * tr * glm::min(bsdf_weight, glm::vec3(1E16f)) * glm::min(Li, glm::vec3(1E16f));
+						direct_lighting += mis_weight * tr * glm::min(bsdf_weight, glm::vec3(MAX_COLOR_CLAMP)) * glm::min(Li, glm::vec3(MAX_COLOR_CLAMP));
 					}
 				}
 			}
@@ -197,7 +197,7 @@ namespace YumeRT
 			float light_wi_pdf = 0.0f;
 			const float phase_weight = EvalMixedPhases(volume_weighs, gs, volume_count, -ray.direction, light_wi, &light_wi_pdf);
 
-			if (phase_weight > 1E16f)
+			if (phase_weight > MIN_COLOR_EPSILON)
 			{
 				Ray shadow_ray(volume_hit_position, light_dir);
 				shadow_ray.t = TMAX;
@@ -212,7 +212,7 @@ namespace YumeRT
 					glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 
 					float mis_weight = PowerHeuristic(light_sample_pdf, light_wi_pdf);
-					direct_lighting += mis_weight * tr * glm::min(phase_weight, 1E16f) * glm::min(Li, glm::vec3(1E16f));
+					direct_lighting += mis_weight * tr * glm::min(phase_weight, MAX_COLOR_CLAMP) * glm::min(Li, glm::vec3(MAX_COLOR_CLAMP));
 				}
 			}
 		}
@@ -229,7 +229,7 @@ namespace YumeRT
 				float phase_wi_pdf = 0.0f;
 				const glm::vec3 Li = scene.distant_lights[selected_distant_light_idx].EvalLi(scene, light_dir, &phase_wi_pdf);
 
-				if (Li.x + Li.y + Li.z > 1E-16f)
+				if (MaxComponent(Li) > MIN_COLOR_EPSILON)
 				{
 					Ray shadow_ray(volume_hit_position, light_dir);
 					shadow_ray.t = TMAX;
@@ -244,7 +244,7 @@ namespace YumeRT
 						glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 
 						float mis_weight = PowerHeuristic(phase_sample_pdf, phase_wi_pdf);
-						direct_lighting += mis_weight * tr * glm::min(phase_weight, 1E16f) * glm::min(Li, glm::vec3(1E16f));
+						direct_lighting += mis_weight * tr * glm::min(phase_weight, MAX_COLOR_CLAMP) * glm::min(Li, glm::vec3(MAX_COLOR_CLAMP));
 					}
 				}
 			}
@@ -289,7 +289,7 @@ namespace YumeRT
 			float light_wi_pdf = 0.0f;
 			const glm::vec3 bsdf_weight = material_bsdf.EvalWi(wo, light_wi, &light_wi_pdf);
 
-			if (bsdf_weight.x + bsdf_weight.y + bsdf_weight.z > 1E-16f)
+			if (MaxComponent(bsdf_weight) > MIN_COLOR_EPSILON)
 			{
 				bool bounce_outside = glm::dot(light_dir, hit_geometry_normal) > 0.0f;
 				const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, bounce_outside ? hit_geometry_normal : -hit_geometry_normal);
@@ -317,7 +317,7 @@ namespace YumeRT
 					}
 					
 					float mis_weight = PowerHeuristic(light_sample_pdf, light_wi_pdf);
-					direct_lighting += mis_weight * tr * glm::min(bsdf_weight, glm::vec3(1E16f)) * glm::min(Li, glm::vec3(1E16f));
+					direct_lighting += mis_weight * tr * glm::min(bsdf_weight, glm::vec3(MAX_COLOR_CLAMP)) * glm::min(Li, glm::vec3(MAX_COLOR_CLAMP));
 				}
 			}
 		}
@@ -335,7 +335,7 @@ namespace YumeRT
 				float bsdf_wi_pdf = 0.0f;
 				const glm::vec3 Li = shape_light.EvalLi(scene, hit_position, light_dir, &light_pos, &light_geo_normal, &bsdf_wi_pdf);
 
-				if (Li.x + Li.y + Li.z > 1E-16f)
+				if (MaxComponent(Li) > MIN_COLOR_EPSILON)
 				{
 					bool bounce_outside = glm::dot(light_dir, hit_geometry_normal) > 0.0f;
 					glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position,  bounce_outside? hit_geometry_normal : -hit_geometry_normal);
@@ -363,7 +363,7 @@ namespace YumeRT
 						}
 						
 						float mis_weight = PowerHeuristic(bsdf_sample_pdf, bsdf_wi_pdf);
-						direct_lighting += mis_weight * tr * glm::min(bsdf_weight, glm::vec3(1E16f)) * glm::min(Li, glm::vec3(1E16f));
+						direct_lighting += mis_weight * tr * glm::min(bsdf_weight, glm::vec3(MAX_COLOR_CLAMP)) * glm::min(Li, glm::vec3(MAX_COLOR_CLAMP));
 					}
 				}
 			}
@@ -408,7 +408,7 @@ namespace YumeRT
 			float light_wi_pdf = 0.0f;
 			float phase_weight = EvalMixedPhases(volume_weighs, gs, volume_count, -ray.direction ,light_dir, &light_wi_pdf);
 
-			if (phase_weight > 1E-16f)
+			if (phase_weight > MIN_COLOR_EPSILON)
 			{
 				Ray shadow_ray(volume_hit_position, light_dir);
 				float max_trace_distance = glm::length(OffsetRayOrigin(light_pos, light_geo_normal) - volume_hit_position) * 0.9996f;
@@ -424,7 +424,7 @@ namespace YumeRT
 					glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 					
 					float mis_weight = PowerHeuristic(light_sample_pdf, light_wi_pdf);
-					direct_lighting += mis_weight * tr * glm::min(phase_weight, 1E16f) * glm::min(Li, glm::vec3(1E16f));
+					direct_lighting += mis_weight * tr * glm::min(phase_weight, MAX_COLOR_CLAMP) * glm::min(Li, glm::vec3(MAX_COLOR_CLAMP));
 				}
 			}
 		}
@@ -442,7 +442,7 @@ namespace YumeRT
 				float phase_wi_pdf = 0.0f;
 				const glm::vec3 Li = shape_light.EvalLi(scene, volume_hit_position, light_dir, &light_pos, &light_geo_normal, &phase_wi_pdf);
 
-				if (Li.x + Li.y + Li.z > 1E-16f)
+				if (MaxComponent(Li) > MIN_COLOR_EPSILON)
 				{
 					Ray shadow_ray(volume_hit_position, light_dir);
 					float max_trace_distance = glm::length(OffsetRayOrigin(light_pos, light_geo_normal) - volume_hit_position) * 0.9996f;
@@ -458,7 +458,7 @@ namespace YumeRT
 						glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 						
 						float mis_weight = PowerHeuristic(phase_sample_pdf, phase_wi_pdf);
-						direct_lighting += mis_weight * tr * glm::min(phase_weight, 1E16f) * glm::min(Li, glm::vec3(1E16f));
+						direct_lighting += mis_weight * tr * glm::min(phase_weight, MAX_COLOR_CLAMP) * glm::min(Li, glm::vec3(MAX_COLOR_CLAMP));
 					}
 				}
 			}
@@ -596,7 +596,9 @@ namespace YumeRT
 						float rr = glm::max(throughput.x, glm::max(throughput.y, throughput.z));
 						if (depth + 1 > render_setting.ray_depth)
 						{
-							if (render_setting.enable_russian_roulette && sampler.Random1D() < rr) { throughput /= glm::max(rr, 1E-20f); }
+							if (render_setting.enable_russian_roulette && sampler.Random1D() < rr) { 
+								throughput /= glm::max(rr, MIN_COLOR_EPSILON); 
+							}
 							else { break; }
 						}
 
@@ -613,16 +615,18 @@ namespace YumeRT
 				// surface shading
 				if (hit_surface)
 				{
-					glm::vec3 hit_position;
-					glm::vec3 hit_position_object_space;
-					glm::vec3	hit_shading_normal;
-					glm::vec3	hit_geometry_normal;
-					glm::vec2	hit_uv;
-					glm::vec3	hit_dpdu;
-					glm::vec3	hit_dpdv;
+					glm::vec3 hit_position(0.0f);
+					glm::vec3 hit_position_error(0.0f);
+					glm::vec3 hit_position_object_space(0.0f);
+					glm::vec3	hit_shading_normal(0.0f);
+					glm::vec3	hit_geometry_normal(0.0f);
+					glm::vec2	hit_uv(0.0f);
+					glm::vec3	hit_dpdu(0.0f);
+					glm::vec3	hit_dpdv(0.0f);
 					FetchShadingData(scene,
 												hit_record,
 												&hit_position,
+												&hit_position_error,
 												&hit_position_object_space,
 												&hit_shading_normal,
 												&hit_geometry_normal,
@@ -749,7 +753,9 @@ namespace YumeRT
 					float rr = glm::max(throughput.x, glm::max(throughput.y, throughput.z));
 					if (depth + 1 > render_setting.ray_depth)
 					{
-						if (render_setting.enable_russian_roulette && sampler.Random1D() < rr) { throughput /= glm::max(rr, 1E-20f); }
+						if (render_setting.enable_russian_roulette && sampler.Random1D() < rr) { 
+							throughput /= glm::max(rr, MIN_COLOR_EPSILON); 
+						}
 						else { break; }
 					}
 

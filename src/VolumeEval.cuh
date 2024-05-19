@@ -372,7 +372,7 @@ namespace YumeRT {
 			{
 				float rr_factor = glm::max(tr.x, glm::max(tr.y, tr.z));
 				if (random() < rr_factor) {
-					tr *= SafeRcp(rr_factor);
+					tr /= glm::max(rr_factor, MIN_COLOR_EPSILON);
 				}
 				else {
 					break;
@@ -421,7 +421,6 @@ namespace YumeRT {
 		RayTransfer &shadow_ray_transfer,
 		RandomSampler &sampler)
 	{
-	// NEXT TODO
 		if (scene.volumes == nullptr || scene.volume_count == 0) { 
 			return glm::vec3(1.0f); 
 		}
@@ -451,8 +450,8 @@ namespace YumeRT {
 				const PrimitiveInstance &prim = scene.prim_instances[hit_record.hit_instance_idx];
 				const Material &mtl = scene.materials[prim.material_idx];
 				
-				glm::vec3 hit_position, hit_geometry_normal;
-				FetchGeometryNormal(scene, hit_record, &hit_position, &hit_geometry_normal);
+				glm::vec3 hit_position(0.0f), hit_position_error(0.0f), hit_geometry_normal(0.0f);
+				FetchGeometryNormal(scene, hit_record, &hit_position, &hit_position_error, &hit_geometry_normal);
 
 				uint32_t mtl_ior_priority;
 				float mtl_ior = mtl.FetchIOR(&mtl_ior_priority);

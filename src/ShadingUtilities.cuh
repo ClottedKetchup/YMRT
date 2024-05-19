@@ -213,7 +213,7 @@ namespace YumeRT
 
 		glm::vec3 position_object = ray_o + ray_d * t;
 		float distance = length(position_object);
-		position_object = distance > 1E-8f ?
+		position_object = distance > (float)FLOAT_EPSILON ?
 			position_object * radius / distance : glm::vec3(0.0f);
 
 		hit_record->hit_t = t;
@@ -449,6 +449,7 @@ namespace YumeRT
 																					const HitRecord &hit_record,
 																					const PrimitiveInstance &hit_instance,
 																					glm::vec3 *hit_position,
+																					glm::vec3 *hit_position_error,
 																					glm::vec3 *hit_shading_normal,
 																					glm::vec3 *hit_geometry_normal,
 																					glm::vec2 *hit_uv,
@@ -459,12 +460,13 @@ namespace YumeRT
 	{
 		const Sphere &hit_sphere = scene.geometries[hit_instance.geometry_idx].sphere;
 
-		float radius = glm::max(hit_sphere.radius, 1E-8f);
+		float radius = glm::max(hit_sphere.radius, (float)FLOAT_EPSILON);
 
 		const glm::vec3 position_object = hit_record.hit_barycentric;
 		const glm::vec3 normal_object = hit_record.hit_barycentric / radius;
 
 		*hit_position = position_object;
+		*hit_position_error = ErrorGamma(5) * position_object;
 		*hit_shading_normal = normal_object;
 		*hit_geometry_normal = normal_object;
 
@@ -521,6 +523,7 @@ namespace YumeRT
 																				const HitRecord &hit_record,
 																				const PrimitiveInstance &hit_instance,
 																				glm::vec3 *hit_position,
+																				glm::vec3 *hit_position_error,
 																				glm::vec3 *hit_shading_normal,
 																				glm::vec3 *hit_geometry_normal,
 																				glm::vec2 *hit_uv,
@@ -547,9 +550,11 @@ namespace YumeRT
 		const glm::vec3 &p1 = mesh_positions[vid1];
 		const glm::vec3 &p2 = mesh_positions[vid2];
 
-		*hit_position = p0 * hit_record.hit_barycentric.x
-							 + p1 * hit_record.hit_barycentric.y
-							 + p2 * hit_record.hit_barycentric.z;
+		const float x_abs_sum = glm::abs(p0.x * hit_record.hit_barycentric.x) + glm::abs(p1.x * hit_record.hit_barycentric.y) + glm::abs(p2.x * hit_record.hit_barycentric.z);
+		const float y_abs_sum = glm::abs(p0.y * hit_record.hit_barycentric.x) + glm::abs(p1.y * hit_record.hit_barycentric.y) + glm::abs(p2.y * hit_record.hit_barycentric.z);
+		const float z_abs_sum = glm::abs(p0.z * hit_record.hit_barycentric.x) + glm::abs(p1.z * hit_record.hit_barycentric.y) + glm::abs(p2.z * hit_record.hit_barycentric.z);
+		*hit_position = p0 * hit_record.hit_barycentric.x + p1 * hit_record.hit_barycentric.y + p2 * hit_record.hit_barycentric.z;
+		*hit_position_error = ErrorGamma(7) * glm::vec3(x_abs_sum, y_abs_sum, z_abs_sum);
 
 		uint32_t nid0 = mesh_nidxs[triangle.id0];
 		uint32_t nid1 = mesh_nidxs[triangle.id1];
@@ -559,9 +564,7 @@ namespace YumeRT
 		const glm::vec3 &n1 = mesh_normals[nid1];
 		const glm::vec3 &n2 = mesh_normals[nid2];
 
-		*hit_shading_normal = n0 * hit_record.hit_barycentric.x
-																   + n1 * hit_record.hit_barycentric.y
-																   + n2 * hit_record.hit_barycentric.z;
+		*hit_shading_normal = n0 * hit_record.hit_barycentric.x + n1 * hit_record.hit_barycentric.y + n2 * hit_record.hit_barycentric.z;
 		*hit_geometry_normal = glm::cross(p1 - p0, p2 - p0);
 
 		bool has_custom_uv = (hit_mesh.GetTexcoordsDevice() != nullptr && hit_mesh.GetTexcoordIndicesDevice() != nullptr);
@@ -584,7 +587,7 @@ namespace YumeRT
 		float delta_u01 = uv1.x - uv0.x, delta_v01 = uv1.y - uv0.y;
 		float delta_u12 = uv2.x - uv1.x, delta_v12 = uv2.y - uv1.y;
 		float determinant = delta_u01 * delta_v12 - delta_v01 * delta_u12;
-		if (glm::abs(determinant) < 1E-7f)
+		if (glm::abs(determinant) < (float)FLOAT_EPSILON)
 		{
 			delta_u01 = 1.0f, delta_v01 = 0.0f;
 			delta_u12 = 0.0f, delta_v12 = 1.0f;
@@ -611,6 +614,7 @@ namespace YumeRT
 	__device__ __host__ inline void FetchShadingData(const Scene &scene,
 																			const HitRecord &hit_record,
 																			glm::vec3 *hit_position,
+																			glm::vec3 *hit_position_error,
 																			glm::vec3 *hit_position_object_space,
 																			glm::vec3 *hit_shading_normal,
 																			glm::vec3 *hit_geometry_normal,
@@ -630,6 +634,7 @@ namespace YumeRT
 											hit_record,
 											hit_instance,
 											hit_position,
+											hit_position_error,
 											hit_shading_normal,
 											hit_geometry_normal,
 											hit_uv,
@@ -644,6 +649,7 @@ namespace YumeRT
 												hit_record,
 												hit_instance,
 												hit_position,
+												hit_position_error,
 												hit_shading_normal,
 												hit_geometry_normal,
 												hit_uv,
@@ -658,30 +664,20 @@ namespace YumeRT
 		}
 
 		// transform geometry data
-		const glm::mat4 &transform = scene.transforms[hit_instance.transform_idx];
-		const glm::mat4 &i_transform = scene.i_transforms[hit_instance.transform_idx];
-
-		auto otw_position = [&](const glm::vec3 &pos)->glm::vec3 {
-			return glm::vec3(transform * glm::vec4(pos, 1.0f));
-		};
-		auto otw_vector = [&](const glm::vec3 &vec)->glm::vec3{
-			return glm::vec3(transform * glm::vec4(vec, 0.0f));
-		};
-		auto otw_normal = [&](const glm::vec3 &n)->glm::vec3{
-			return glm::vec3(glm::transpose(i_transform) * glm::vec4(n, 0.0f));
-		};
+		const glm::mat4 &otw = scene.transforms[hit_instance.transform_idx];
+		const glm::mat4 &wto = scene.i_transforms[hit_instance.transform_idx];
 
 		*hit_position_object_space = *hit_position;
-		*hit_position = otw_position(*hit_position);
-		*hit_shading_normal = glm::normalize(otw_normal(*hit_shading_normal));
-		*hit_geometry_normal = glm::normalize(otw_normal(*hit_geometry_normal));
-		*hit_dpdu = otw_vector(*hit_dpdu);
-		*hit_dpdv = otw_vector(*hit_dpdv);
+		*hit_position = TransformPosition(otw, *hit_position, hit_position_error);
+		*hit_shading_normal = glm::normalize(TransposeTransformVector(wto, *hit_shading_normal));
+		*hit_geometry_normal = glm::normalize(TransposeTransformVector(wto, *hit_geometry_normal));
+		*hit_dpdu = TransformVector(otw, *hit_dpdu);
+		*hit_dpdv = TransformVector(otw, *hit_dpdv);
 		if (hit_dndu != nullptr) {
-			*hit_dndu = otw_vector(*hit_dndu);
+			*hit_dndu = TransformVector(otw, *hit_dndu);
 		}
 		if (hit_dndv != nullptr) {
-			*hit_dndv = otw_vector(*hit_dndv);
+			*hit_dndv = TransformVector(otw, *hit_dndv);
 		}
 
 		// TODO: maybe flipped the shading normal to match geometry normal
@@ -691,12 +687,14 @@ namespace YumeRT
 																								const HitRecord &hit_record, 
 																								const PrimitiveInstance &hit_instance, 
 																								glm::vec3 *hit_position, 
+																								glm::vec3 *hit_position_error, 
 																								glm::vec3 *hit_geometry_normal)
 	{
 		const Sphere &hit_sphere = scene.geometries[hit_instance.geometry_idx].sphere;
-		float radius = glm::max(hit_sphere.radius, 1E-8f);
+		float radius = glm::max(hit_sphere.radius, (float)FLOAT_EPSILON);
 
 		*hit_position = hit_record.hit_barycentric;
+		*hit_position_error = ErrorGamma(5) * hit_record.hit_barycentric;
 		*hit_geometry_normal = hit_record.hit_barycentric / radius;
 	}
 
@@ -704,6 +702,7 @@ namespace YumeRT
 																								const HitRecord &hit_record, 
 																								const PrimitiveInstance &hit_instance,
 																								glm::vec3 *hit_position,
+																								glm::vec3 *hit_position_error,
 																								glm::vec3 *hit_geometry_normal)
 	{
 		const TriangleMesh &hit_mesh = scene.geometries[hit_instance.geometry_idx].triangle_mesh;
@@ -722,16 +721,18 @@ namespace YumeRT
 		const glm::vec3 &p1 = mesh_positions[vid1];
 		const glm::vec3 &p2 = mesh_positions[vid2];
 
-		*hit_position = p0 * hit_record.hit_barycentric.x
-							+ p1 * hit_record.hit_barycentric.y
-							+ p2 * hit_record.hit_barycentric.z;
-
+		const float x_abs_sum = glm::abs(p0.x * hit_record.hit_barycentric.x) + glm::abs(p1.x * hit_record.hit_barycentric.y) + glm::abs(p2.x * hit_record.hit_barycentric.z);
+		const float y_abs_sum = glm::abs(p0.y * hit_record.hit_barycentric.x) + glm::abs(p1.y * hit_record.hit_barycentric.y) + glm::abs(p2.y * hit_record.hit_barycentric.z);
+		const float z_abs_sum = glm::abs(p0.z * hit_record.hit_barycentric.x) + glm::abs(p1.z * hit_record.hit_barycentric.y) + glm::abs(p2.z * hit_record.hit_barycentric.z);
+		*hit_position = p0 * hit_record.hit_barycentric.x + p1 * hit_record.hit_barycentric.y + p2 * hit_record.hit_barycentric.z;
+		*hit_position_error = ErrorGamma(7) * glm::vec3(x_abs_sum, y_abs_sum, z_abs_sum);
 		*hit_geometry_normal = glm::cross(p1 - p0, p2 - p0);
 	}
 
 	__device__ __host__ inline void FetchGeometryNormal(const Scene &scene, 
 																						const HitRecord &hit_record, 
 																						glm::vec3 *hit_position,
+																						glm::vec3 *hit_position_error,
 																						glm::vec3 *hit_geometry_normal)
 	{
 		if (hit_record.hit_instance_idx == EMPTY_UINT32) { return; }
@@ -741,23 +742,22 @@ namespace YumeRT
 
 		if (geometry_type == GEOMETRY_TYPE::TRIANGLE_MESH)
 		{
-			FetchMeshGeometryNormal(scene, hit_record, hit_instance, hit_position, hit_geometry_normal);
+			FetchMeshGeometryNormal(scene, hit_record, hit_instance, hit_position, hit_position_error, hit_geometry_normal);
 		}
 		else if (geometry_type == GEOMETRY_TYPE::SPHERE)
 		{
-			FetchSphereGeometryNormal(scene, hit_record, hit_instance, hit_position, hit_geometry_normal);
+			FetchSphereGeometryNormal(scene, hit_record, hit_instance, hit_position, hit_position_error, hit_geometry_normal);
 		}
 		else
 		{
 			// do nothing
 		}
 
-		const glm::mat4 &i_transform = scene.i_transforms[hit_instance.transform_idx];
-		const glm::mat4 &transform = scene.transforms[hit_instance.transform_idx];
-
-		*hit_position = glm::vec3(transform * glm::vec4((*hit_position), 1.0f));
-
-		*hit_geometry_normal = glm::normalize(glm::vec3(glm::transpose(i_transform) * glm::vec4((*hit_geometry_normal), 0.0f)));
+		const glm::mat4 &otw = scene.transforms[hit_instance.transform_idx];
+		const glm::mat4 &wto = scene.i_transforms[hit_instance.transform_idx];
+		
+		*hit_position = TransformPosition(otw, *hit_position, hit_position_error);
+		*hit_geometry_normal = glm::normalize(TransposeTransformVector(wto, *hit_geometry_normal));
 	}
 
 	__device__  __host__ inline glm::vec3 OffsetRayOrigin(const glm::vec3& p, const glm::vec3 &n)

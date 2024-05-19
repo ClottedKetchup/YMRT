@@ -118,20 +118,28 @@ namespace YumeRT
 
 	__device__ __host__ inline bool IntersectBBox3(const BBox3 &bbox, const Ray &ray, float *t = nullptr)
 	{
-		glm::vec3 inv_dir = glm::vec3(1.f) / ray.direction;
+		const glm::vec3 inv_dir = glm::vec3(1.f) / ray.direction;
 
 		float tx0 = (bbox.p_min.x - ray.origin.x) * inv_dir.x;
 		float tx1 = (bbox.p_max.x - ray.origin.x) * inv_dir.x;
-		if (tx0 > tx1) { Swap(tx0, tx1); }
+		if (tx0 > tx1) { 
+			Swap(tx0, tx1); 
+			tx1 *= 1.0f + 2.0f * ErrorGamma(3);
+		}
 
 		float ty0 = (bbox.p_min.y - ray.origin.y) * inv_dir.y;
 		float ty1 = (bbox.p_max.y - ray.origin.y) * inv_dir.y;
-		if (ty0 > ty1) { Swap(ty0, ty1); }
+		if (ty0 > ty1) { 
+			Swap(ty0, ty1); 
+			ty1 *= 1.0f + 2.0f * ErrorGamma(3);
+		}
 
 		float tz0 = (bbox.p_min.z - ray.origin.z) * inv_dir.z;
 		float tz1 = (bbox.p_max.z - ray.origin.z) * inv_dir.z;
-		if (tz0 > tz1) { Swap(tz0, tz1); }
-		// if (isnan(tz0) || isnan(tz1)) { return false; }
+		if (tz0 > tz1) { 
+			Swap(tz0, tz1);
+			tz1 *= 1.0f + 2.0f * ErrorGamma(3);
+		}
 
 		float ti = tx0;
 		if (ty0 > ti) { ti = ty0; }

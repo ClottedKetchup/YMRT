@@ -13,6 +13,10 @@ namespace YumeRT
 #define HALF_PI 1.57079632679f
 #define INV_PI 0.318309886183f
 
+#define FLOAT_EPSILON 5.9604645E-8f
+#define MIN_COLOR_EPSILON 3.7252903E-9f
+#define MAX_COLOR_CLAMP 1E16f
+
 #define WORLD_UP glm::vec3(0.0f, 1.0f, 0.0f)
 
 #define YumeRT_FLOAT_MAX  1E36f
@@ -50,6 +54,11 @@ namespace YumeRT
 		if (v[1] > v[max_d]) { max_d = 1; }
 		if (v[2] > v[max_d]) { max_d = 2; }
 		return max_d;
+	}
+
+	__device__ __host__ inline float MaxComponent(const glm::vec3 &v)
+	{
+		return glm::max(v.x, glm::max(v.y, v.z));
 	}
 
 	__device__ __host__ inline glm::vec3 Permute(const glm::vec3 &p, int x, int y, int z)
@@ -125,8 +134,76 @@ namespace YumeRT
 		 return 0.2126f * rgb.r + 0.7152 * rgb.g + 0.0722f * rgb.b;
 	 }
 
+	 __device__ __host__ inline constexpr float ErrorGamma(int n)
+	 {
+		 return (n * FLOAT_EPSILON) / (1.0f - n * FLOAT_EPSILON);
+	 }
+
 	 __device__ __host__ inline double DoubleDot(const glm::vec3 &v0, const glm::vec3 &v1)
 	 {
 		 return (double)v0.x * (double)v1.x + (double)v0.y * (double)v1.y + (double)v0.z * (double)v1.z;
+	 }
+
+	 __device__ __host__ inline glm::vec3 GetTranslate(const glm::mat4 &m)
+	 {
+		 return glm::vec3(m[3][0], m[3][1], m[3][2]);
+	 }
+
+	 __device__ __host__ inline glm::vec3 TransformVector(const glm::mat4 &m, const glm::vec3 &v)
+	 {
+		 glm::vec3 result_v;
+		 result_v[0] = m[0][0] * v[0] + m[1][0] * v[1] + m[2][0] * v[2];
+		 result_v[1] = m[0][1] * v[0] + m[1][1] * v[1] + m[2][1] * v[2];
+		 result_v[2] = m[0][2] * v[0] + m[1][2] * v[1] + m[2][2] * v[2];
+		 return result_v;
+	 }
+
+	 __device__ __host__ inline glm::vec3 TransposeTransformVector(const glm::mat4 &m, const glm::vec3 &v)
+	 {
+		 glm::vec3 result_v;
+		 result_v[0] = m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2];
+		 result_v[1] = m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2];
+		 result_v[2] = m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2];
+		 return result_v;
+	 }
+
+	 __device__ __host__ inline glm::vec3 TransformPosition(const glm::mat4 &m, const glm::vec3 &p, glm::vec3 *p_error = nullptr)
+	 {
+		 glm::vec3 result_p;
+		 result_p[0] = m[0][0] * p[0] + m[1][0] * p[1] + m[2][0] * p[2] + m[3][0];
+		 result_p[1] = m[0][1] * p[0] + m[1][1] * p[1] + m[2][1] * p[2] + m[3][1];
+		 result_p[2] = m[0][2] * p[0] + m[1][2] * p[1] + m[2][2] * p[2] + m[3][2];
+
+		 if (p_error != nullptr) {
+			 const float x_abs_sum = glm::abs(m[0][0] * p[0]) + glm::abs(m[1][0] * p[1]) + glm::abs(m[2][0] * p[2]) + glm::abs(m[3][0]);
+			 const float y_abs_sum = glm::abs(m[0][1] * p[0]) + glm::abs(m[1][1] * p[1]) + glm::abs(m[2][1] * p[2]) + glm::abs(m[3][1]);
+			 const float z_abs_sum = glm::abs(m[0][2] * p[0]) + glm::abs(m[1][2] * p[1]) + glm::abs(m[2][2] * p[2]) + glm::abs(m[3][2]);
+			 const float x_epsilon = glm::abs(m[0][0]) * (*p_error).x + glm::abs(m[1][0]) * (*p_error).y + glm::abs(m[2][0]) * (*p_error).z;
+			 const float y_epsilon = glm::abs(m[0][1]) * (*p_error).x + glm::abs(m[1][1]) * (*p_error).y + glm::abs(m[2][1]) * (*p_error).z;
+			 const float z_epsilon = glm::abs(m[0][2]) * (*p_error).x + glm::abs(m[1][2]) * (*p_error).y + glm::abs(m[2][2]) * (*p_error).z;
+			 *p_error = (ErrorGamma(3) + 1.0f) * glm::vec3(x_epsilon, y_epsilon, z_epsilon)
+				 + ErrorGamma(3) * glm::vec3(x_abs_sum, y_abs_sum, z_abs_sum);
+		 }
+		 return result_p;
+	 }
+
+	 __device__ __host__ inline glm::vec3 TransposeTransformPosition(const glm::mat4 &m, const glm::vec3 &p, glm::vec3 *p_error = nullptr)
+	 {
+		 glm::vec3 result_p;
+		 result_p[0] = m[0][0] * p[0] + m[0][1] * p[1] + m[0][2] * p[2] + m[0][3];
+		 result_p[1] = m[1][0] * p[0] + m[1][1] * p[1] + m[1][2] * p[2] + m[1][3];
+		 result_p[2] = m[2][0] * p[0] + m[2][1] * p[1] + m[2][2] * p[2] + m[2][3];
+
+		 if (p_error != nullptr) {
+			 const float x_abs_sum = glm::abs(m[0][0] * p[0]) + glm::abs(m[0][1] * p[1]) + glm::abs(m[0][2] * p[2]) + glm::abs(m[0][3]);
+			 const float y_abs_sum = glm::abs(m[1][0] * p[0]) + glm::abs(m[1][1] * p[1]) + glm::abs(m[1][2] * p[2]) + glm::abs(m[1][3]);
+			 const float z_abs_sum = glm::abs(m[2][0] * p[0]) + glm::abs(m[2][1] * p[1]) + glm::abs(m[2][2] * p[2]) + glm::abs(m[2][3]);
+			 const float x_epsilon = glm::abs(m[0][0]) * (*p_error).x + glm::abs(m[0][1]) * (*p_error).y + glm::abs(m[0][2]) * (*p_error).z;
+			 const float y_epsilon = glm::abs(m[1][0]) * (*p_error).x + glm::abs(m[1][1]) * (*p_error).y + glm::abs(m[1][2]) * (*p_error).z;
+			 const float z_epsilon = glm::abs(m[2][0]) * (*p_error).x + glm::abs(m[2][1]) * (*p_error).y + glm::abs(m[2][2]) * (*p_error).z;
+			 *p_error = (ErrorGamma(3) + 1.0f) * glm::vec3(x_epsilon, y_epsilon, z_epsilon)
+				 + ErrorGamma(3) * glm::vec3(x_abs_sum, y_abs_sum, z_abs_sum);
+		 }
+		 return result_p;
 	 }
 };
