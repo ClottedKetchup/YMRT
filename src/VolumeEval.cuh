@@ -456,10 +456,9 @@ namespace YumeRT {
 				uint32_t mtl_ior_priority;
 				float mtl_ior = mtl.FetchIOR(&mtl_ior_priority);
 
-				bool bounce_outside = glm::dot(hit_geometry_normal, tr_ray.direction) > 0.0f;
 				shadow_ray_transfer.BoundaryTransition(tr_ray.direction, hit_geometry_normal, 
 					hit_record.hit_instance_idx, mtl_ior, mtl_ior_priority, prim.inner_volume_idx);
-				tr_ray = Ray(OffsetRayOrigin(hit_position, bounce_outside ? hit_geometry_normal : -hit_geometry_normal), tr_ray.direction);
+				tr_ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, tr_ray.direction, hit_geometry_normal), tr_ray.direction);
 			}
 		}
 		return tr;

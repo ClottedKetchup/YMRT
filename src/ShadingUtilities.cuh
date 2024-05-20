@@ -466,7 +466,7 @@ namespace YumeRT
 		const glm::vec3 normal_object = hit_record.hit_barycentric / radius;
 
 		*hit_position = position_object;
-		*hit_position_error = ErrorGamma(5) * position_object;
+		*hit_position_error = ErrorGamma(5) * glm::abs(position_object);
 		*hit_shading_normal = normal_object;
 		*hit_geometry_normal = normal_object;
 
@@ -694,7 +694,7 @@ namespace YumeRT
 		float radius = glm::max(hit_sphere.radius, (float)FLOAT_EPSILON);
 
 		*hit_position = hit_record.hit_barycentric;
-		*hit_position_error = ErrorGamma(5) * hit_record.hit_barycentric;
+		*hit_position_error = ErrorGamma(5) * glm::abs(hit_record.hit_barycentric);
 		*hit_geometry_normal = hit_record.hit_barycentric / radius;
 	}
 
@@ -760,23 +760,10 @@ namespace YumeRT
 		*hit_geometry_normal = glm::normalize(TransposeTransformVector(wto, *hit_geometry_normal));
 	}
 
-	__device__  __host__ inline glm::vec3 OffsetRayOrigin(const glm::vec3& p, const glm::vec3 &n)
+	__device__  __host__ inline glm::vec3 OffsetRayOrigin(const glm::vec3 &p, const glm::vec3 &p_error, const glm::vec3 &new_dir, const glm::vec3 &geometry_normal)
 	{
-		constexpr float origin = 1.0f / 32.0f; 
-		constexpr float float_scale = 1.0f / 65536.0f;
-		constexpr float int_scale = 256.0f;
-
-		int of_ix = int_scale * n.x;
-		int of_iy = int_scale * n.y;
-		int of_iz = int_scale * n.z;
-	
-		glm::vec3 p_i;
-		p_i.x = IntToFloat(FloatToInt(p.x) + ((p.x < 0) ? -of_ix : of_ix));
-		p_i.y = IntToFloat(FloatToInt(p.y) + ((p.y < 0) ? -of_iy : of_iy));
-		p_i.z = IntToFloat(FloatToInt(p.z) + ((p.z < 0) ? -of_iz : of_iz));
-	
-		return glm::vec3(glm::abs(p.x) < origin ? p.x + float_scale * n.x : p_i.x,
-								   glm::abs(p.y) < origin ? p.y + float_scale * n.y : p_i.y,
-								   glm::abs(p.z) < origin ? p.z + float_scale * n.z : p_i.z);
+		const bool bounce_outside = glm::dot(new_dir, geometry_normal) > 0.0f;
+		const float error_length = NextFloatUp(glm::abs(glm::dot(p_error, geometry_normal)));
+		return bounce_outside? (p + geometry_normal * error_length) : (p - geometry_normal * error_length);
 	}
 };

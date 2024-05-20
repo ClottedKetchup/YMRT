@@ -104,19 +104,17 @@ void TestScene_CornellBox(const std::string &exec_path, std::shared_ptr<YumeRT::
 		scene_manager->AddSurfaceMaterial("cube right", glm::vec3(0.75f, 0.75f, 0.75f)),
 		-1);
 
-	//// light
-	//scene_manager->AddPrimInstance(cube_idx,
-	//	scene_manager->AddTransform(glm::vec3(-3.0f, 4.15f, -5.0f), glm::vec3(0.3, 0.3f, 0.3)),
-	//	scene_manager->AddLightMaterial("ceil light", glm::vec3(1.0f), 150.0f),
-	//	1.0f,
-	//	-1, -1);
+	// light
+	scene_manager->AddPrimInstance(cube_idx,
+		scene_manager->AddTransform(glm::vec3(-3.0f, 4.15f, -5.0f), glm::vec3(0.3, 0.3f, 0.3)),
+		scene_manager->AddLightMaterial("ceil light", glm::vec3(1.0f), 150.0f),
+		-1);
 
-	//// sphere light
-	//scene_manager->AddPrimInstance(sphere_idx,
-	//	scene_manager->AddTransform(glm::vec3(3.0f, 3.35f, -5.0f), glm::vec3(0.15f, 0.15f, 0.15f)),
-	//	scene_manager->AddLightMaterial("sphere light", glm::vec3(1.0f), 200.0f),
-	//	1.0f,
-	//	-1, -1);
+	// sphere light
+	scene_manager->AddPrimInstance(sphere_idx,
+		scene_manager->AddTransform(glm::vec3(3.0f, 3.35f, -5.0f), glm::vec3(0.15f, 0.15f, 0.15f)),
+		scene_manager->AddLightMaterial("sphere light", glm::vec3(1.0f), 200.0f),
+		-1);
 
 	const uint32_t glass_tex_black_idx = scene_manager->AddTexture("glass_tex_black", YumeRT::Texture().InitConstantTextureFloat(0.65f));
 	const uint32_t glass_tex_white_idx = scene_manager->AddTexture("glass_tex_white", YumeRT::Texture().InitConstantTextureFloat(0.05f));

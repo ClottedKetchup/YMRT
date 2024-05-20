@@ -60,6 +60,7 @@ namespace YumeRT
 															const BoundaryRecord& hit_boundary_record,
 															const PrimitiveInstance& hit_prim,
 															const glm::vec3 &hit_position, 
+															const glm::vec3 &hit_position_error, 
 															const glm::vec3 &hit_shading_normal, 
 															const glm::vec3 &hit_geometry_normal,
 															RandomSampler &sampler)
@@ -90,8 +91,7 @@ namespace YumeRT
 
 			if (MaxComponent(bsdf_weight) > MIN_COLOR_EPSILON)
 			{
-				const bool bounce_outside = glm::dot(light_dir, hit_geometry_normal) > 0.0f;
-				const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, bounce_outside ? hit_geometry_normal : -hit_geometry_normal);
+				const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, hit_position_error, light_dir, hit_geometry_normal);
 				Ray shadow_ray(shadow_ray_origin, light_dir);
 
 				HitRecord shadow_ray_record;
@@ -131,8 +131,7 @@ namespace YumeRT
 
 				if (MaxComponent(Li) > MIN_COLOR_EPSILON)
 				{
-					const bool bounce_outside = glm::dot(light_dir, hit_geometry_normal) > 0.0f;
-					const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, bounce_outside ? hit_geometry_normal : -hit_geometry_normal);
+					const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, hit_position_error, light_dir, hit_geometry_normal);
 					Ray shadow_ray(shadow_ray_origin, light_dir);
 
 					HitRecord shadow_ray_record;
@@ -263,6 +262,7 @@ namespace YumeRT
 															const BoundaryRecord &hit_boundary_record,
 															const PrimitiveInstance &hit_prim,
 															const glm::vec3 &hit_position,
+															const glm::vec3 &hit_position_error,
 															const glm::vec3 &hit_shading_normal,
 															const glm::vec3 &hit_geometry_normal,
 															RandomSampler &sampler)
@@ -281,9 +281,9 @@ namespace YumeRT
 
 		// sample from light
 		{
-			glm::vec3 light_dir, light_pos, light_geo_normal;
+			glm::vec3 light_dir(0.0f), light_pos(0.0f), light_pos_error(0.0f), light_geo_normal(0.0f);
 			float light_sample_pdf;
-			const glm::vec3 Li = shape_light.SampleLi(scene, hit_position, random(), random(), &light_dir, &light_pos, &light_geo_normal, &light_sample_pdf);
+			const glm::vec3 Li = shape_light.SampleLi(scene, hit_position, random(), random(), &light_dir, &light_pos, &light_pos_error, &light_geo_normal, &light_sample_pdf);
 
 			glm::vec3 light_wi = material_bsdf.WorldToShading(light_dir);
 			float light_wi_pdf = 0.0f;
@@ -291,12 +291,11 @@ namespace YumeRT
 
 			if (MaxComponent(bsdf_weight) > MIN_COLOR_EPSILON)
 			{
-				bool bounce_outside = glm::dot(light_dir, hit_geometry_normal) > 0.0f;
-				const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, bounce_outside ? hit_geometry_normal : -hit_geometry_normal);
+				const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, hit_position_error, light_dir, hit_geometry_normal);
 
 				// only for test occlusion, so we don't need ior and volume
 				Ray shadow_ray(shadow_ray_origin, light_dir);
-				float max_trace_distance = glm::length(OffsetRayOrigin(light_pos, light_geo_normal) - hit_position) * 0.9996f;
+				float max_trace_distance = glm::length(OffsetRayOrigin(light_pos, light_pos_error, -light_dir, light_geo_normal) - hit_position) * SHADOW_RAY_CLAMP;
 				
 				shadow_ray.t = max_trace_distance;
 				HitRecord shadow_ray_record;
@@ -331,18 +330,17 @@ namespace YumeRT
 			if (sample_valid)
 			{
 				glm::vec3 light_dir = material_bsdf.ShadingToWorld(bsdf_wi);
-				glm::vec3 light_pos, light_geo_normal;
+				glm::vec3 light_pos(0.0f), light_pos_error(0.0f), light_geo_normal(0.0f);
 				float bsdf_wi_pdf = 0.0f;
-				const glm::vec3 Li = shape_light.EvalLi(scene, hit_position, light_dir, &light_pos, &light_geo_normal, &bsdf_wi_pdf);
+				const glm::vec3 Li = shape_light.EvalLi(scene, hit_position, light_dir, &light_pos, &light_pos_error, &light_geo_normal, &bsdf_wi_pdf);
 
 				if (MaxComponent(Li) > MIN_COLOR_EPSILON)
 				{
-					bool bounce_outside = glm::dot(light_dir, hit_geometry_normal) > 0.0f;
-					glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position,  bounce_outside? hit_geometry_normal : -hit_geometry_normal);
+					glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position,  hit_position_error, light_dir, hit_geometry_normal);
 					
 					// only for test occlusion, so we don't need ior and volume
 					Ray shadow_ray(shadow_ray_origin, light_dir);
-					float max_trace_distance = glm::length(OffsetRayOrigin(light_pos, light_geo_normal) - hit_position) * 0.9996f;
+					float max_trace_distance = glm::length(OffsetRayOrigin(light_pos, light_pos_error, -light_dir, light_geo_normal) - hit_position) * SHADOW_RAY_CLAMP;
 
 					shadow_ray.t = max_trace_distance;
 					HitRecord shadow_ray_record;
@@ -401,9 +399,9 @@ namespace YumeRT
 
 		// sample from light
 		{
-			glm::vec3 light_dir, light_pos, light_geo_normal;
+			glm::vec3 light_dir(0.0f), light_pos(0.0f), light_pos_error(0.0f), light_geo_normal(0.0f);
 			float light_sample_pdf;
-			const glm::vec3 Li = shape_light.SampleLi(scene, volume_hit_position, random(), random(), &light_dir, &light_pos, &light_geo_normal, &light_sample_pdf);
+			const glm::vec3 Li = shape_light.SampleLi(scene, volume_hit_position, random(), random(), &light_dir, &light_pos, &light_pos_error, &light_geo_normal, &light_sample_pdf);
 
 			float light_wi_pdf = 0.0f;
 			float phase_weight = EvalMixedPhases(volume_weighs, gs, volume_count, -ray.direction ,light_dir, &light_wi_pdf);
@@ -411,7 +409,7 @@ namespace YumeRT
 			if (phase_weight > MIN_COLOR_EPSILON)
 			{
 				Ray shadow_ray(volume_hit_position, light_dir);
-				float max_trace_distance = glm::length(OffsetRayOrigin(light_pos, light_geo_normal) - volume_hit_position) * 0.9996f;
+				float max_trace_distance = glm::length(OffsetRayOrigin(light_pos, light_pos_error, -light_dir, light_geo_normal) - volume_hit_position) * SHADOW_RAY_CLAMP;
 
 				shadow_ray.t = max_trace_distance;
 				HitRecord shadow_ray_record;
@@ -438,14 +436,14 @@ namespace YumeRT
 			if (sample_valid)
 			{
 				glm::vec3 light_dir = phase_wi;
-				glm::vec3 light_pos, light_geo_normal;
+				glm::vec3 light_pos(0.0f), light_pos_error(0.0f), light_geo_normal(0.0f);
 				float phase_wi_pdf = 0.0f;
-				const glm::vec3 Li = shape_light.EvalLi(scene, volume_hit_position, light_dir, &light_pos, &light_geo_normal, &phase_wi_pdf);
+				const glm::vec3 Li = shape_light.EvalLi(scene, volume_hit_position, light_dir, &light_pos, &light_pos_error, &light_geo_normal, &phase_wi_pdf);
 
 				if (MaxComponent(Li) > MIN_COLOR_EPSILON)
 				{
 					Ray shadow_ray(volume_hit_position, light_dir);
-					float max_trace_distance = glm::length(OffsetRayOrigin(light_pos, light_geo_normal) - volume_hit_position) * 0.9996f;
+					float max_trace_distance = glm::length(OffsetRayOrigin(light_pos, light_pos_error, -light_dir, light_geo_normal) - volume_hit_position) * SHADOW_RAY_CLAMP;
 
 					shadow_ray.t = max_trace_distance;
 					HitRecord shadow_ray_record;
@@ -642,10 +640,9 @@ namespace YumeRT
 					
 					if (!ray_transfer.empty() && mtl_ior_priority < ray_transfer.GetMaxPriorityRecord().ior_priority)
 					{
-						bool bounce_outside = glm::dot(hit_geometry_normal, ray.direction) > 0.0f;
 						ray_transfer.BoundaryTransition(ray.direction, hit_geometry_normal,
 							hit_record.hit_instance_idx, mtl_ior, mtl_ior_priority, prim.inner_volume_idx);
-						ray = Ray(OffsetRayOrigin(hit_position, bounce_outside ? hit_geometry_normal : -hit_geometry_normal), ray.direction);
+						ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, ray.direction, hit_geometry_normal), ray.direction);
 						++depth;
 						continue;
 					}
@@ -653,10 +650,9 @@ namespace YumeRT
 					if (prim.treat_as_boundary)
 					{
 						// note: although volume is treat as boundary, but the material's ior will still affect its attribute, so remember to set it!
-						bool bounce_outside = glm::dot(hit_geometry_normal, ray.direction) > 0.0f;
 						ray_transfer.BoundaryTransition(ray.direction, hit_geometry_normal,
 							hit_record.hit_instance_idx, mtl_ior, mtl_ior_priority, prim.inner_volume_idx);
-						ray = Ray(OffsetRayOrigin(hit_position, bounce_outside ? hit_geometry_normal : -hit_geometry_normal), ray.direction);
+						ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, ray.direction, hit_geometry_normal), ray.direction);
 						++depth;
 						continue;
 					}
@@ -719,6 +715,7 @@ namespace YumeRT
 								BoundaryRecord(hit_record.hit_instance_idx, mtl_ior, mtl_ior_priority, prim.inner_volume_idx),
 								prim,
 								hit_position,
+								hit_position_error,
 								material_bsdf.GetShadingNormal(),
 								hit_geometry_normal,
 								sampler);
@@ -734,6 +731,7 @@ namespace YumeRT
 							BoundaryRecord(hit_record.hit_instance_idx, mtl_ior, mtl_ior_priority, prim.inner_volume_idx),
 							prim,
 							hit_position,
+							hit_position_error,
 							material_bsdf.GetShadingNormal(),
 							hit_geometry_normal,
 							sampler);
@@ -767,7 +765,7 @@ namespace YumeRT
 
 					// this method to avoid self intersection is still not robust, it makes the sphere self-intersection when radius is big
 					bool front_side_bounce = glm::dot(hit_geometry_normal, new_direction) >= 0.0f;
-					ray = Ray(OffsetRayOrigin(hit_position, front_side_bounce ? hit_geometry_normal : -hit_geometry_normal), new_direction);
+					ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, new_direction, hit_geometry_normal), new_direction);
 					never_scatter = false;
 					++depth;
 				}

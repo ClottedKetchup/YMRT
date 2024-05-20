@@ -12,60 +12,54 @@ namespace YumeRT
 {
 
 	__device__ __host__ inline bool RayIntersectTriangle(const glm::vec3 &ray_origin,
-																					    const glm::vec3 &ray_direction, 
-																						const glm::vec3 &p0, 
-																						const glm::vec3 &p1, 
-																						const glm::vec3 &p2,
-																						glm::vec3 *barycentric)
+																					const glm::vec3 &ray_direction, 
+																					const glm::vec3 &p0, 
+																					const glm::vec3 &p1, 
+																					const glm::vec3 &p2,
+																					glm::vec3 *barycentric)
 	{
 		const glm::vec3 p20 = p0 - p2;
 		const glm::vec3 p21 = p1 - p2;
 		
 		glm::mat3 m;
-		m[0][0] = p20.x;
-		m[0][1] = p20.y;
-		m[0][2] = p20.z;
-		m[1][0] = p21.x;
-		m[1][1] = p21.y;
-		m[1][2] = p21.z;
-		m[2][0] = -ray_direction.x;
-		m[2][1] = -ray_direction.y;
-		m[2][2] = -ray_direction.z;
+		m[0][0] = p20.x, m[0][1] = p20.y, m[0][2] = p20.z;
+		m[1][0] = p21.x, m[1][1] = p21.y, m[1][2] = p21.z;
+		m[2][0] = -ray_direction.x, m[2][1] = -ray_direction.y, m[2][2] = -ray_direction.z;
+		glm::vec3 params = glm::inverse(m) * (ray_origin - p2);
 
-		glm::vec3 res = glm::inverse(m) * (ray_origin - p2);
-
-		float u = res.x;
-		float v = res.y;
-		float t = res.z;
-		float w = 1.0f - u - v;
-
-		if (t < TMIN) 
-		{ 
+		const float u = params.x;
+		const float v = params.y;
+		const float t = params.z;
+		const float w = 1.0f - u - v;
+		if (t < TMIN) { 
 			return false;
 		}
 
 		*barycentric = glm::vec3(u, v, w);
-
 		return (u > 0.0f && u < 1.0f) && (v > 0.0f && v < 1.0f) && (w > 0.0f && w < 1.0f);
 	}
 
 	__device__ __host__ inline bool RayIntersectSphere(const glm::vec3 &ray_origin,
-																					  const glm::vec3 &ray_direction,
-																					  const glm::vec3 &sphere_center,
-																					  float sphere_radius,
-																					  float *t0,
-																					  float *t1)
+																					const glm::vec3 &ray_direction,
+																					const glm::vec3 &sphere_center,
+																					float sphere_radius,
+																					float *t0,
+																					float *t1)
 	{
 		float a = ray_direction.x * ray_direction.x + ray_direction.y * ray_direction.y + ray_direction.z * ray_direction.z;
 		float b = 2.0f * (ray_direction.x * ray_origin.x + ray_direction.y * ray_origin.y + ray_direction.z * ray_origin.z);
 		float c = ray_origin.x * ray_origin.x + ray_origin.y * ray_origin.y + ray_origin.z * ray_origin.z - sphere_radius * sphere_radius;
 		float discriminator = b * b - 4.0f * a * c;
-		if (discriminator < 0) { return false; }
+		if (discriminator < 0) { 
+			return false; 
+		}
 
 		float sqrt_discriminator = glm::sqrt(discriminator);
 		*t0 = (-b - sqrt_discriminator) / (2.0 * a);
 		*t1 = (-b + sqrt_discriminator) / (2.0 * a);
-		if ((*t1) < TMIN) { return false; }
+		if ((*t1) < TMIN) { 
+			return false; 
+		}
 		return true;
 	}
 
@@ -88,6 +82,7 @@ namespace YumeRT
 			const glm::vec3 &position,
 			const glm::vec3 &wi, 
 			glm::vec3 *light_sample_pos, 
+			glm::vec3 *light_sample_pos_error, 
 			glm::vec3 *light_sample_geo_normal,
 			float *pdf) const
 		{
@@ -116,13 +111,12 @@ namespace YumeRT
 				const glm::vec3 &p2 = mesh_positions[vid2];
 				const glm::vec3 geo_normal = glm::cross(p1 - p0, p2 - p0);
 
-				const glm::vec3 object_space_wi = glm::vec3(wto * glm::vec4(wi, 0.0f));
-				const glm::vec3 object_space_position = glm::vec3(wto * glm::vec4(position, 1.0f));
+				const glm::vec3 object_space_wi = TransformVector(wto, wi);
+				const glm::vec3 object_space_position = TransformPosition(wto, position);
 
 				glm::vec3 barycentric(0.0f);
 				bool hit_light = RayIntersectTriangle(object_space_position, object_space_wi, p0, p1, p2, &barycentric);
-				if (!hit_light)
-				{
+				if (!hit_light) {
 					*pdf = 0.0f;
 					return glm::vec3(0.0f);
 				}
@@ -138,19 +132,23 @@ namespace YumeRT
 				const glm::vec3 &n1 = mesh_normals[nid1];
 				const glm::vec3 &n2 = mesh_normals[nid2];
 
+				const float x_abs_sum = glm::abs(p0.x * barycentric.x) + glm::abs(p1.x * barycentric.y) + glm::abs(p2.x * barycentric.z);
+				const float y_abs_sum = glm::abs(p0.y * barycentric.x) + glm::abs(p1.y * barycentric.y) + glm::abs(p2.y * barycentric.z);
+				const float z_abs_sum = glm::abs(p0.z * barycentric.x) + glm::abs(p1.z * barycentric.y) + glm::abs(p2.z * barycentric.z);
 				glm::vec3 sample_position = p0 * barycentric.x + p1 * barycentric.y + p2 * barycentric.z;
+				glm::vec3 sample_position_error = ErrorGamma(7) * glm::vec3(x_abs_sum, y_abs_sum, z_abs_sum);
 				glm::vec3 sample_normal = n0 * barycentric.x + n1 * barycentric.y + n2 * barycentric.z;
 				glm::vec3 world_space_normal = glm::normalize(glm::vec3(glm::transpose(wto) * glm::vec4(sample_normal, 0.0f)));
 				
 				float cos_theta = -glm::dot(world_space_normal, wi);
-				if (cos_theta <= 0.0f)
-				{
+				if (cos_theta <= 0.0f) {
 					*pdf = 0.0f;
 					return glm::vec3(0.0f);
 				}
 
-				*light_sample_pos = glm::vec3(otw * glm::vec4(sample_position, 1.0f));
-				*light_sample_geo_normal = glm::normalize(glm::vec3(glm::transpose(wto) * glm::vec4(geo_normal, 0.0f)));
+				*light_sample_pos = TransformPosition(otw, sample_position, &sample_position_error);
+				*light_sample_pos_error = sample_position_error;
+				*light_sample_geo_normal = glm::normalize(TransposeTransformVector(wto, geo_normal));
 				
 				float distance = glm::length(*light_sample_pos - position);
 				*pdf = Sqr(distance) * SafeRcp(area * cos_theta);
@@ -158,21 +156,19 @@ namespace YumeRT
 			}
 			else if(geometry.geometry_type == SPHERE)
 			{
-				const glm::vec3 object_space_wi = glm::vec3(wto * glm::vec4(wi, 0.0f));
-				const glm::vec3 object_space_position = glm::vec3(wto * glm::vec4(position, 1.0f));
+				const glm::vec3 object_space_wi = TransformVector(wto, wi);
+				const glm::vec3 object_space_position = TransformPosition(wto, position);
 				
 				float length_po = glm::length(object_space_position);
 				float radius = geometry.sphere.radius;
-				if (length_po < radius)
-				{
+				if (length_po < radius) {
 					*pdf = 0.0f;
 					return glm::vec3(0.0f);
 				}
 
 				float t0, t1;
 				bool hit_light = RayIntersectSphere(object_space_position, object_space_wi, glm::vec3(0.0f), radius, &t0, &t1);
-				if (!hit_light) 
-				{
+				if (!hit_light) {
 					*pdf = 0.0f;
 					return glm::vec3(0.0f);
 				}
@@ -180,18 +176,19 @@ namespace YumeRT
 				float cos_theta_max = glm::sqrt(glm::max(Sqr(length_po) - Sqr(radius), 0.0f)) / length_po;
 				float cone_solid_angle = 2.0f * ONE_PI * (1.0f - cos_theta_max);
 				float cos_theta = glm::dot(glm::normalize(object_space_wi), -object_space_position / length_po);
-				if (cos_theta < cos_theta_max)
-				{
+				if (cos_theta < cos_theta_max) {
 					*pdf = 0.0f;
 					return glm::vec3(0.0f);
 				}
 
 				glm::vec3 intersect_pos = object_space_position + object_space_wi * t0;
 				float length_io = glm::length(intersect_pos);
-				intersect_pos = length_io > 1E-8f ? (intersect_pos * radius / length_io) : glm::vec3(0.0f);
+				intersect_pos = length_io > FLOAT_EPSILON ? (intersect_pos * radius / length_io) : glm::vec3(0.0f);
+				glm::vec3 intersect_pos_error = ErrorGamma(5) * glm::abs(intersect_pos);
 
-				*light_sample_pos = glm::vec3(otw * glm::vec4(intersect_pos, 1.0f));
-				*light_sample_geo_normal = ((*light_sample_pos) - glm::vec3(otw[3][0], otw[3][1], otw[3][2])) / radius;
+				*light_sample_pos = TransformPosition(otw, intersect_pos, &intersect_pos_error);
+				*light_sample_pos_error = intersect_pos_error;
+				*light_sample_geo_normal = glm::normalize((*light_sample_pos) - GetTranslate(otw));
 				*pdf = 1.0f / cone_solid_angle;
 				return light_mtl.light_mtl.light_color * light_mtl.light_mtl.intensity;
 			}
@@ -202,13 +199,14 @@ namespace YumeRT
 		}
 
 		__device__ __host__ inline glm::vec3 SampleLi(const Scene &scene,
-																				const glm::vec3& position,
-																				float u0,
-																				float u1,
-																				glm::vec3 *wi,
-																				glm::vec3 *light_sample_pos,
-																				glm::vec3 *light_sample_geo_normal,
-																				float *pdf) const
+																			const glm::vec3& position,
+																			float u0,
+																			float u1,
+																			glm::vec3 *wi,
+																			glm::vec3 *light_sample_pos,
+																			glm::vec3 *light_sample_pos_error,
+																			glm::vec3 *light_sample_geo_normal,
+																			float *pdf) const
 		{
 			const PrimitiveInstance &prim = scene.prim_instances[instance_idx];
 			const Material &light_mtl = scene.materials[prim.material_idx];
@@ -249,35 +247,37 @@ namespace YumeRT
 				const glm::vec3 &n2 = mesh_normals[nid2];
 
 				glm::vec3 barycentric = SampleTriangle(u0, u1);
+				const float x_abs_sum = glm::abs(p0.x * barycentric.x) + glm::abs(p1.x * barycentric.y) + glm::abs(p2.x * barycentric.z);
+				const float y_abs_sum = glm::abs(p0.y * barycentric.x) + glm::abs(p1.y * barycentric.y) + glm::abs(p2.y * barycentric.z);
+				const float z_abs_sum = glm::abs(p0.z * barycentric.x) + glm::abs(p1.z * barycentric.y) + glm::abs(p2.z * barycentric.z);
 				glm::vec3 sample_position = p0 * barycentric.x + p1 * barycentric.y + p2 * barycentric.z;
+				glm::vec3 sample_position_error = ErrorGamma(7) * glm::vec3(x_abs_sum, y_abs_sum, z_abs_sum);
 				glm::vec3 sample_normal = n0 * barycentric.x + n1 * barycentric.y + n2 * barycentric.z;
 				glm::vec3 world_space_normal = glm::normalize(glm::vec3(glm::transpose(wto) * glm::vec4(sample_normal, 0.0f)));
 
-				*light_sample_pos = glm::vec3(otw * glm::vec4(sample_position, 1.0f));
-				*light_sample_geo_normal = glm::normalize(glm::vec3(glm::transpose(wto) * glm::vec4(geo_normal, 0.0f)));
+				*light_sample_pos = TransformPosition(otw, sample_position, &sample_position_error);
+				*light_sample_pos_error = sample_position_error;
+				*light_sample_geo_normal = glm::normalize(TransposeTransformVector(wto, geo_normal));
 
 				float distance = glm::length(*light_sample_pos - position);
 				*wi = (*light_sample_pos - position) * SafeRcp(distance);
 
 				float cos_theta = -glm::dot(world_space_normal, *wi);
-				if (cos_theta <= 0.0f)
-				{
+				if (cos_theta <= 0.0f) {
 					*pdf = 0.0f;
 					return glm::vec3(0.0f);
 				}
 
 				*pdf = Sqr(distance) * SafeRcp(area * cos_theta);
-
 				return   light_mtl.light_mtl.light_color * light_mtl.light_mtl.intensity / (*pdf);
 			}
 			else if (geometry.geometry_type == SPHERE)
 			{
-				glm::vec3 object_space_position = glm::vec3(wto * glm::vec4(position, 1.0f));
+				glm::vec3 object_space_position = TransformPosition(wto, position);
 				float length_po = glm::length(object_space_position);
 
 				float radius = geometry.sphere.radius;
-				if (length_po < radius) 
-				{
+				if (length_po < radius) {
 					*pdf = 0.0f;
 					return glm::vec3(0.0f);
 				}
@@ -294,11 +294,13 @@ namespace YumeRT
 				RayIntersectSphere(object_space_position, cone_sample, glm::vec3(0.0f), radius, &t0, &t1);
 				glm::vec3 intersect_pos = object_space_position + cone_sample * t0;
 				float length_io = glm::length(intersect_pos);
-				intersect_pos = length_io > 1E-8f ? (intersect_pos * radius / length_io) : glm::vec3(0.0f);
+				intersect_pos = length_io > FLOAT_EPSILON ? (intersect_pos * radius / length_io) : glm::vec3(0.0f);
+				glm::vec3 intersect_pos_error = ErrorGamma(5) * glm::abs(intersect_pos);
 
-				*light_sample_pos = glm::vec3(otw * glm::vec4(intersect_pos, 1.0f));
-				*light_sample_geo_normal = ((*light_sample_pos) - glm::vec3(otw[3][0], otw[3][1], otw[3][2])) / radius;
-				*wi = glm::normalize(glm::vec3(otw * glm::vec4(cone_sample, 0.0f)));
+				*light_sample_pos = TransformPosition(otw, intersect_pos, &intersect_pos_error);
+				*light_sample_pos_error = intersect_pos_error;
+				*light_sample_geo_normal = glm::normalize((*light_sample_pos) - GetTranslate(otw));
+				*wi = glm::normalize(TransformVector(otw, cone_sample));
 				*pdf = 1.0f / cone_solid_angle;
 				return light_mtl.light_mtl.light_color * light_mtl.light_mtl.intensity * cone_solid_angle;
 			}
@@ -326,8 +328,8 @@ namespace YumeRT
 		}
 		__device__ __host__ inline glm::vec3 EvalLi(const Scene &scene, const glm::vec3 &wi, float *pdf) const
 		{
-			const glm::mat3 i_transform = glm::mat3(scene.i_transforms[transform_idx]);
-			const glm::vec3 local_wi = i_transform * wi;
+			const glm::mat4 &wto = scene.i_transforms[transform_idx];
+			const glm::vec3 local_wi = TransformVector(wto, wi);
 
 			float cos_theta = -local_wi.y;
 			if (cos_theta < cos_theta_max) 
@@ -349,18 +351,14 @@ namespace YumeRT
 																				 glm::vec3 *light_sample_pos, 
 																				 float *pdf) const
 		{
-			const glm::mat4 &transform = scene.transforms[transform_idx];
-
-			float cone_solid_angle = 2.0f * ONE_PI * (1.0f - cos_theta_max);
-			
-			*pdf = 1.0f / cone_solid_angle;
+			const glm::mat4 &otw = scene.transforms[transform_idx];
+			const float cone_solid_angle = 2.0f * ONE_PI * (1.0f - cos_theta_max);
 			
 			glm::vec3 cone_sample = SampleCone(u0, u1, cos_theta_max);
-			
 			cone_sample = glm::vec3(cone_sample.x, cone_sample.z, cone_sample.y);
 			
-			*wi = -glm::normalize(glm::mat3(transform) * cone_sample);
-
+			*wi = -glm::normalize(TransformVector(otw, cone_sample));
+			*pdf = 1.0f / cone_solid_angle;
 			return light_color * intensity;
 		}
 

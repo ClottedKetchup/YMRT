@@ -16,6 +16,7 @@ namespace YumeRT
 #define FLOAT_EPSILON 5.9604645E-8f
 #define MIN_COLOR_EPSILON 3.7252903E-9f
 #define MAX_COLOR_CLAMP 1E16f
+#define SHADOW_RAY_CLAMP 0.9995f
 
 #define WORLD_UP glm::vec3(0.0f, 1.0f, 0.0f)
 
@@ -32,7 +33,7 @@ namespace YumeRT
 #define Round_Block_Count(Total_Thread_Count, Block_Thread_Count) (((Block_Thread_Count) + (Total_Thread_Count) - 1) / (Block_Thread_Count))
 
 #define PRINT_FLOAT(f) printf("%s: %.4f\n", #f, f);
-#define PRINT_FLOAT3(v) printf("%s: [%.4f, %.4f, %.4f]\n", #v, v.x, v.y, v.z);
+#define PRINT_FLOAT3(v) printf("%s: [%.7f, %.7f, %.7f]\n", #v, v.x, v.y, v.z);
 
 	template<typename T>
 	__device__ __host__ inline void Swap(T &a, T &b)
@@ -205,5 +206,42 @@ namespace YumeRT
 				 + ErrorGamma(3) * glm::vec3(x_abs_sum, y_abs_sum, z_abs_sum);
 		 }
 		 return result_p;
+	 }
+
+	 // method is got by learning pbrt
+	 __device__ __host__ inline float NextFloatUp(float f)
+	 {
+		 if (isinf(f) && f > 0.0f) {
+			 return f;
+		 }
+		 if (f == -0.0f) {
+			 f = 0.0f;
+		 }
+		 uint32_t ui = FloatToUint(f);
+		 if (f >= 0.0f) {
+			 ++ui;
+		 }
+		 else {
+			 --ui;
+		 }
+		 return UintToFloat(ui);
+	 }
+
+	 __device__ __host__ inline float NextFloatDown(float f)
+	 {
+		 if (isinf(f) && f < 0.0f) {
+			 return f;
+		 }
+		 if (f == 0.0f) {
+			 f = -0.0f;
+		 }
+		 uint32_t ui = FloatToUint(f);
+		 if (f <= 0.0f) {
+			 ++ui;
+		 }
+		 else {
+			 --ui;
+		 }
+		 return UintToFloat(ui);
 	 }
 };
