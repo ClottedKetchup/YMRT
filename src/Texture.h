@@ -27,6 +27,11 @@ namespace YumeRT
 		SOLID_TEXTURE_WAVE = 10
 	};
 
+	enum {
+		WARP_MODE_REPEAT = 0,
+		WARP_MODE_CLAMP = 1
+	};
+
 	constexpr int texture_type_count = 11;
 	const char* const texture_type_names[texture_type_count] = 
 	{
@@ -75,6 +80,13 @@ namespace YumeRT
 		int tile_offset;
 		int file_offset;
 
+		float u_scale;
+		float v_scale;
+		float u_offset;
+		float v_offset;
+
+		int warp_mode;
+
 		int16_t mipmap_tile_offsets[16];
 		int16_t mipmap_count;
 		int16_t channel_count;
@@ -84,15 +96,22 @@ namespace YumeRT
 		// specify current texture's child_index of its parent.
 		int16_t ith_child;
 
-		__device__ __host__ inline ImageTexture() :parent_index(-1), ith_child(-1), mipmap_tile_offsets{0}, mipmap_count(1), tile_offset(-1), file_offset(-1){  }
+		__device__ __host__ inline ImageTexture() :parent_index(-1), ith_child(-1), mipmap_tile_offsets{0}, mipmap_count(1), tile_offset(-1), file_offset(-1), warp_mode(WARP_MODE_REPEAT),
+			u_scale(1.0f), v_scale(1.0f), u_offset(0.0f), v_offset(0.0f){}
 		__device__ __host__ inline ImageTexture(int width, int height, int tile_offset, int file_offset, int16_t channel_count,
-			const int16_t *mipmap_tile_offset_list, int16_t mipmap_count)
+			const int16_t *mipmap_tile_offset_list, int16_t mipmap_count, int warp_mode,
+			float u_scale, float v_scale, float u_offset, float v_offset)
 			: width(width), height(height), tile_offset(tile_offset), file_offset(file_offset), channel_count(channel_count), 
-			mipmap_count(mipmap_count),
-			parent_index(-1), ith_child(-1)
+			mipmap_count(mipmap_count), warp_mode(warp_mode),
+			parent_index(-1), ith_child(-1),
+			u_scale(u_scale), v_scale(v_scale), u_offset(u_offset), v_offset(v_offset)
 		{
 			mipmap_tile_offsets[0] = 0;
-			if (mipmap_tile_offset_list != nullptr) { for (int16_t i = 0; i < mipmap_count; ++i) { mipmap_tile_offsets[i] = mipmap_tile_offset_list[i]; } }
+			if (mipmap_tile_offset_list != nullptr) { 
+				for (int16_t i = 0; i < mipmap_count; ++i) { 
+					mipmap_tile_offsets[i] = mipmap_tile_offset_list[i]; 
+				} 
+			}
 		}
 		__device__ __host__ inline ImageTexture& operator=(const ImageTexture& other)
 		{
@@ -100,6 +119,13 @@ namespace YumeRT
 			height = other.height;
 			tile_offset = other.tile_offset;
 			file_offset = other.file_offset;
+
+			warp_mode = other.warp_mode;
+
+			u_scale = other.u_scale;
+			v_scale = other.v_scale;
+			u_offset = other.u_offset;
+			v_offset = other.v_offset;
 
 			mipmap_count = other.mipmap_count;
 			channel_count = other.channel_count;
@@ -1154,10 +1180,11 @@ namespace YumeRT
 		}
 
 		__device__ __host__ inline Texture& InitImageTexture(int width, int height, int tile_offset, int file_offset, int16_t channel_count,
-			const int16_t *mipmap_tile_offset_list = nullptr, int16_t mipmap_count = 1)
+			const int16_t *mipmap_tile_offset_list = nullptr, int16_t mipmap_count = 1, int warp_mode = WARP_MODE_REPEAT, float u_scale = 1.0f, float v_scale = 1.0f, float u_offset = 0.f, float v_offset = 0.f)
 		{
 			texture_type = IMAGE_TEXTURE;
-			image_texture = ImageTexture(width, height, tile_offset, file_offset, channel_count, mipmap_tile_offset_list, mipmap_count);
+			image_texture = ImageTexture(width, height, tile_offset, file_offset, channel_count, mipmap_tile_offset_list, mipmap_count, warp_mode,
+				u_scale, v_scale, u_offset, v_offset);
 			return *this;
 		}
 		__device__ __host__ inline Texture& InitImageTexture(const ImageTexture& img_tex)

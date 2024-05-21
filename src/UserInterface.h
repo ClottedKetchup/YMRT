@@ -980,7 +980,41 @@ namespace YumeRT
 
 					ImGui::Text("Texture index: %d", tex_idx);
 					ImGui::Text("Texture type: %s", texture_type_names[texture.texture_type]);
-					if (texture.texture_type == CONSTANT_TEXTURE_FLOAT)
+					if (texture.texture_type == IMAGE_TEXTURE)
+					{
+						ImageTexture& image_tex = texture.image_texture;
+						ImGui::Text("Resolution: [%d, %d]", image_tex.width, image_tex.height);
+
+						static const std::vector<std::string> &warp_modes{ std::string("repeat"), std::string("clamp") };
+						if (ImGui::BeginCombo("Warp Mode", warp_modes[image_tex.warp_mode].c_str()))
+						{
+							for (int mode = WARP_MODE_REPEAT; mode <= WARP_MODE_CLAMP; ++mode)
+							{
+								if (ImGui::Selectable(warp_modes[mode].c_str())) {
+									image_tex.warp_mode = glm::clamp(mode, (int)WARP_MODE_REPEAT, (int)WARP_MODE_CLAMP);
+									scene_manager->UpdateTexture(tex_idx);
+								}
+							}
+							ImGui::EndCombo();
+						}
+						if (ImGui::InputFloat("u scale", &image_tex.u_scale))
+						{
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("v scale", &image_tex.v_scale))
+						{
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("u offset", &image_tex.u_offset))
+						{
+							scene_manager->UpdateTexture(tex_idx);
+						}
+						if (ImGui::InputFloat("v offset", &image_tex.v_offset))
+						{
+							scene_manager->UpdateTexture(tex_idx);
+						}
+					}
+					else if (texture.texture_type == CONSTANT_TEXTURE_FLOAT)
 					{
 						ConstantTextureFloat& const_float_tex = texture.constant_texture_float;
 						if (ImGui::InputFloat("value", &const_float_tex.value)) 

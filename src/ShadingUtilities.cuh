@@ -762,8 +762,21 @@ namespace YumeRT
 
 	__device__  __host__ inline glm::vec3 OffsetRayOrigin(const glm::vec3 &p, const glm::vec3 &p_error, const glm::vec3 &new_dir, const glm::vec3 &geometry_normal)
 	{
-		const bool bounce_outside = glm::dot(new_dir, geometry_normal) > 0.0f;
-		const float error_length = NextFloatUp(glm::abs(glm::dot(p_error, geometry_normal)));
-		return bounce_outside? (p + geometry_normal * error_length) : (p - geometry_normal * error_length);
+		const float distance = glm::dot(glm::abs(geometry_normal), p_error);
+		glm::vec3 offset = distance * geometry_normal;
+		if (glm::dot(new_dir, geometry_normal) < 0.0f) {
+			offset = -offset;
+		}
+
+		glm::vec3 po = p + offset;
+		for (int axis = 0; axis <= 2; ++axis) {
+			if (offset[axis] > 0.0f) {
+				po[axis] = NextFloatUp(po[axis]);
+			}
+			else if (offset[axis] < 0.0f) {
+				po[axis] = NextFloatDown(po[axis]);
+			}
+		}
+		return po;
 	}
 };

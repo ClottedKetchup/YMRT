@@ -44,39 +44,75 @@ namespace YumeRT
 			boundingbox_offset(-1){}
 		__device__ __host__ inline Triangle* GetTrianglesDevice() const 
 		{
+#ifdef __CUDA_ARCH__
 			return  device_data_ptr != nullptr && triangle_offset != -1 ? (Triangle*)(device_data_ptr + triangle_offset) : nullptr;
+#else
+			return GetTrianglesHost();
+#endif 
 		}
 		__device__ __host__ inline uint32_t* GetPositionIndicesDevice() const 
 		{
+#ifdef __CUDA_ARCH__
 			return  device_data_ptr != nullptr && position_idx_offset != -1 ? (uint32_t*)(device_data_ptr + position_idx_offset) : nullptr;
+#else
+			return GetPositionIndicesHost();
+#endif
 		}
 		__device__ __host__ inline glm::vec3* GetPositionsDevice() const
 		{
+#ifdef __CUDA_ARCH__
 			return  device_data_ptr != nullptr && position_offset != -1 ? (glm::vec3*)(device_data_ptr + position_offset) : nullptr;
+#else
+			return GetPositionsHost();
+#endif
 		}
 		__device__ __host__ inline uint32_t* GetNormalIndicesDevice() const
 		{
+#ifdef __CUDA_ARCH__
 			return  device_data_ptr != nullptr && normal_idx_offset != -1 ? (uint32_t*)(device_data_ptr + normal_idx_offset) : nullptr;
+#else
+			return GetNormalIndicesHost();
+#endif
 		}
 		__device__ __host__ inline glm::vec3* GetNormalsDevice() const 
 		{
+#ifdef __CUDA_ARCH__
 			return  device_data_ptr != nullptr && normal_offset != -1 ? (glm::vec3*)(device_data_ptr + normal_offset) : nullptr;
+#else
+			return GetNormalsHost();
+#endif
 		}
 		__device__ __host__ inline uint32_t* GetTexcoordIndicesDevice() const 
 		{
+#ifdef __CUDA_ARCH__
 			return  device_data_ptr != nullptr && texcoord_idx_offset != -1 ? (uint32_t*)(device_data_ptr + texcoord_idx_offset) : nullptr;
+#else
+			return GetTexcoordIndicesHost();
+#endif
 		}
 		__device__ __host__ inline glm::vec2* GetTexcoordsDevice() const 
 		{
+#ifdef __CUDA_ARCH__
 			return  device_data_ptr != nullptr && texcoord_offset != -1 ? (glm::vec2*)(device_data_ptr + texcoord_offset) : nullptr;
+#else
+			return GetTexcoordsHost();
+#endif
 		}
 		__device__ __host__ inline BottomNode* GetNodesDevice() const 
 		{
+#ifdef __CUDA_ARCH__
 			return  device_data_ptr != nullptr && node_offset != -1 ? (BottomNode*)(device_data_ptr + node_offset) : nullptr;
+#else 
+			return GetNodesHost();
+#endif
 		}
 		__device__ __host__ inline BBox3* GetBoundingBoxDevice() const 
 		{
+#ifdef __CUDA_ARCH__
 			return  device_data_ptr != nullptr && boundingbox_offset != -1 ? (BBox3*)(device_data_ptr + boundingbox_offset) : nullptr;
+#else
+			return GetBoundingBoxHost();
+#endif
 		}
 
 		__device__ __host__ inline Triangle* GetTrianglesHost() const

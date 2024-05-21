@@ -163,12 +163,19 @@ namespace YumeRT
 	{
 		const ImageTexture &image_texture = texture.image_texture;
 		if (image_texture.tile_offset == -1 || image_texture.file_offset == -1) { return glm::vec3(0.0f); }
+
+		const float tex_u = texture_coordinate.st.x * image_texture.u_scale + image_texture.u_offset;
+		const float tex_v = texture_coordinate.st.y * image_texture.v_scale + image_texture.v_offset;
+		const float tex_dudx = texture_coordinate.dudx * image_texture.u_scale;
+		const float tex_dudy = texture_coordinate.dudy * image_texture.u_scale;
+		const float tex_dvdx = texture_coordinate.dvdx * image_texture.v_scale;
+		const float tex_dvdy = texture_coordinate.dvdy * image_texture.v_scale;
 		
-		const float pixel_x = texture_coordinate.st.x * image_texture.width;
-		const float pixel_y = texture_coordinate.st.y * image_texture.height;
+		const float pixel_x = tex_u * image_texture.width;
+		const float pixel_y = tex_v * image_texture.height;
 		const int tile_x_count = (image_texture.width + TEX_TILE_RES_X - 1) / TEX_TILE_RES_X;
 		const int tile_y_count = (image_texture.height + TEX_TILE_RES_Y - 1) / TEX_TILE_RES_Y;
-		const ImageTile *tiles = image_tile_cache.image_tiles + image_texture.tile_offset;
+		const ImageTile *tiles = image_tile_cache.GetImageTiles() + image_texture.tile_offset;
 		
 		assert(tiles != nullptr);
 		auto floor_and_frac = [](const float coordinate, float *fraction)->int 
@@ -179,8 +186,15 @@ namespace YumeRT
 		};
 		auto fetch_texel = [&](int p_x, int p_y)->glm::vec3
 		{
-			p_x = glm::clamp(p_x, 0, (int)image_texture.width - 1);
-			p_y = glm::clamp(p_y, 0, (int)image_texture.height - 1);
+			if (image_texture.warp_mode == WARP_MODE_CLAMP) {
+				p_x = glm::clamp(p_x, 0, (int)image_texture.width - 1);
+				p_y = glm::clamp(p_y, 0, (int)image_texture.height - 1);
+			}
+			else if (image_texture.warp_mode == WARP_MODE_REPEAT) {
+				p_x = p_x % image_texture.width;
+				p_y = p_y % image_texture.height;
+			}
+
 			const int tile_x = p_x / TEX_TILE_RES_X;
 			const int tile_y = p_y / TEX_TILE_RES_Y;
 			const int tile_pixel_x = p_x & (TEX_TILE_RES_X - 1);
@@ -190,7 +204,7 @@ namespace YumeRT
 			
 			glm::vec3 result(0.0f);
 			const int tile_pixel_offset_channel = tile_pixel_offset * image_texture.channel_count;
-			const float* tile_data = (const float*)(this_tile.device_data);
+			const float* tile_data = (const float*)(this_tile.GetTileData());
 			for (int channel_idx = 0; channel_idx < 3 && channel_idx < image_texture.channel_count; ++channel_idx){
 				result[channel_idx] = tile_data[tile_pixel_offset_channel + channel_idx];
 			}

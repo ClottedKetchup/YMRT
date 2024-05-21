@@ -13,6 +13,14 @@ namespace YumeRT
 		ImageTexture image_texture;
 		image_texture.tile_offset = -1;
 		image_texture.file_offset = -1;
+
+		image_texture.warp_mode = WARP_MODE_REPEAT;
+
+		image_texture.u_scale = 1.0f;
+		image_texture.v_scale = 1.0f;
+		image_texture.u_offset = 0.0f;
+		image_texture.v_offset = 0.0f;
+
 		std::vector<float> image_buffer;
 		
 		// read file
