@@ -2,6 +2,7 @@
 
 #include <driver_types.h>
 
+#include "SceneDefines.h"
 #include "Ray.h"
 #include "MathCommon.h"
 
@@ -162,7 +163,7 @@ namespace YumeRT
 		__device__ __host__ inline RayDifferential GenerateRayDifferential(const Ray& main_ray, 
 			float ndc_x, float ndc_y, 
 			int screen_width, int screen_height, 
-			float scale_x = 1.0f, float scale_y = 1.0f)
+			float scale_x = 1.0f, float scale_y = 1.0f) const
 		{
 			float height = 2.0f * tan_half_fov;
 			float pixel_spacing_y = 1.0f / float(screen_height);
@@ -178,6 +179,10 @@ namespace YumeRT
 			ray_differential.scale_y = glm::max(0.0001f, scale_y);
 
 			return ray_differential;
+		}
+
+		__device__ __host__ inline const RayTransfer& GetRayTransfer() const {
+			return camera_ray_transfer;
 		}
 
 		__device__ __host__ inline glm::vec3 GetU() const { return u; }
@@ -246,6 +251,8 @@ namespace YumeRT
 		{
 			position += u * speed;
 		}
+
+		__host__  void InitCameraRayTransfer(const Scene& scene);
 		
 	private:
 
@@ -258,6 +265,8 @@ namespace YumeRT
 		float field_of_view;
 		float len_radius;
 		float tan_half_fov;
+
+		RayTransfer camera_ray_transfer;
 
 		__device__ __host__ inline glm::mat4 GetPerspective() const
 		{

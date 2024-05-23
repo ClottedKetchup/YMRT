@@ -67,6 +67,10 @@ namespace YumeRT
 			image_tile_cache.image_tiles_Host = image_texture_tiles.data();
 			UPLOAD_TO_GPU(image_tile_cache.image_tiles_device, image_texture_tiles.data(), sizeof(ImageTile) * image_texture_tiles.size());
 		}
+		__host__ inline void RefreshHostData()
+		{
+			image_tile_cache.image_tiles_Host = image_texture_tiles.data();
+		}
 		__host__ inline void Release() 
 		{
 			image_tile_cache.image_tiles_Host = nullptr;

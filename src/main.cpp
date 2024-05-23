@@ -9,17 +9,17 @@
 
 void TestScene_CornellBox(const std::string &exec_path, std::shared_ptr<YumeRT::SceneManager> scene_manager, int screen_width, int screen_height)
 {
-	/*YumeRT::GeometryData test_geo;
+	YumeRT::GeometryData test_geo;
 	test_geo.InitCube();
-	YumeRT::Triangle *triangles = test_geo.triangle_mesh.GetTrianglesHost();
-	uint32_t *position_indices = test_geo.triangle_mesh.GetPositionIndicesHost();
-	glm::vec3 *positions = test_geo.triangle_mesh.GetPositionsHost();
-	uint32_t *normal_indices = test_geo.triangle_mesh.GetNormalIndicesHost();
-	glm::vec3 *normals = test_geo.triangle_mesh.GetNormalsHost();
-	uint32_t *texcoord_indices = test_geo.triangle_mesh.GetTexcoordIndicesHost();
-	glm::vec2 *texcoords = test_geo.triangle_mesh.GetTexcoordsHost();
-	YumeRT::BottomNode *bottom_nodes = test_geo.triangle_mesh.GetNodesHost();
-	test_geo.Destory();*/
+	YumeRT::Triangle *triangles = test_geo.triangle_mesh.GetTrianglesDevice();
+	uint32_t *position_indices = test_geo.triangle_mesh.GetPositionIndicesDevice();
+	glm::vec3 *positions = test_geo.triangle_mesh.GetPositionsDevice();
+	uint32_t *normal_indices = test_geo.triangle_mesh.GetNormalIndicesDevice();
+	glm::vec3 *normals = test_geo.triangle_mesh.GetNormalsDevice();
+	uint32_t *texcoord_indices = test_geo.triangle_mesh.GetTexcoordIndicesDevice();
+	glm::vec2 *texcoords = test_geo.triangle_mesh.GetTexcoordsDevice();
+	YumeRT::BottomNode *bottom_nodes = test_geo.triangle_mesh.GetNodesDevice();
+	test_geo.Destory();
 
 	const std::string exec_prefix = exec_path.substr(0, exec_path.rfind('\\') + 1);
 
@@ -40,16 +40,16 @@ void TestScene_CornellBox(const std::string &exec_path, std::shared_ptr<YumeRT::
 	scene_manager->GetCameraRef().SetPosition(camera_from);
 	scene_manager->GetCameraRef().SetDir(camera_from - camera_look);
 
-	const uint32_t default_mtl = scene_manager->AddSurfaceMaterial("default material", glm::vec3(0.25f));
+	const uint32_t default_mtl = scene_manager->AddSurfaceMaterial("default material", glm::vec3(0.25f), glm::vec3(1.0f), 0.2f, 0.2f, 1.0f, 0.0f, 0.0f, 0.0f, 0);
+	const uint32_t world_volume_idx = scene_manager->AddVolume("world_vol", scene_manager->AddTransform(), glm::vec3(0.035f), glm::vec3(1.0f));
 	const uint32_t bunny_inner_vol_idx_0 = scene_manager->AddVolume("bunny_inner_vol_0", scene_manager->AddTransform(), glm::vec3(0.085f), glm::vec3(1.0f));
 	const uint32_t bunny_inner_vol_idx_1 = scene_manager->AddVolume("bunny_inner_vol_1", scene_manager->AddTransform(), glm::vec3(0.085f), glm::vec3(1.0f));
 
-	//// fog bound
-	//scene_manager->AddPrimInstance(cube_idx,
-	//	scene_manager->AddTransform(glm::vec3(0.0f, 9.0f, -5.0f), glm::vec3(150.0f)),
-	//	default_mtl,
-	//	1.0f,
-	//	-1, world_volume_idx, true);
+	// fog bound
+	scene_manager->AddPrimInstance(cube_idx,
+		scene_manager->AddTransform(glm::vec3(0.0f, 9.0f, -5.0f), glm::vec3(150.0f)),
+		default_mtl,
+		world_volume_idx, true);
 
 	// left
 	scene_manager->AddPrimInstance(cube_idx,

@@ -534,7 +534,7 @@ namespace YumeRT
 			}
 
 			Ray ray = scene.camera->GenerateRay(float(px + pixel_offset.x) / float(width), float(py + pixel_offset.y) / float(height));
-			RayTransfer ray_transfer;
+			RayTransfer ray_transfer(scene.camera->GetRayTransfer());
 			assert(ray_transfer.record_count == 0);
 
 			glm::vec3 L(0.0f), throughput(1.0f);

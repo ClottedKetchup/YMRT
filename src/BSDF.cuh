@@ -700,7 +700,7 @@ namespace YumeRT
 		{
 			material_type = mtl.material_type;
 			
-			assert(material_type != INVALID_UINT_32);
+			assert(material_type != EMPTY_UINT32);
 			if (material_type == DEFAULT_MTL) 
 			{
 				default_mtl_bsdf.InitBSDFSettings(mtl, textures, Image_tile_cache, texture_coordinate, ray_in, normal, hit_back, ray_ior, ex_ior);
@@ -716,7 +716,7 @@ namespace YumeRT
 		}
 		__device__ __host__ inline glm::vec3 EvalWi(const glm::vec3 &wo, const glm::vec3 &wi, float *pdf)
 		{
-			assert(material_type != INVALID_UINT_32);
+			assert(material_type != EMPTY_UINT32);
 			if (material_type == DEFAULT_MTL)
 			{
 				return default_mtl_bsdf.EvalWi(wo, wi, pdf);
@@ -736,7 +736,7 @@ namespace YumeRT
 			float *pdf,
 			float u0, float u1, float u2) 
 		{
-			assert(material_type != INVALID_UINT_32);
+			assert(material_type != EMPTY_UINT32);
 			if (material_type == DEFAULT_MTL)
 			{
 				return default_mtl_bsdf.SampleWi(wo, weight, wi, pdf, u0, u1, u2);
