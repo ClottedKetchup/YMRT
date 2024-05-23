@@ -6,7 +6,7 @@
 #include "ShadingUtilities.cuh"
 
 namespace YumeRT {
-	__device__ __host__  inline bool BVHTraverse(const Scene &scene, const Ray &ray, HitRecord *hit_record);
+	__device__ __host__  inline bool TraceRay(const Scene &scene, const Ray &ray, HitRecord *hit_record);
 	__host__  void Camera::InitCameraRayTransfer(const Scene& scene)
 	{
 		std::unordered_map<uint32_t, HitRecord> prim_map;
@@ -15,7 +15,7 @@ namespace YumeRT {
 		while (true)
 		{
 			HitRecord hit_record;
-			bool hit_surface = BVHTraverse(scene, ray, &hit_record);
+			bool hit_surface = TraceRay(scene, ray, &hit_record);
 			if (!hit_surface) {
 				break;
 			}
@@ -27,9 +27,6 @@ namespace YumeRT {
 			if (map_iter == prim_map.end()) {
 				prim_map[hit_record.hit_instance_idx] = hit_record;
 			}
-			else {
-				prim_map.erase(map_iter);
-			}
 
 			ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, ray.direction, hit_geometry_normal), ray.direction);
 		}
@@ -37,15 +34,31 @@ namespace YumeRT {
 		camera_ray_transfer.record_count = 0;
 		for (const auto &item : prim_map) 
 		{
-			const HitRecord &hit_record = item.second;
-			const PrimitiveInstance &prim = scene.prim_instances[hit_record.hit_instance_idx];
+			const PrimitiveInstance &prim = scene.prim_instances[item.second.hit_instance_idx];
+			const glm::mat4 &i_transform = scene.i_transforms[prim.transform_idx];
 			const Material &mtl = scene.materials[prim.material_idx];
+			
+			Ray test_ray = GenerateRay(0.5f, 0.5f);
+			Ray positive_object_ray = TransformRay(test_ray, i_transform);
+			Ray negative_object_ray;
 
-			uint32_t mtl_ior_priority;
-			float mtl_ior = mtl.FetchIOR(&mtl_ior_priority); 
+			negative_object_ray.origin = positive_object_ray.origin;
+			negative_object_ray.direction = -positive_object_ray.direction;
+			negative_object_ray.t = positive_object_ray.t;
+			negative_object_ray.time = positive_object_ray.time;
 
-			if (!camera_ray_transfer.PushRecord(hit_record.hit_instance_idx, mtl_ior, mtl_ior_priority, prim.inner_volume_idx)) {
-				break;
+			const GeometryData &geometry = scene.geometries[prim.geometry_idx];
+
+			HitRecord hit_record_positive;
+			HitRecord hit_record_negative;
+			if (IntersectGeometry(geometry, scene, positive_object_ray, &hit_record_positive, true) && 
+				IntersectGeometry(geometry, scene, negative_object_ray, &hit_record_negative, true))
+			{
+				uint32_t mtl_ior_priority;
+				float mtl_ior = mtl.FetchIOR(&mtl_ior_priority);
+				if (!camera_ray_transfer.PushRecord(item.second.hit_instance_idx, mtl_ior, mtl_ior_priority, prim.inner_volume_idx)) {
+					break;
+				}
 			}
 		}
 	 }

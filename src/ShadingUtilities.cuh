@@ -239,7 +239,7 @@ namespace YumeRT
 		}
 	}
 
-	__device__ __host__  inline bool BVHTraverse(const Scene &scene, const Ray &ray, HitRecord *hit_record)
+	__device__ __host__  inline bool TraceRay(const Scene &scene, const Ray &ray, HitRecord *hit_record)
 	{
 		if (scene.top_node_count == 0 || scene.top_nodes == nullptr) { return false; }
 
@@ -260,16 +260,18 @@ namespace YumeRT
 
 			if (node.internal.left != EMPTY_UINT32)
 			{
-				PrimitiveInstance *prim_instances = scene.prim_instances + node.leaf.offset;
-				for (uint32_t i = 0; i < node.leaf.count; ++i)
+				const PrimitiveInstance *prim_instances = scene.prim_instances + node.leaf.offset;
+				for (uint32_t leaf_prim_idx = 0; leaf_prim_idx < node.leaf.count; ++leaf_prim_idx)
 				{
-					const PrimitiveInstance &prim = prim_instances[i];
+					const PrimitiveInstance &prim = prim_instances[leaf_prim_idx];
+
 					const glm::mat4 &i_transform = scene.i_transforms[prim.transform_idx];
 					Ray object_ray = TransformRay(ray, i_transform);
+
 					const GeometryData &geometry = scene.geometries[prim.geometry_idx];
 					if (IntersectGeometry(geometry, scene, object_ray, hit_record, false))
 					{
-						hit_record->hit_instance_idx = node.leaf.offset + i;
+						hit_record->hit_instance_idx = node.leaf.offset + leaf_prim_idx;
 						hit = hit || true;
 						ray.t = object_ray.t;
 					}
@@ -277,27 +279,27 @@ namespace YumeRT
 				continue;
 			}
 
-			uint32_t n_node = node_idx + 1;
-			uint32_t f_node = node.internal.right;
+			uint32_t near_node = node_idx + 1;
+			uint32_t far_node = node.internal.right;
 
-			float tn, tf;
-			bool bn = IntersectBBox3(scene.top_nodes[n_node].bbox, ray, &tn);
-			bool bf = IntersectBBox3(scene.top_nodes[f_node].bbox, ray, &tf);
-			if (tf < tn)
+			float t_near, t_far;
+			bool intersect_near = IntersectBBox3(scene.top_nodes[near_node].bbox, ray, &t_near);
+			bool intersect_far = IntersectBBox3(scene.top_nodes[far_node].bbox, ray, &t_far);
+			if (t_far < t_near)
 			{
-				Swap(tf, tn);
-				Swap(n_node, f_node);
-				Swap(bn, bf);
+				Swap(t_far, t_near);
+				Swap(near_node, far_node);
+				Swap(intersect_near, intersect_far);
 			}
 
-			if (bf)
+			if (intersect_far)
 			{
-				stack[++p_top] = f_node;
+				stack[++p_top] = far_node;
 				assert(p_top < stack_size);
 			}
-			if (bn)
+			if (intersect_near)
 			{
-				stack[++p_top] = n_node;
+				stack[++p_top] = near_node;
 				assert(p_top < stack_size);
 			}
 		}
@@ -306,7 +308,7 @@ namespace YumeRT
 	}
 
 	// TODO: you should construst a separate BVH for volume traverse!
-	__device__ __host__  inline bool ClosestVolume(const Scene &scene, const Ray &ray, HitRecord *hit_record)
+	__device__ __host__  inline bool TraceVolume(const Scene &scene, const Ray &ray, HitRecord *hit_record)
 	{
 		if (scene.top_node_count == 0 || scene.top_nodes == nullptr || scene.volume_count == 0) { return false; }
 
@@ -327,18 +329,22 @@ namespace YumeRT
 
 			if (node.internal.left != EMPTY_UINT32)
 			{
-				PrimitiveInstance *prim_instances = scene.prim_instances + node.leaf.offset;
-				for (uint32_t i = 0; i < node.leaf.count; ++i)
+				const PrimitiveInstance *prim_instances = scene.prim_instances + node.leaf.offset;
+				for (uint32_t leaf_prim_idx = 0; leaf_prim_idx < node.leaf.count; ++leaf_prim_idx)
 				{
-					if (!prim_instances[i].treat_as_boundary) { continue; }
+					if (!prim_instances[leaf_prim_idx].treat_as_boundary) { 
+						continue; 
+					}
 
-					const PrimitiveInstance &prim = prim_instances[i];
+					const PrimitiveInstance &prim = prim_instances[leaf_prim_idx];
+
 					const glm::mat4 &i_transform = scene.i_transforms[prim.transform_idx];
 					Ray object_ray = TransformRay(ray, i_transform);
+
 					const GeometryData &geometry = scene.geometries[prim.geometry_idx];
 					if (IntersectGeometry(geometry, scene, object_ray, hit_record, false))
 					{
-						hit_record->hit_instance_idx = node.leaf.offset + i;
+						hit_record->hit_instance_idx = node.leaf.offset + leaf_prim_idx;
 						hit = hit || true;
 						ray.t = object_ray.t;
 					}
@@ -346,27 +352,27 @@ namespace YumeRT
 				continue;
 			}
 
-			uint32_t n_node = node_idx + 1;
-			uint32_t f_node = node.internal.right;
+			uint32_t near_node = node_idx + 1;
+			uint32_t far_node = node.internal.right;
 
-			float tn, tf;
-			bool bn = IntersectBBox3(scene.top_nodes[n_node].bbox, ray, &tn);
-			bool bf = IntersectBBox3(scene.top_nodes[f_node].bbox, ray, &tf);
-			if (tf < tn)
+			float t_near, t_far;
+			bool intersect_near = IntersectBBox3(scene.top_nodes[near_node].bbox, ray, &t_near);
+			bool intersect_far = IntersectBBox3(scene.top_nodes[far_node].bbox, ray, &t_far);
+			if (t_far < t_near)
 			{
-				Swap(tf, tn);
-				Swap(n_node, f_node);
-				Swap(bn, bf);
+				Swap(t_far, t_near);
+				Swap(near_node, far_node);
+				Swap(intersect_near, intersect_far);
 			}
 
-			if (bf)
+			if (intersect_far)
 			{
-				stack[++p_top] = f_node;
+				stack[++p_top] = far_node;
 				assert(p_top < stack_size);
 			}
-			if (bn)
+			if (intersect_near)
 			{
-				stack[++p_top] = n_node;
+				stack[++p_top] = near_node;
 				assert(p_top < stack_size);
 			}
 		}
@@ -395,47 +401,51 @@ namespace YumeRT
 
 			if (node.internal.left != EMPTY_UINT32)
 			{
-				PrimitiveInstance *prim_instances = scene.prim_instances + node.leaf.offset;
-				for (uint32_t i = 0; i < node.leaf.count; ++i)
+				const PrimitiveInstance *prim_instances = scene.prim_instances + node.leaf.offset;
+				for (uint32_t leaf_prim_idx = 0; leaf_prim_idx < node.leaf.count; ++leaf_prim_idx)
 				{
 					// skip the test of volume boundary
-					if (prim_instances[i].treat_as_boundary) { continue; }
+					if (prim_instances[leaf_prim_idx].treat_as_boundary) { 
+						continue; 
+					}
 
-					const glm::mat4 &i_transform = scene.i_transforms[prim_instances[i].transform_idx];
+					const glm::mat4 &i_transform = scene.i_transforms[prim_instances[leaf_prim_idx].transform_idx];
+
 					Ray object_ray = TransformRay(ray, i_transform);
-					const GeometryData &geometry = scene.geometries[prim_instances[i].geometry_idx];
-					if (IntersectGeometry(geometry, scene, object_ray, hit_record, true /* test any hit */))
+					const GeometryData &geometry = scene.geometries[prim_instances[leaf_prim_idx].geometry_idx];
+
+					if (IntersectGeometry(geometry, scene, object_ray, hit_record, true))  /* test any hit */
 					{
-						hit_record->hit_instance_idx = node.leaf.offset + i;
+						hit_record->hit_instance_idx = node.leaf.offset + leaf_prim_idx;
 						hit = hit || true;
 						ray.t = object_ray.t;
-						return hit;
+						return hit; // any hit return
 					}
 				}
 				continue;
 			}
 
-			uint32_t n_node = node_idx + 1;
-			uint32_t f_node = node.internal.right;
+			uint32_t near_node = node_idx + 1;
+			uint32_t far_node = node.internal.right;
 
-			float tn, tf;
-			bool bn = IntersectBBox3(scene.top_nodes[n_node].bbox, ray, &tn);
-			bool bf = IntersectBBox3(scene.top_nodes[f_node].bbox, ray, &tf);
-			if (tf < tn)
+			float t_near, t_far;
+			bool intersect_near = IntersectBBox3(scene.top_nodes[near_node].bbox, ray, &t_near);
+			bool intersect_far = IntersectBBox3(scene.top_nodes[far_node].bbox, ray, &t_far);
+			if (t_far < t_near)
 			{
-				Swap(tf, tn);
-				Swap(n_node, f_node);
-				Swap(bn, bf);
+				Swap(t_far, t_near);
+				Swap(near_node, far_node);
+				Swap(intersect_near, intersect_far);
 			}
 
-			if (bf)
+			if (intersect_far)
 			{
-				stack[++p_top] = f_node;
+				stack[++p_top] = far_node;
 				assert(p_top < stack_size);
 			}
-			if (bn)
+			if (intersect_near)
 			{
-				stack[++p_top] = n_node;
+				stack[++p_top] = near_node;
 				assert(p_top < stack_size);
 			}
 		}

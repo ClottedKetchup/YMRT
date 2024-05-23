@@ -165,6 +165,8 @@ namespace YumeRT
 				max_priority_record_index = record_count - 1;
 				return true;
 			}
+
+			return true;
 		}
 		__device__ __host__ inline bool PopRecord(const int record_idx)
 		{

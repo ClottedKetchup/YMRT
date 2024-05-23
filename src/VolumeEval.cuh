@@ -433,7 +433,7 @@ namespace YumeRT {
 		while (traced_distance < max_trace_distance)
 		{
 			HitRecord hit_record;
-			bool hit_boundary = ClosestVolume(scene, tr_ray, &hit_record);
+			bool hit_boundary = TraceVolume(scene, tr_ray, &hit_record);
 
 			if (!hit_boundary) // nothing hit, reach the light
 			{

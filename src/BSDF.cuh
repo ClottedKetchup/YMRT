@@ -478,8 +478,6 @@ namespace YumeRT
 			const glm::vec3 diffuse_albedo = fetch_color(default_mtl.diffuse_albedo_tex, default_mtl.diffuse_albedo);
 			const glm::vec3 specular_albedo = fetch_color(default_mtl.specular_albedo_tex, default_mtl.specular_albedo);
 			
-			assert(bsdf_count == 0);
-
 			bsdf_count = 0;
 			const float weight_0 = metalness;
 			if (weight_0 > 0.0f)

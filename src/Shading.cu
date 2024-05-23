@@ -535,7 +535,6 @@ namespace YumeRT
 
 			Ray ray = scene.camera->GenerateRay(float(px + pixel_offset.x) / float(width), float(py + pixel_offset.y) / float(height));
 			RayTransfer ray_transfer(scene.camera->GetRayTransfer());
-			assert(ray_transfer.record_count == 0);
 
 			glm::vec3 L(0.0f), throughput(1.0f);
 			bool never_scatter = true;
@@ -546,7 +545,7 @@ namespace YumeRT
 				}
 				
 				HitRecord hit_record;
-				bool hit_surface = BVHTraverse(scene, ray, &hit_record);
+				bool hit_surface = TraceRay(scene, ray, &hit_record);
 
 				// prim index buffer
 				if (sample_idx == 0 && depth == 1) {
