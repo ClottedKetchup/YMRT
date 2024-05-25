@@ -6,7 +6,12 @@
 #include "ShadingUtilities.cuh"
 
 namespace YumeRT {
-	__device__ __host__  inline bool TraceRay(const Scene &scene, const Ray &ray, HitRecord *hit_record);
+	__device__ __host__  inline bool TraceRay(const Scene &scene,
+		const Ray &ray,
+		HitRecord *hit_record,
+		int *nearby_hit_count,
+		NearbyHit nearby_hits[]);
+
 	__host__  void Camera::InitCameraRayTransfer(const Scene& scene)
 	{
 		std::unordered_map<uint32_t, HitRecord> prim_map;
@@ -15,7 +20,9 @@ namespace YumeRT {
 		while (true)
 		{
 			HitRecord hit_record;
-			bool hit_surface = TraceRay(scene, ray, &hit_record);
+			int nearby_hit_count = 0;
+			NearbyHit nearby_hits[MAX_BOUNDARY_RECORD + 2];
+			bool hit_surface = TraceRay(scene, ray, &hit_record, &nearby_hit_count, nearby_hits);
 			if (!hit_surface) {
 				break;
 			}

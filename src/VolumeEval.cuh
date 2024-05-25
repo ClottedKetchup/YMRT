@@ -433,7 +433,9 @@ namespace YumeRT {
 		while (traced_distance < max_trace_distance)
 		{
 			HitRecord hit_record;
-			bool hit_boundary = TraceVolume(scene, tr_ray, &hit_record);
+			int nearby_hit_count = 0;
+			NearbyHit nearby_hits[MAX_BOUNDARY_RECORD + 2];
+			bool hit_boundary = TraceVolume(scene, tr_ray, &hit_record, &nearby_hit_count, nearby_hits);
 
 			if (!hit_boundary) // nothing hit, reach the light
 			{
@@ -456,8 +458,7 @@ namespace YumeRT {
 				uint32_t mtl_ior_priority;
 				float mtl_ior = mtl.FetchIOR(&mtl_ior_priority);
 
-				shadow_ray_transfer.BoundaryTransition(tr_ray.direction, hit_geometry_normal, 
-					hit_record.hit_instance_idx, mtl_ior, mtl_ior_priority, prim.inner_volume_idx);
+				BoundaryTransitionBunch(shadow_ray_transfer, scene.prim_instances, scene.materials, nearby_hits, nearby_hit_count);
 				tr_ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, tr_ray.direction, hit_geometry_normal), tr_ray.direction);
 			}
 		}

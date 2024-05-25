@@ -9,7 +9,7 @@ namespace YumeRT
 #define	TMAX 1E36f
 #define	TMIN  1E-7f
 #define    DEFAULT_IOR 1.0f
-#define	MAX_BOUNDARY_RECORD 4
+#define	MAX_BOUNDARY_RECORD 6
 
 	struct Ray 
 	{
@@ -29,6 +29,8 @@ namespace YumeRT
 			return origin + direction * time;
 		}
 	};
+
+	
 
 	__device__ __host__ inline Ray TransformRay(const Ray &ray, const glm::mat4 &transform)
 	{
@@ -183,6 +185,8 @@ namespace YumeRT
 			max_priority_record_index = FindMaxPriorityRecord();
 			return true;
 		}
+
+		// note: deprecated!
 		__device__ __host__ inline bool BoundaryTransition(const glm::vec3 &ray_dir, const glm::vec3 &geometry_normal,
 			uint32_t prim_idx, float ior, uint32_t ior_priority, int vol_idx)
 		{
@@ -200,6 +204,7 @@ namespace YumeRT
 				}
 			}
 		}
+
 		__device__ __host__ inline float GetRayIOR() const
 		{
 			return record_count > 0 ? boundary_records[max_priority_record_index].ior : DEFAULT_IOR;

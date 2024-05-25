@@ -10,6 +10,8 @@
 #include "BottomBVH.h"
 #include "TopBVH.h"
 
+#include "Material.h"
+
 #include "PrimtiveInstance.h"
 #include "Volume.h"
 
@@ -31,8 +33,30 @@ namespace YumeRT
 	};
 #pragma pack(pop)
 
+	struct ExtraHitInfo 
+	{
+		float t_hit = TMAX;
+		bool hit = false;
+		bool hit_back = false;
+	};
+
+	struct NearbyHit 
+	{
+		uint32_t hit_prim_idx = EMPTY_UINT32;
+		float t_hit = TMAX;
+		bool hit_back = false;
+
+		__device__ __host__ inline NearbyHit() :hit_prim_idx(EMPTY_UINT32), t_hit(TMAX), hit_back(false) {}
+		__device__ __host__ inline NearbyHit(uint32_t hit_prim_idx, float t_hit, bool hit_back) : hit_prim_idx(hit_prim_idx), t_hit(t_hit), hit_back(hit_back) {}
+	};
+
 	// This is for Mesh intersection
-	__device__ __host__  inline bool IntersectTri(const Triangle &triangle, const glm::vec3 *mesh_positions, const uint32_t *mesh_vidxs, const Ray &ray, HitRecord *hit_record)
+	__device__ __host__  inline bool IntersectTri(const Triangle &triangle, 
+		const glm::vec3 *mesh_positions, 
+		const uint32_t *mesh_vidxs, 
+		const Ray &ray, 
+		HitRecord *hit_record,
+		ExtraHitInfo *extra_hit_info = nullptr)
 	{
 		const uint32_t vid0 = mesh_vidxs[triangle.id0];
 		const uint32_t vid1 = mesh_vidxs[triangle.id1];
@@ -90,8 +114,13 @@ namespace YumeRT
 
 		float t = e0 * p0.z + e1 * p1.z + e2 * p2.z;
 		t *= inv_denominator;
-		if (t < TMIN || t > ray.t)
-		{
+		if (extra_hit_info != nullptr && t >= TMIN) {
+			extra_hit_info->hit = true;
+			extra_hit_info->t_hit = glm::min(extra_hit_info->t_hit, t);
+			extra_hit_info->hit_back = glm::dot(geometry_normal, ray.direction) > 0.0f;
+		}
+		
+		if (t < TMIN || t > ray.t) {
 			return false;
 		}
 
@@ -104,9 +133,15 @@ namespace YumeRT
 		return true;
 	}
 
-	__device__ __host__  inline bool IntersectMeshObject(const TriangleMesh &triangle_mesh, const Ray &ray, HitRecord *hit_record, bool test_any_hit)
+	__device__ __host__  inline bool IntersectMeshObject(const TriangleMesh &triangle_mesh, 
+		const Ray &ray, 
+		HitRecord *hit_record, 
+		bool test_any_hit, 
+		ExtraHitInfo *extra_hit_info = nullptr)
 	{
-		if (triangle_mesh.GetNodesDevice() == nullptr) { return false; }
+		if (triangle_mesh.GetNodesDevice() == nullptr) { 
+			return false; 
+		}
 
 		const uint32_t stack_size = 32;
 		uint32_t root_idx = 0;
@@ -118,7 +153,9 @@ namespace YumeRT
 		const uint32_t *vidxs = triangle_mesh.GetPositionIndicesDevice();
 		const glm::vec3 *positions = triangle_mesh.GetPositionsDevice();
 		const BottomNode *bottom_nodes = triangle_mesh.GetNodesDevice();
-		if (triangles == nullptr || vidxs == nullptr || positions == nullptr || bottom_nodes == nullptr) { return false; }
+		if (triangles == nullptr || vidxs == nullptr || positions == nullptr || bottom_nodes == nullptr) { 
+			return false; 
+		}
 
 		float t = 0.0f;
 		bool hit = false;
@@ -132,39 +169,41 @@ namespace YumeRT
 			if (node.internal.left != EMPTY_UINT32)
 			{
 				const Triangle *tris = triangles + node.leaf.offset;
-				for (uint32_t i = 0; i < node.leaf.count; ++i)
+				for (uint32_t leaf_prim_idx = 0; leaf_prim_idx < node.leaf.count; ++leaf_prim_idx)
 				{
-					if (IntersectTri(tris[i], positions, vidxs, ray, hit_record))
+					if (IntersectTri(tris[leaf_prim_idx], positions, vidxs, ray, hit_record, extra_hit_info))
 					{
-						hit_record->hit_triangle_idx = node.leaf.offset + i;
+						hit_record->hit_triangle_idx = node.leaf.offset + leaf_prim_idx;
 						hit = hit || true;
 					}
-					if (test_any_hit && hit) { return hit; }
+					if (test_any_hit && hit) { 
+						return hit; 
+					}
 				}
 				continue;
 			}
 
-			uint32_t n_node = node_idx + 1;
-			uint32_t f_node = node.internal.right;
+			uint32_t near_node = node_idx + 1;
+			uint32_t far_node = node.internal.right;
 
-			float tn, tf;
-			bool bn = IntersectBBox3(bottom_nodes[n_node].bbox, ray, &tn);
-			bool bf = IntersectBBox3(bottom_nodes[f_node].bbox, ray, &tf);
-			if (tf < tn)
+			float t_near, t_far;
+			bool intersect_near = IntersectBBox3(bottom_nodes[near_node].bbox, ray, &t_near);
+			bool intersect_far = IntersectBBox3(bottom_nodes[far_node].bbox, ray, &t_far);
+			if (t_far < t_near)
 			{
-				Swap(tf, tn);
-				Swap(n_node, f_node);
-				Swap(bn, bf);
+				Swap(t_far, t_near);
+				Swap(near_node, far_node);
+				Swap(intersect_near, intersect_far);
 			}
 
-			if (bf)
+			if (intersect_far)
 			{
-				stack[++p_top] = f_node;
+				stack[++p_top] = far_node;
 				assert(p_top < stack_size);
 			}
-			if (bn)
+			if (intersect_near)
 			{
-				stack[++p_top] = n_node;
+				stack[++p_top] = near_node;
 				assert(p_top < stack_size);
 			}
 		}
@@ -172,7 +211,11 @@ namespace YumeRT
 		return hit;
 	}
 
-	__device__ __host__  inline bool IntersectSphereObject(const Sphere &sphere, const Ray &ray, HitRecord *hit_record, bool test_any_hit)
+	__device__ __host__  inline bool IntersectSphereObject(const Sphere &sphere, 
+		const Ray &ray, 
+		HitRecord *hit_record, 
+		bool test_any_hit, 
+		ExtraHitInfo *extra_hit_info = nullptr)
 	{
 		float radius = sphere.radius;
 
@@ -185,17 +228,21 @@ namespace YumeRT
 		float discriminator = b * b - 4.0f * a * c;
 		float t = 0.f;
 
-		if (discriminator < 0)
-		{
+		if (discriminator < 0) {
 			return false;
 		}
 
 		float sqrt_d = glm::sqrt(discriminator);
 		float t1 = (-b - sqrt_d) / (2.0 * a);
 		float t2 = (-b + sqrt_d) / (2.0 * a);
-
-		if (t1 > ray.t || t2 < TMIN)
+		if (extra_hit_info != nullptr) 
 		{
+			extra_hit_info->hit = true;
+			extra_hit_info->t_hit = t1 >= TMIN ? t1 : t2;
+			extra_hit_info->hit_back = glm::dot(ray_d, glm::normalize(ray_o + ray_d * (extra_hit_info->t_hit))) > 0.0f;
+		}
+
+		if (t1 > ray.t || t2 < TMIN) {
 			return false;
 		}
 
@@ -203,8 +250,7 @@ namespace YumeRT
 		if (t < TMIN)
 		{
 			t = t2;
-			if (t > ray.t)
-			{
+			if (t > ray.t) {
 				return false;
 			}
 		}
@@ -222,16 +268,29 @@ namespace YumeRT
 		return true;
 	}
 
-	__device__ __host__  inline bool IntersectGeometry(const GeometryData &geometry, const Scene &scene, const Ray &ray, HitRecord *hit_record, bool test_any_hit)
+	__device__ __host__  inline bool IntersectGeometry(const GeometryData &geometry, 
+		const Scene &scene, 
+		const Ray &ray, 
+		HitRecord *hit_record, 
+		bool test_any_hit, 
+		ExtraHitInfo *extra_hit_info = nullptr)
 	{
 		uint32_t geo_type = geometry.geometry_type;
 		if (geo_type == GEOMETRY_TYPE::TRIANGLE_MESH)
 		{
-			return IntersectMeshObject(geometry.triangle_mesh, ray, hit_record, test_any_hit);
+			return IntersectMeshObject(geometry.triangle_mesh, 
+				ray, 
+				hit_record, 
+				test_any_hit, 
+				extra_hit_info);
 		}
 		else if (geo_type == GEOMETRY_TYPE::SPHERE)
 		{
-			return IntersectSphereObject(geometry.sphere, ray, hit_record, test_any_hit);
+			return IntersectSphereObject(geometry.sphere, 
+				ray, 
+				hit_record, 
+				test_any_hit, 
+				extra_hit_info);
 		}
 		else
 		{
@@ -239,13 +298,29 @@ namespace YumeRT
 		}
 	}
 
-	__device__ __host__  inline bool TraceRay(const Scene &scene, const Ray &ray, HitRecord *hit_record)
+	__device__ __host__  inline bool TraceRay(const Scene &scene, 
+		const Ray &ray, 
+		HitRecord *hit_record, 
+		int *nearby_hit_count, 
+		NearbyHit nearby_hits[])
 	{
-		if (scene.top_node_count == 0 || scene.top_nodes == nullptr) { return false; }
+		if (scene.top_node_count == 0 || scene.top_nodes == nullptr) { 
+			return false; 
+		}
+
+		int nearby_prim_count = 0;
+		float t_upper_bound = 0.0f;
+		float t_lower_bound = 0.0f;
+		NearbyHit nearby_hit_prims[MAX_BOUNDARY_RECORD + 2];
+		auto push_nearby_hits = [&](const NearbyHit& ray_hit) {
+			if (nearby_prim_count == MAX_BOUNDARY_RECORD + 2) {
+				return;
+			}
+			nearby_hit_prims[nearby_prim_count++] = ray_hit;
+		};
 
 		const uint32_t stack_size = 32;
-		uint32_t root_idx = 0;
-
+		const uint32_t root_idx = 0;
 		uint32_t stack[stack_size];
 		int p_top = -1;
 
@@ -269,11 +344,46 @@ namespace YumeRT
 					Ray object_ray = TransformRay(ray, i_transform);
 
 					const GeometryData &geometry = scene.geometries[prim.geometry_idx];
-					if (IntersectGeometry(geometry, scene, object_ray, hit_record, false))
+
+					HitRecord prim_hit_record;
+					ExtraHitInfo prim_extra_hit_info;
+					if (IntersectGeometry(geometry, scene, object_ray, &prim_hit_record, false, &prim_extra_hit_info))
 					{
+						assert(prim_extra_hit_info.hit);
+						hit_record->hit_back = prim_hit_record.hit_back;
+						hit_record->hit_barycentric = prim_hit_record.hit_barycentric;
+						hit_record->hit_t = prim_hit_record.hit_t;
+						hit_record->hit_triangle_idx = prim_hit_record.hit_triangle_idx;
 						hit_record->hit_instance_idx = node.leaf.offset + leaf_prim_idx;
+						hit_record->volume_hit = prim_hit_record.volume_hit;
+
 						hit = hit || true;
 						ray.t = object_ray.t;
+
+						// TODO: update upper bound and lower bound
+						t_upper_bound = NextFloatUp(NextFloatUp(ray.t));
+						t_lower_bound = NextFloatDown(NextFloatDown(ray.t));
+
+						// TODO: update the nearby object list
+						int head = 0, tail = nearby_prim_count - 1;
+						while (head <= tail) {
+							if (nearby_hit_prims[head].t_hit > t_lower_bound && nearby_hit_prims[head].t_hit < t_upper_bound) {
+								++head;
+							}
+							else {
+								Swap(nearby_hit_prims[head], nearby_hit_prims[tail--]);
+							}
+						}
+						nearby_prim_count = head;
+						
+						push_nearby_hits(NearbyHit(hit_record->hit_instance_idx, hit_record->hit_t, hit_record->hit_back));
+					}
+					else {
+						// TODO:
+						if (hit && prim_extra_hit_info.hit &&
+							(prim_extra_hit_info.t_hit > t_lower_bound && prim_extra_hit_info.t_hit < t_upper_bound)) {
+							push_nearby_hits(NearbyHit(node.leaf.offset + leaf_prim_idx, prim_extra_hit_info.t_hit, prim_extra_hit_info.hit_back));
+						}
 					}
 				}
 				continue;
@@ -304,17 +414,38 @@ namespace YumeRT
 			}
 		}
 
+		assert(nearby_prim_count <= MAX_BOUNDARY_RECORD + 2);
+		for (int idx = 0; idx < nearby_prim_count; ++idx) {
+			nearby_hits[idx] = nearby_hit_prims[idx];
+		}
+		*nearby_hit_count = nearby_prim_count;
 		return hit;
 	}
 
 	// TODO: you should construst a separate BVH for volume traverse!
-	__device__ __host__  inline bool TraceVolume(const Scene &scene, const Ray &ray, HitRecord *hit_record)
+	__device__ __host__  inline bool TraceVolume(const Scene &scene, 
+		const Ray &ray, 
+		HitRecord *hit_record,
+		int *nearby_hit_count,
+		NearbyHit nearby_hits[])
 	{
-		if (scene.top_node_count == 0 || scene.top_nodes == nullptr || scene.volume_count == 0) { return false; }
+		if (scene.top_node_count == 0 || scene.top_nodes == nullptr || scene.volume_count == 0) { 
+			return false; 
+		}
+
+		int nearby_prim_count = 0;
+		float t_upper_bound = 0.0f;
+		float t_lower_bound = 0.0f;
+		NearbyHit nearby_hit_prims[MAX_BOUNDARY_RECORD + 2];
+		auto push_nearby_hits = [&](const NearbyHit& ray_hit) {
+			if (nearby_prim_count == MAX_BOUNDARY_RECORD + 2) {
+				return;
+			}
+			nearby_hit_prims[nearby_prim_count++] = ray_hit;
+		};
 
 		const uint32_t stack_size = 32;
-		uint32_t root_idx = 0;
-
+		const uint32_t root_idx = 0;
 		uint32_t stack[stack_size];
 		int p_top = -1;
 
@@ -342,11 +473,47 @@ namespace YumeRT
 					Ray object_ray = TransformRay(ray, i_transform);
 
 					const GeometryData &geometry = scene.geometries[prim.geometry_idx];
-					if (IntersectGeometry(geometry, scene, object_ray, hit_record, false))
+					
+					HitRecord prim_hit_record;
+					ExtraHitInfo prim_extra_hit_info;
+					if (IntersectGeometry(geometry, scene, object_ray, &prim_hit_record, false, &prim_extra_hit_info))
 					{
+						assert(prim_extra_hit_info.hit);
+						hit_record->hit_back = prim_hit_record.hit_back;
+						hit_record->hit_barycentric = prim_hit_record.hit_barycentric;
+						hit_record->hit_t = prim_hit_record.hit_t;
+						hit_record->hit_triangle_idx = prim_hit_record.hit_triangle_idx;
 						hit_record->hit_instance_idx = node.leaf.offset + leaf_prim_idx;
+						hit_record->volume_hit = prim_hit_record.volume_hit;
+
 						hit = hit || true;
 						ray.t = object_ray.t;
+
+						// update upper bound and lower bound
+						t_upper_bound = NextFloatUp(NextFloatUp(ray.t));
+						t_lower_bound = NextFloatDown(NextFloatDown(ray.t));
+
+						// update the nearby object list
+						int head = 0, tail = nearby_prim_count - 1;
+						while (head <= tail) {
+							if (nearby_hit_prims[head].t_hit > t_lower_bound && nearby_hit_prims[head].t_hit < t_upper_bound) {
+								++head;
+							}
+							else {
+								Swap(nearby_hit_prims[head], nearby_hit_prims[tail--]);
+							}
+						}
+						nearby_prim_count = head;
+
+						// push current hit into the nearby hits
+						push_nearby_hits(NearbyHit(hit_record->hit_instance_idx, hit_record->hit_t, hit_record->hit_back));
+					}
+					else 
+					{
+						if (hit && prim_extra_hit_info.hit &&
+							(prim_extra_hit_info.t_hit > t_lower_bound && prim_extra_hit_info.t_hit < t_upper_bound)) {
+							push_nearby_hits(NearbyHit(node.leaf.offset + leaf_prim_idx, prim_extra_hit_info.t_hit, prim_extra_hit_info.hit_back));
+						}
 					}
 				}
 				continue;
@@ -377,16 +544,22 @@ namespace YumeRT
 			}
 		}
 
+		assert(nearby_prim_count <= MAX_BOUNDARY_RECORD + 2);
+		for (int idx = 0; idx < nearby_prim_count; ++idx) {
+			nearby_hits[idx] = nearby_hit_prims[idx];
+		}
+		*nearby_hit_count = nearby_prim_count;
 		return hit;
 	}
 
 	__device__ __host__  inline bool BVHTraverseShadow(const Scene &scene, const Ray &ray, HitRecord *hit_record)
 	{
-		if (scene.top_node_count == 0 || scene.top_nodes == nullptr) { return false; }
+		if (scene.top_node_count == 0 || scene.top_nodes == nullptr) { 
+			return false; 
+		}
 
 		const uint32_t stack_size = 32;
 		uint32_t root_idx = 0;
-
 		uint32_t stack[stack_size];
 		int p_top = -1;
 
@@ -768,6 +941,41 @@ namespace YumeRT
 		
 		*hit_position = TransformPosition(otw, *hit_position, hit_position_error);
 		*hit_geometry_normal = glm::normalize(TransposeTransformVector(wto, *hit_geometry_normal));
+	}
+
+	__device__ __host__ inline bool BoundaryTransitionBunch(RayTransfer &ray_transfer,
+		const PrimitiveInstance *prim_instances,
+		const Material *materials,
+		const NearbyHit nearby_hit_prims[],
+		const int nearby_prim_count)
+	{
+		for (int nearby_hit_idx = 0; nearby_hit_idx < nearby_prim_count; ++nearby_hit_idx)
+		{
+			// note: process push first, later pop
+			if (nearby_hit_prims[nearby_hit_idx].hit_back) {
+				continue;
+			}
+			const PrimitiveInstance &hitted_prim = prim_instances[nearby_hit_prims[nearby_hit_idx].hit_prim_idx];
+			const Material &mtl = materials[hitted_prim.material_idx];
+
+			uint32_t mtl_ior_priority;
+			const float mtl_ior = mtl.FetchIOR(&mtl_ior_priority);
+
+			ray_transfer.PushRecord(nearby_hit_prims[nearby_hit_idx].hit_prim_idx, mtl_ior, mtl_ior_priority, hitted_prim.inner_volume_idx);
+		}
+
+		for (int nearby_hit_idx = 0; nearby_hit_idx < nearby_prim_count; ++nearby_hit_idx)
+		{
+			if (!nearby_hit_prims[nearby_hit_idx].hit_back) {
+				continue;
+			}
+			const int record_idx = ray_transfer.FindRecordWithPrim(nearby_hit_prims[nearby_hit_idx].hit_prim_idx);
+			if (record_idx != -1) {
+				ray_transfer.PopRecord(record_idx);
+			}
+		}
+
+		return true;
 	}
 
 	__device__  __host__ inline glm::vec3 OffsetRayOrigin(const glm::vec3 &p, const glm::vec3 &p_error, const glm::vec3 &new_dir, const glm::vec3 &geometry_normal)
