@@ -94,7 +94,8 @@ namespace YumeRT
 				const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, hit_position_error, light_dir, hit_geometry_normal);
 				Ray shadow_ray(shadow_ray_origin, light_dir);
 				const bool transmit_boundary = glm::dot(-ray_direction, hit_geometry_normal) * glm::dot(light_dir, hit_geometry_normal) < 0.0f;
-				const bool sample_invalid = !SameHemisphere(wo, light_wi) && !transmit_boundary;
+				const bool sample_invalid = (!SameHemisphere(wo, light_wi) && !transmit_boundary) || 
+					(SameHemisphere(wo, light_wi) && transmit_boundary);
 
 				HitRecord shadow_ray_record;
 				if (!sample_invalid && !BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
@@ -136,7 +137,8 @@ namespace YumeRT
 					const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, hit_position_error, light_dir, hit_geometry_normal);
 					Ray shadow_ray(shadow_ray_origin, light_dir);
 					const bool transmit_boundary = glm::dot(-ray_direction, hit_geometry_normal) * glm::dot(light_dir, hit_geometry_normal) < 0.0f;
-					const bool sample_invalid = !SameHemisphere(wo, bsdf_wi) && !transmit_boundary;
+					const bool sample_invalid = (!SameHemisphere(wo, bsdf_wi) && !transmit_boundary) ||
+						(SameHemisphere(wo, bsdf_wi) && transmit_boundary);
 	
 					HitRecord shadow_ray_record;
 					if (!sample_invalid && !BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
@@ -302,7 +304,8 @@ namespace YumeRT
 				shadow_ray.t = max_trace_distance;
 				HitRecord shadow_ray_record;
 				const bool transmit_boundary = glm::dot(-ray_direction, hit_geometry_normal) * glm::dot(light_dir, hit_geometry_normal) < 0.0f;
-				const bool sample_invalid = !SameHemisphere(wo, light_wi) && !transmit_boundary;
+				const bool sample_invalid = (!SameHemisphere(wo, light_wi) && !transmit_boundary) || 
+					(SameHemisphere(wo, light_wi) && transmit_boundary);
 
 				if (!sample_invalid && !BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
 				{
@@ -349,7 +352,8 @@ namespace YumeRT
 					shadow_ray.t = max_trace_distance;
 					HitRecord shadow_ray_record;
 					const bool transmit_boundary = glm::dot(-ray_direction, hit_geometry_normal) * glm::dot(light_dir, hit_geometry_normal) < 0.0f;
-					const bool sample_invalid = !SameHemisphere(wo, bsdf_wi) && !transmit_boundary;
+					const bool sample_invalid = (!SameHemisphere(wo, bsdf_wi) && !transmit_boundary) ||
+						(SameHemisphere(wo, bsdf_wi) && transmit_boundary);
 					
 					if (!sample_invalid && !BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
 					{
@@ -773,7 +777,8 @@ namespace YumeRT
 
 					glm::vec3 new_direction = material_bsdf.ShadingToWorld(wi);
 					const bool transmit_boundary = glm::dot(-ray.direction, hit_geometry_normal) * glm::dot(new_direction, hit_geometry_normal) < 0.0f;
-					const bool sample_invalid = !SameHemisphere(wo, wi) && !transmit_boundary;
+					const bool sample_invalid = (!SameHemisphere(wo, wi) && !transmit_boundary) || 
+						(SameHemisphere(wo, wi) && transmit_boundary);
 					if (sample_invalid) {
 						break;
 					}
