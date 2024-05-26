@@ -961,7 +961,10 @@ namespace YumeRT
 			uint32_t mtl_ior_priority;
 			const float mtl_ior = mtl.FetchIOR(&mtl_ior_priority);
 
-			ray_transfer.PushRecord(nearby_hit_prims[nearby_hit_idx].hit_prim_idx, mtl_ior, mtl_ior_priority, hitted_prim.inner_volume_idx);
+			const int record_idx = ray_transfer.FindRecordWithPrim(nearby_hit_prims[nearby_hit_idx].hit_prim_idx);
+			if (record_idx == -1) {
+				ray_transfer.PushRecord(nearby_hit_prims[nearby_hit_idx].hit_prim_idx, mtl_ior, mtl_ior_priority, hitted_prim.inner_volume_idx);
+			}
 		}
 
 		for (int nearby_hit_idx = 0; nearby_hit_idx < nearby_prim_count; ++nearby_hit_idx)

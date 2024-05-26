@@ -93,15 +93,18 @@ namespace YumeRT
 			{
 				const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, hit_position_error, light_dir, hit_geometry_normal);
 				Ray shadow_ray(shadow_ray_origin, light_dir);
+				const bool transmit_boundary = glm::dot(-ray_direction, hit_geometry_normal) * glm::dot(light_dir, hit_geometry_normal) < 0.0f;
+				const bool sample_invalid = !SameHemisphere(wo, light_wi) && !transmit_boundary;
 
 				HitRecord shadow_ray_record;
-				if (!BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record)) 
+				if (!sample_invalid && !BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
 				{
 					glm::vec3 tr(1.0f);
 					if (render_setting.enable_volume_scattering)
 					{
 						RayTransfer shadow_ray_transfer(ray_transfer);
-						if (!SameHemisphere(wo, light_wi)) { // refract
+						
+						if (transmit_boundary) { // refract
 							BoundaryTransitionBunch(shadow_ray_transfer, scene.prim_instances, scene.materials, nearby_hits, nearby_hit_count);
 						}
 
@@ -132,15 +135,17 @@ namespace YumeRT
 				{
 					const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, hit_position_error, light_dir, hit_geometry_normal);
 					Ray shadow_ray(shadow_ray_origin, light_dir);
-
+					const bool transmit_boundary = glm::dot(-ray_direction, hit_geometry_normal) * glm::dot(light_dir, hit_geometry_normal) < 0.0f;
+					const bool sample_invalid = !SameHemisphere(wo, bsdf_wi) && !transmit_boundary;
+	
 					HitRecord shadow_ray_record;
-					if (!BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
+					if (!sample_invalid && !BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
 					{
 						glm::vec3 tr(1.0f);
 						if (render_setting.enable_volume_scattering)
 						{
 							RayTransfer shadow_ray_transfer(ray_transfer);
-							if (!SameHemisphere(wo, bsdf_wi)) { // refract
+							if (transmit_boundary) { // refract
 								BoundaryTransitionBunch(shadow_ray_transfer, scene.prim_instances, scene.materials, nearby_hits, nearby_hit_count);
 							}
 
@@ -296,13 +301,16 @@ namespace YumeRT
 				
 				shadow_ray.t = max_trace_distance;
 				HitRecord shadow_ray_record;
-				if (!BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
+				const bool transmit_boundary = glm::dot(-ray_direction, hit_geometry_normal) * glm::dot(light_dir, hit_geometry_normal) < 0.0f;
+				const bool sample_invalid = !SameHemisphere(wo, light_wi) && !transmit_boundary;
+
+				if (!sample_invalid && !BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
 				{
 					glm::vec3 tr(1.0f);
 					if (render_setting.enable_volume_scattering) 
 					{
 						RayTransfer shadow_ray_transfer(ray_transfer);
-						if (!SameHemisphere(wo, light_wi)) {
+						if (transmit_boundary) {
 							BoundaryTransitionBunch(shadow_ray_transfer, scene.prim_instances, scene.materials, nearby_hits, nearby_hit_count);
 						}
 
@@ -340,13 +348,16 @@ namespace YumeRT
 
 					shadow_ray.t = max_trace_distance;
 					HitRecord shadow_ray_record;
-					if (!BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
+					const bool transmit_boundary = glm::dot(-ray_direction, hit_geometry_normal) * glm::dot(light_dir, hit_geometry_normal) < 0.0f;
+					const bool sample_invalid = !SameHemisphere(wo, bsdf_wi) && !transmit_boundary;
+					
+					if (!sample_invalid && !BVHTraverseShadow(scene, shadow_ray, &shadow_ray_record))
 					{
 						glm::vec3 tr(1.0f);
 						if (render_setting.enable_volume_scattering)
 						{
 							RayTransfer shadow_ray_transfer(ray_transfer);
-							if (!SameHemisphere(wo, bsdf_wi)) {
+							if (transmit_boundary) {
 								BoundaryTransitionBunch(shadow_ray_transfer, scene.prim_instances, scene.materials, nearby_hits, nearby_hit_count);
 							}
 							
@@ -761,7 +772,12 @@ namespace YumeRT
 					}
 
 					glm::vec3 new_direction = material_bsdf.ShadingToWorld(wi);
-					if (wi.z < 0.0f) {
+					const bool transmit_boundary = glm::dot(-ray.direction, hit_geometry_normal) * glm::dot(new_direction, hit_geometry_normal) < 0.0f;
+					const bool sample_invalid = !SameHemisphere(wo, wi) && !transmit_boundary;
+					if (sample_invalid) {
+						break;
+					}
+					if (transmit_boundary) {
 						BoundaryTransitionBunch(ray_transfer, scene.prim_instances, scene.materials, nearby_hits, nearby_hit_count);
 					}
 
