@@ -51,21 +51,21 @@ void TestScene_CornellBox(const std::string &exec_path, std::shared_ptr<YumeRT::
 		default_mtl,
 		world_volume_idx, true);
 
-	// left
-	scene_manager->AddPrimInstance(cube_idx,
-		scene_manager->AddTransform(glm::vec3(-5.025f, 0.0f, -5.0f), glm::vec3(0.05f, 10.0f, 10.0f)),
-		scene_manager->AddSurfaceMaterial("left wall", glm::vec3(0.65f, 0.05f, 0.05f)),
-		-1);
+	//// left
+	//scene_manager->AddPrimInstance(cube_idx,
+	//	scene_manager->AddTransform(glm::vec3(-5.025f, 0.0f, -5.0f), glm::vec3(0.05f, 10.0f, 10.0f)),
+	//	scene_manager->AddSurfaceMaterial("left wall", glm::vec3(0.65f, 0.05f, 0.05f)),
+	//	-1);
 
-	// right
-	scene_manager->AddPrimInstance(cube_idx,
-		scene_manager->AddTransform(glm::vec3(5.025f, 0.0f, -5.0f), glm::vec3(0.05f, 10.0f, 10.0f)),
-		scene_manager->AddSurfaceMaterial("right wall", glm::vec3(0.15f, 0.55f, 0.15f)),
-		-1);
+	//// right
+	//scene_manager->AddPrimInstance(cube_idx,
+	//	scene_manager->AddTransform(glm::vec3(5.025f, 0.0f, -5.0f), glm::vec3(0.05f, 10.0f, 10.0f)),
+	//	scene_manager->AddSurfaceMaterial("right wall", glm::vec3(0.15f, 0.55f, 0.15f)),
+	//	-1);
 
 	// test basic texture op
-	const uint32_t tex_black_idx = scene_manager->AddTexture("tex_black", YumeRT::Texture().InitConstantTextureRGB(glm::vec3(0.01f)));
-	const uint32_t tex_white_idx = scene_manager->AddTexture("tex_white", YumeRT::Texture().InitConstantTextureRGB(glm::vec3(0.99f)));
+	const uint32_t tex_black_idx = scene_manager->AddTexture("tex_black", YumeRT::Texture().InitConstantTextureRGB(glm::vec3(0.15f)));
+	const uint32_t tex_white_idx = scene_manager->AddTexture("tex_white", YumeRT::Texture().InitConstantTextureRGB(glm::vec3(0.42f)));
 	const uint32_t tex_checkerboard = scene_manager->AddTexture("CheckerBoard_0", YumeRT::Texture().InitCheckerBoardTexture(tex_black_idx, tex_white_idx, 64.0f));
 	const uint32_t bump_tex_black_idx = scene_manager->AddTexture("bump_tex_black", YumeRT::Texture().InitConstantTextureFloat(0.1f));
 	const uint32_t bump_tex_white_idx = scene_manager->AddTexture("bump_tex_white", YumeRT::Texture().InitConstantTextureFloat(1.0f));
@@ -77,17 +77,17 @@ void TestScene_CornellBox(const std::string &exec_path, std::shared_ptr<YumeRT::
 		scene_manager->AddSurfaceMaterial("bottom wall", glm::vec3(0.75f, 0.75f, 0.75f), glm::vec3(1.0f), 0.15, 0.15, 1.45, 0.0f, 1.0f, 0.0f, 0, tex_checkerboard),
 		-1);
 
-	// top
-	scene_manager->AddPrimInstance(cube_idx,
-		scene_manager->AddTransform(glm::vec3(0.0f, 5.025f, -5.0f), glm::vec3(10.0f, 0.05f, 10.0f)),
-		scene_manager->AddSurfaceMaterial("top wall", glm::vec3(0.75f, 0.75f, 0.75f)),
-		-1);
+	//// top
+	//scene_manager->AddPrimInstance(cube_idx,
+	//	scene_manager->AddTransform(glm::vec3(0.0f, 5.025f, -5.0f), glm::vec3(10.0f, 0.05f, 10.0f)),
+	//	scene_manager->AddSurfaceMaterial("top wall", glm::vec3(0.75f, 0.75f, 0.75f)),
+	//	-1);
 
-	// back
-	scene_manager->AddPrimInstance(cube_idx,
-		scene_manager->AddTransform(glm::vec3(0.0f, 0.0f, -10.025f), glm::vec3(10.0f, 10.0f, 0.05f)),
-		scene_manager->AddSurfaceMaterial("back wall", glm::vec3(0.75f, 0.75f, 0.75f)),
-		-1);
+	//// back
+	//scene_manager->AddPrimInstance(cube_idx,
+	//	scene_manager->AddTransform(glm::vec3(0.0f, 0.0f, -10.025f), glm::vec3(10.0f, 10.0f, 0.05f)),
+	//	scene_manager->AddSurfaceMaterial("back wall", glm::vec3(0.75f, 0.75f, 0.75f)),
+	//	-1);
 
 	scene_manager->AddPrimInstance(cube_idx,
 		scene_manager->AddTransform(glm::vec3(-3.0f, -3.0f, -5.0f), glm::vec3(2.15f, 4.0f, 2.15f)),
@@ -104,16 +104,16 @@ void TestScene_CornellBox(const std::string &exec_path, std::shared_ptr<YumeRT::
 		scene_manager->AddSurfaceMaterial("cube right", glm::vec3(0.75f, 0.75f, 0.75f)),
 		-1);
 
-	// light
-	scene_manager->AddPrimInstance(cube_idx,
-		scene_manager->AddTransform(glm::vec3(-3.0f, 4.15f, -5.0f), glm::vec3(0.3, 0.3f, 0.3)),
-		scene_manager->AddLightMaterial("ceil light", glm::vec3(1.0f), 150.0f),
-		-1);
+	//// light
+	//scene_manager->AddPrimInstance(cube_idx,
+	//	scene_manager->AddTransform(glm::vec3(-3.0f, 4.15f, -5.0f), glm::vec3(0.3, 0.3f, 0.3)),
+	//	scene_manager->AddLightMaterial("ceil light", glm::vec3(1.0f), 150.0f),
+	//	-1);
 
 	// sphere light
 	scene_manager->AddPrimInstance(sphere_idx,
-		scene_manager->AddTransform(glm::vec3(3.0f, 3.35f, -5.0f), glm::vec3(0.15f, 0.15f, 0.15f)),
-		scene_manager->AddLightMaterial("sphere light", glm::vec3(1.0f), 200.0f),
+		scene_manager->AddTransform(glm::vec3(3.0f, 3.35f, -5.0f), glm::vec3(0.75f, 0.75f, 0.75f)),
+		scene_manager->AddLightMaterial("sphere light", glm::vec3(1.0f), 85.0f),
 		-1);
 
 	const uint32_t glass_tex_black_idx = scene_manager->AddTexture("glass_tex_black", YumeRT::Texture().InitConstantTextureFloat(0.65f));
@@ -131,21 +131,31 @@ void TestScene_CornellBox(const std::string &exec_path, std::shared_ptr<YumeRT::
 		-1);
 
 	// ground
-	const std::string diffuse_image_tex_path = exec_prefix + std::string("test_assests\\brick_2k.png");
-	const uint32_t diffuse_image_tex_idx = scene_manager->AddTexture("test texture brick", YumeRT::Texture().InitImageTexture(
-		YumeRT::LoadImageTexture(diffuse_image_tex_path, scene_manager->GetImageTextureManager())
+	const std::string ground_diffuse_tex_path = exec_prefix + std::string("test_assests\\weathered_wood\\weathered_brown_planks_diff_2k.png");
+	const uint32_t ground_diffuse_tex_idx = scene_manager->AddTexture("ground diffuse", YumeRT::Texture().InitImageTexture(
+		YumeRT::LoadImageTexture(ground_diffuse_tex_path, scene_manager->GetImageTextureManager())
 	));
+	const std::string ground_bump_tex_path = exec_prefix + std::string("test_assests\\weathered_wood\\weathered_brown_planks_disp_2k.png");
+	const uint32_t ground_bump_tex_idx = scene_manager->AddTexture("ground bump", YumeRT::Texture().InitImageTexture(
+		YumeRT::LoadImageTexture(ground_bump_tex_path, scene_manager->GetImageTextureManager())
+	));
+	const std::string ground_roughness_tex_path = exec_prefix + std::string("test_assests\\weathered_wood\\weathered_brown_planks_rough_2k.png");
+	const uint32_t ground_roughness_tex_idx = scene_manager->AddTexture("ground roughness", YumeRT::Texture().InitImageTexture(
+		YumeRT::LoadImageTexture(ground_roughness_tex_path, scene_manager->GetImageTextureManager())
+	));
+
 	scene_manager->AddPrimInstance(cube_idx,
 		scene_manager->AddTransform(glm::vec3(0.0f, -5.55f, 0.0f), glm::vec3(135.0, 1.0f, 135.0f)),
 		scene_manager->AddSurfaceMaterial("ground", glm::vec3(0.55f, 0.55f, 0.55f), glm::vec3(0.0f), 0.2, 0.2, 1.3, 0.0f, 0.0f, 0.0f, 0, 
-			diffuse_image_tex_idx, EMPTY_UINT32, diffuse_image_tex_idx),
+			ground_diffuse_tex_idx, ground_roughness_tex_idx, ground_diffuse_tex_idx, ground_roughness_tex_idx, EMPTY_UINT32, EMPTY_UINT32, EMPTY_UINT32, EMPTY_UINT32, ground_bump_tex_idx),
 		-1);
 
-	const uint32_t tex_perlin_noise = scene_manager->AddTexture("Noise_0", YumeRT::Texture().InitNoiseTextureMarble(tex_black_idx, tex_white_idx, 2.0f));
+	const uint32_t tex_perlin_noise = scene_manager->AddTexture("Noise_0", YumeRT::Texture().InitNoiseTextureFBM(tex_black_idx, tex_white_idx, 2.0f));
 
 	scene_manager->AddPrimInstance(cube_idx,
 		scene_manager->AddTransform(glm::vec3(5.8f, -2.55f, 5.8f), glm::vec3(4.0f, 4.0f, 4.0f)),
-		scene_manager->AddSurfaceMaterial("extra cube", glm::vec3(0.55f, 0.55f, 0.55f), glm::vec3(0.0f), 0.2, 0.2, 1.3, 0.0f, 0.0f, 0.0f, 0, tex_perlin_noise),
+		scene_manager->AddSurfaceMaterial("extra cube", glm::vec3(0.55f, 0.55f, 0.55f), glm::vec3(0.0f), 0.2, 0.2, 1.3, 0.0f, 0.0f, 0.0f, 0, 
+			EMPTY_UINT32, EMPTY_UINT32, EMPTY_UINT32, EMPTY_UINT32, EMPTY_UINT32, EMPTY_UINT32, EMPTY_UINT32, EMPTY_UINT32, tex_perlin_noise),
 		-1);
 
 	const uint32_t cube_volume = scene_manager->AddVolume("cube volume", scene_manager->AddTransform(), glm::vec3(0.085f), glm::vec3(1.0f), 0.0f, fog_tex);
