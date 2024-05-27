@@ -240,7 +240,7 @@ namespace YumeRT
 
 			std::vector<float> cube_positions = {
 			-0.5f, -0.5f, -0.5f,
-			0.5f,  0.5f, -0.5f,
+			0.5f, 0.5f, -0.5f,
 			0.5f, -0.5f, -0.5f,
 			0.5f,  0.5f, -0.5f,
 			-0.5f, -0.5f, -0.5f,
@@ -361,11 +361,32 @@ namespace YumeRT
 			triangle_mesh.texcoord_idx_offset = append_to_buffer(cube_texcoord_idxs.data(), sizeof(uint32_t) * cube_texcoord_idxs.size());
 
 			std::vector<float> cube_texcoords = {
-			0.0f,  0.0f,
-			1.0f,  1.0f,
+			0.0f,  1.0f,
 			1.0f,  0.0f,
 			1.0f,  1.0f,
+			1.0f,  0.0f,
+			0.0f,  1.0f,
 			0.0f,  0.0f,
+
+			0.0f,  0.0f,
+			1.0f,  0.0f,
+			1.0f,  1.0f,
+			1.0f,  1.0f,
+			0.0f,  1.0f,
+			0.0f,  0.0f,
+
+			1.0f,  0.0f,
+			1.0f,  1.0f,
+			0.0f,  1.0f,
+			0.0f,  1.0f,
+			0.0f,  0.0f,
+			1.0f,  0.0f,
+
+			1.0f,  1.0f,
+			0.0f,  0.0f,
+			1.0f,  0.0f,
+			0.0f,  0.0f,
+			1.0f,  1.0f,
 			0.0f,  1.0f,
 
 			0.0f,  0.0f,
@@ -374,27 +395,6 @@ namespace YumeRT
 			1.0f,  1.0f,
 			0.0f,  1.0f,
 			0.0f,  0.0f,
-
-			1.0f,  0.0f,
-			1.0f,  1.0f,
-			0.0f,  1.0f,
-			0.0f,  1.0f,
-			0.0f,  0.0f,
-			1.0f,  0.0f,
-
-			1.0f,  0.0f,
-			0.0f,  1.0f,
-			1.0f,  1.0f,
-			0.0f,  1.0f,
-			1.0f,  0.0f,
-			0.0f,  0.0f,
-
-			0.0f,  1.0f,
-			1.0f,  1.0f,
-			1.0f,  0.0f,
-			1.0f,  0.0f,
-			0.0f,  0.0f,
-			0.0f,  1.0f,
 
 			0.0f,  1.0f,
 			1.0f,  0.0f,

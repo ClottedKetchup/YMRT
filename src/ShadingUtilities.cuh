@@ -768,28 +768,28 @@ namespace YumeRT
 					+ uv2 * hit_record.hit_barycentric.z;
 
 		float delta_u01 = uv1.x - uv0.x, delta_v01 = uv1.y - uv0.y;
-		float delta_u12 = uv2.x - uv1.x, delta_v12 = uv2.y - uv1.y;
-		float determinant = delta_u01 * delta_v12 - delta_v01 * delta_u12;
+		float delta_u02 = uv2.x - uv0.x, delta_v02 = uv2.y - uv0.y;
+		float determinant = delta_u01 * delta_v02 - delta_v01 * delta_u02;
 		if (glm::abs(determinant) < (float)FLOAT_EPSILON)
 		{
 			delta_u01 = 1.0f, delta_v01 = 0.0f;
-			delta_u12 = 0.0f, delta_v12 = 1.0f;
+			delta_u02 = 0.0f, delta_v02 = 1.0f;
 			determinant = 1.0f;
 		}
 
 		float i_det = 1.0f / determinant;
-		glm::vec3 delta_p01 = p1 - p0, delta_p12 = p2 - p1;
-		*hit_dpdu = (delta_v12 * delta_p01 - delta_v01 * delta_p12) * i_det;
-		*hit_dpdv = (-delta_u12 * delta_p01 + delta_u01 * delta_p12) * i_det;
+		glm::vec3 delta_p01 = p1 - p0, delta_p02 = p2 - p0;
+		*hit_dpdu = (delta_v02 * delta_p01 - delta_v01 * delta_p02) * i_det;
+		*hit_dpdv = (-delta_u02 * delta_p01 + delta_u01 * delta_p02) * i_det;
 
 		if (hit_dndu != nullptr || hit_dndv != nullptr)
 		{
-			glm::vec3 delta_n01 = n1 - n0, delta_n12 = n2 - n1;
+			glm::vec3 delta_n01 = n1 - n0, delta_n02 = n2 - n0;
 			if (hit_dndu != nullptr) { 
-				*hit_dndu = (delta_v12 * delta_n01 - delta_v01 * delta_n12) * i_det; 
+				*hit_dndu = (delta_v02 * delta_n01 - delta_v01 * delta_n02) * i_det;
 			}
 			if (hit_dndv != nullptr) {
-				*hit_dndv = (-delta_u12 * delta_n01 + delta_u01 * delta_n12) * i_det;
+				*hit_dndv = (-delta_u02 * delta_n01 + delta_u01 * delta_n02) * i_det;
 			}
 		}
 	}

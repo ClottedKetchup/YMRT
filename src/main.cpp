@@ -150,7 +150,7 @@ void TestScene_CornellBox(const std::string &exec_path, std::shared_ptr<YumeRT::
 			ground_diffuse_tex_idx, ground_roughness_tex_idx, ground_diffuse_tex_idx, ground_roughness_tex_idx, EMPTY_UINT32, EMPTY_UINT32, EMPTY_UINT32, EMPTY_UINT32, ground_bump_tex_idx),
 		-1);
 
-	const uint32_t tex_perlin_noise = scene_manager->AddTexture("Noise_0", YumeRT::Texture().InitNoiseTextureFBM(tex_black_idx, tex_white_idx, 2.0f));
+	const uint32_t tex_perlin_noise = scene_manager->AddTexture("Noise_0", YumeRT::Texture().InitNoiseTextureMarble(tex_black_idx, tex_white_idx, 2.0f));
 
 	scene_manager->AddPrimInstance(cube_idx,
 		scene_manager->AddTransform(glm::vec3(5.8f, -2.55f, 5.8f), glm::vec3(4.0f, 4.0f, 4.0f)),
