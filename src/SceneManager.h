@@ -905,7 +905,7 @@ namespace YumeRT
 	}
 	inline void SceneManager::InitSobolMatrices()
 	{
-		UPLOAD_TO_GPU(scene.sampler_data.sobol_matrices, sobol_matrices32, sizeof(uint32_t) * 1024u * 32u);
+		UPLOAD_TO_GPU(scene.sampler_data.sobol_matrices, sobol_matrices32, sizeof(uint32_t) * 4096u * 32u);
 	}
 	inline void SceneManager::DestroyResources()
 	{

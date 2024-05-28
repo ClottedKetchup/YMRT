@@ -607,15 +607,16 @@ namespace YumeRT
 															   int pixel_idx,
 															   uint32_t *sobol_matrices): dim_idx(dim_offset), sobol_matrices(sobol_matrices), pixel_idx(pixel_idx)
 		{
-			assert(dim_offset >= 1);
+			// note: zero dimension is all zero!
+			assert(dim_offset >= 1 && sobol_matrices != nullptr);
 			sample_idx = (uint32_t)frame_idx * (uint32_t)pixel_sample_count + (uint32_t)pixel_sample_idx;
 		}
 		__device__ __host__ inline float Random1D()
 		{
 			float s = SobolSample(sample_idx, dim_idx);
 			++dim_idx;
-			if (dim_idx >= 1024) { 
-				printf("sobol: dim index overflow.\n");
+			if (dim_idx >= 4096) { 
+				printf("Sobol: dim index overflow. consider using PCG!\n");
 				dim_idx = 1;
 			}
 			return s;
