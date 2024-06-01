@@ -336,6 +336,8 @@ namespace YumeRT
 		io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 		io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 		
+		// io.ConfigWindowsMoveFromTitleBarOnly = true;
+		
 		ImGui::StyleColorsClassic();
 		ImGuiStyle &imgui_style = ImGui::GetStyle();
 
