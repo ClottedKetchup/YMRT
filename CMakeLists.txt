@@ -29,8 +29,10 @@ source_group("imgui" FILES ${IMGUI_SRC})
 add_executable(${EXE_NAME} ${CPP_SRC} ${CUDA_SRC} ${IMGUI_SRC})
 set_target_properties(${EXE_NAME} PROPERTIES
 					CUDA_SEPARABLE_COMPILATION ON
-					CUDA_ARCHITECTURES "35;50;72"
+					CUDA_ARCHITECTURES native
 					)
+
+
 
 target_include_directories(${EXE_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 target_include_directories(${EXE_NAME} PRIVATE "${PROJECT_SOURCE_DIR}/external/glm")
