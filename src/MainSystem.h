@@ -60,8 +60,6 @@ namespace YumeRT
 		uint32_t screen_height): executable_path(exec_path)
 	{
 		// init cuda GL
-		printf("Cuda and GL context init...\n");
-
 		cudaGLSetGLDevice(0);
 
 		glfwInit();
@@ -70,8 +68,7 @@ namespace YumeRT
 		glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 		window = glfwCreateWindow(screen_width, screen_height, "Yume", nullptr, nullptr);
-		if (window == nullptr)
-		{
+		if (window == nullptr) {
 			glfwTerminate();
 			throw std::runtime_error("Fail to create window");
 		}
@@ -79,8 +76,7 @@ namespace YumeRT
 		glfwMakeContextCurrent(window);
 
 		// load OpenGL
-		if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
-		{
+		if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
 			glfwTerminate();
 			throw std::runtime_error("Fail to initialize GLAD");
 		}
