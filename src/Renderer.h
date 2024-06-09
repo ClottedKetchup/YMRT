@@ -17,14 +17,14 @@
 namespace YumeRT 
 {
 	extern "C" void RenderScene(const Scene &scene, 
-													const ImageTextureManager &image_texture_manager,
-													const RenderSetting &render_setting, 
-													glm::vec4 *image, 
-													uint32_t *prim_idx_buffer, 
-													uint32_t width, 
-													uint32_t height, 
-													int frame_count, 
-													float *render_time);
+												const ImageTextureManager &image_texture_manager,
+												const RenderSetting &render_setting, 
+												glm::vec4 *image, 
+												uint32_t *prim_idx_buffer, 
+												uint32_t width, 
+												uint32_t height, 
+												int frame_count, 
+												float *render_time);
 
 	extern "C" void AccumulateImage(const glm::vec4 *beauty, glm::vec4 *accumulate, uint32_t width, uint32_t height, int frame_count, const RenderSetting &render_setting);
 
@@ -88,14 +88,14 @@ namespace YumeRT
 
 	};
 
-	class Renderer 
+	class RenderModule 
 	{
 	public:
 
-		inline Renderer(const Renderer&) = delete;
-		inline Renderer(const Renderer&&) = delete;
-		inline Renderer& operator=(const Renderer&) = delete;
-		inline Renderer() 
+		inline RenderModule(const RenderModule&) = delete;
+		inline RenderModule(const RenderModule&&) = delete;
+		inline RenderModule& operator=(const RenderModule&) = delete;
+		inline RenderModule() 
 		{
 			printf("Renderer module init...\n");
 			resource_names = { "Beauty","Accumulate" };
@@ -105,7 +105,7 @@ namespace YumeRT
 				resource_map[resource_names[aov_idx]] = aov_idx;
 			}
 		}
-		inline ~Renderer() 
+		inline ~RenderModule() 
 		{
 			printf("Renderer module exit...\n");
 			DestroyResources();

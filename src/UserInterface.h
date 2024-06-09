@@ -84,7 +84,7 @@ namespace YumeRT
 	inline void CursorPosCallback(GLFWwindow* window, double xpos, double ypos);
 	inline void ScrollCallback(GLFWwindow *window, double xoffset, double yoffset);
 
-	class UserInterface
+	class GuiModule
 	{
 	public:
 		friend inline void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
@@ -92,14 +92,14 @@ namespace YumeRT
 		friend inline void CursorPosCallback(GLFWwindow* window, double xpos, double ypos);
 		friend inline void ScrollCallback(GLFWwindow *window, double xoffset, double yoffset);
 
-		inline UserInterface(const UserInterface&) = delete;
-		inline UserInterface(const UserInterface&&) = delete;
-		inline UserInterface& operator=(const UserInterface&) = delete;
-		inline UserInterface(GLFWwindow *window,
+		inline GuiModule(const GuiModule&) = delete;
+		inline GuiModule(const GuiModule&&) = delete;
+		inline GuiModule& operator=(const GuiModule&) = delete;
+		inline GuiModule(GLFWwindow *window,
 			uint32_t width,
 			uint32_t height,
-			std::shared_ptr<Renderer> & ptr_renderer,
-			std::shared_ptr<SceneManager> & ptr_scene_manager) :
+			std::shared_ptr<RenderModule> & ptr_renderer,
+			std::shared_ptr<SceneModule> & ptr_scene_manager) :
 			rt_renderer(ptr_renderer), scene_manager(ptr_scene_manager), m_width(width), m_height(height) 
 		{
 			printf("Gui module init...\n");
@@ -107,7 +107,7 @@ namespace YumeRT
 			SetCallBack(window);
 			InitUI(window);
 		}
-		inline ~UserInterface() 
+		inline ~GuiModule() 
 		{
 			printf("Gui module exit...\n");
 			DestroyResources();
@@ -149,8 +149,8 @@ namespace YumeRT
 	private:
 		
 		Trackball trackball;
-		std::shared_ptr<Renderer> rt_renderer = nullptr;
-		std::shared_ptr<SceneManager> scene_manager = nullptr;
+		std::shared_ptr<RenderModule> rt_renderer = nullptr;
+		std::shared_ptr<SceneModule> scene_manager = nullptr;
 		uint32_t m_width = 0;
 		uint32_t m_height = 0;
 		uint32_t m_display_aov_idx = 0;
@@ -198,7 +198,7 @@ namespace YumeRT
 
 	inline void FramebufferSizeCallback(GLFWwindow* window, int width, int height)
 	{
-		UserInterface &user_interface = *((UserInterface*)glfwGetWindowUserPointer(window));
+		GuiModule &user_interface = *((GuiModule*)glfwGetWindowUserPointer(window));
 
 		user_interface.m_width = glm::max(width, 1);
 		user_interface.m_height = glm::max(height, 1);
@@ -210,7 +210,7 @@ namespace YumeRT
 		double x_pos, y_pos;
 		glfwGetCursorPos(window, &x_pos, &y_pos);
 
-		UserInterface &user_interface = *((UserInterface*)glfwGetWindowUserPointer(window));
+		GuiModule &user_interface = *((GuiModule*)glfwGetWindowUserPointer(window));
 
 		if (button == GLFW_MOUSE_BUTTON_LEFT)
 		{
@@ -244,7 +244,7 @@ namespace YumeRT
 
 	inline void CursorPosCallback(GLFWwindow * window, double xpos, double ypos)
 	{
-		UserInterface &user_interface = *((UserInterface*)glfwGetWindowUserPointer(window));
+		GuiModule &user_interface = *((GuiModule*)glfwGetWindowUserPointer(window));
 
 		if (user_interface.m_mouse_on_GUI)
 		{
@@ -280,7 +280,7 @@ namespace YumeRT
 
 	inline void ScrollCallback(GLFWwindow * window, double xoffset, double yoffset)
 	{
-		UserInterface &user_interface = *((UserInterface*)glfwGetWindowUserPointer(window));
+		GuiModule &user_interface = *((GuiModule*)glfwGetWindowUserPointer(window));
 
 		if (user_interface.m_lock_camera) { return; }
 		float fov = user_interface.trackball.camera.GetFov();
@@ -288,14 +288,14 @@ namespace YumeRT
 		user_interface.trackball.camera.SetFov(glm::clamp(fov, glm::radians(1.0f), glm::radians(90.0f)));
 	}
 
-	inline void UserInterface::DestroyResources()
+	inline void GuiModule::DestroyResources()
 	{
 		ExitUI();
 		rt_renderer = nullptr;
 		scene_manager = nullptr;
 	}
 
-	inline void UserInterface::SetCallBack(GLFWwindow *window)
+	inline void GuiModule::SetCallBack(GLFWwindow *window)
 	{
 		glfwSetFramebufferSizeCallback(window, FramebufferSizeCallback);
 		glfwSetMouseButtonCallback(window, MouseButtonCallback);
@@ -303,7 +303,7 @@ namespace YumeRT
 		glfwSetScrollCallback(window, ScrollCallback);
 	}
 
-	inline void UserInterface::ProcessInput(GLFWwindow * window)
+	inline void GuiModule::ProcessInput(GLFWwindow * window)
 	{
 		if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
 		{
@@ -327,7 +327,7 @@ namespace YumeRT
 		}
 	}
 
-	inline void UserInterface::InitUI(GLFWwindow *window)
+	inline void GuiModule::InitUI(GLFWwindow *window)
 	{
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
@@ -394,7 +394,7 @@ namespace YumeRT
 		ImGui_ImplOpenGL3_Init("#version 450");
 	}
 
-	inline void UserInterface::RenderOverlay()
+	inline void GuiModule::RenderOverlay()
 	{
 		// TODO: you should maintain each windows' size and pos?
 
@@ -421,7 +421,7 @@ namespace YumeRT
 		ImGui::End();
 	}
 
-	inline void UserInterface::RenderRTMenu()
+	inline void GuiModule::RenderRTMenu()
 	{
 		if (!m_show_render_menu) { return; }
 		ImGui::Begin("Render Setting");
@@ -503,7 +503,7 @@ namespace YumeRT
 		ImGui::End();
 	}
 
-	inline void UserInterface::RenderCameraMenu()
+	inline void GuiModule::RenderCameraMenu()
 	{
 		if (!m_show_camera_menu) { return; }
 		ImGui::Begin("Camera Setting");
@@ -515,7 +515,7 @@ namespace YumeRT
 		ImGui::End();
 	}
 
-	inline void UserInterface::RenderGeometryList()
+	inline void GuiModule::RenderGeometryList()
 	{
 		if (!m_show_geometry_list) { return; }
 		ImGui::Begin("Geometry List");
@@ -619,7 +619,7 @@ namespace YumeRT
 		ImGui::End();
 	}
 
-	inline void UserInterface::RenderMaterialList()
+	inline void GuiModule::RenderMaterialList()
 	{
 		if (!m_show_material_list) { return; }
 		ImGui::Begin("Material List");
@@ -798,7 +798,7 @@ namespace YumeRT
 		ImGui::End();
 	}
 
-	inline void UserInterface::RenderLightList()
+	inline void GuiModule::RenderLightList()
 	{
 		if (!m_show_light_menu) { return; }
 		ImGui::Begin("Light List");
@@ -891,7 +891,7 @@ namespace YumeRT
 		ImGui::End();
 	}
 
-	inline void UserInterface::RenderVolumeList()
+	inline void GuiModule::RenderVolumeList()
 	{
 		if (!m_show_volume_menu) { return; }
 		ImGui::Begin("Volume List");
@@ -995,7 +995,7 @@ namespace YumeRT
 		ImGui::End();
 	}
 
-	inline void UserInterface::RenderTextureMenu()
+	inline void GuiModule::RenderTextureMenu()
 	{
 		if (!m_show_texture_menu) { return; }
 		ImGui::Begin("Texture List");
@@ -1403,7 +1403,7 @@ namespace YumeRT
 		ImGui::End();
 	}
 
-	inline void UserInterface::RenderInstanceMenu()
+	inline void GuiModule::RenderInstanceMenu()
 	{
 		if (!m_show_move_control_menu) { return; }
 		ImGui::Begin("Control Menu");
@@ -1619,7 +1619,7 @@ namespace YumeRT
 		ImGui::End();
 	}
 
-	inline void UserInterface::RenderMainMenu()
+	inline void GuiModule::RenderMainMenu()
 	{
 		const ImGuiViewport *viewport = ImGui::GetMainViewport();
 		ImVec2 workPos = viewport->WorkPos;
@@ -1696,14 +1696,14 @@ namespace YumeRT
 		ImGui::End();
 	}
 
-	inline void UserInterface::ExitUI()
+	inline void GuiModule::ExitUI()
 	{
 		ImGui_ImplOpenGL3_Shutdown();
 		ImGui_ImplGlfw_Shutdown();
 		ImGui::DestroyContext();
 	}
 
-	inline void UserInterface::RenderUI()
+	inline void GuiModule::RenderUI()
 	{
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplGlfw_NewFrame();

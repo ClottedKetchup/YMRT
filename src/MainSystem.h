@@ -28,14 +28,14 @@ namespace YumeRT
 
 		inline ~MainSystem()
 		{
-			user_interface = nullptr, rt_renderer = nullptr, scene_manager = nullptr;
+			module_gui = nullptr, module_render = nullptr, module_scene = nullptr;
 
 			printf("Cuda and GL context exit...\n");
 			glfwDestroyWindow(window);
 			glfwTerminate();
 		}
 
-		inline std::shared_ptr<SceneManager> GetSceneManager() { return scene_manager; }
+		inline std::shared_ptr<SceneModule> GetSceneManager() { return module_scene; }
 
 		inline void Run();
 
@@ -46,9 +46,9 @@ namespace YumeRT
 		GLShader shader;
 		GLVertexArray empty_VAO;
 		
-		std::shared_ptr<SceneManager> scene_manager = nullptr;
-		std::shared_ptr<UserInterface> user_interface = nullptr;
-		std::shared_ptr<Renderer> rt_renderer = nullptr;
+		std::shared_ptr<SceneModule> module_scene = nullptr;
+		std::shared_ptr<GuiModule> module_gui = nullptr;
+		std::shared_ptr<RenderModule> module_render = nullptr;
 
 		inline MainSystem(const std::string &exec_path,
 			uint32_t screen_width,
@@ -90,55 +90,55 @@ namespace YumeRT
 		// init an empty vertex array
 		empty_VAO.InitVAO();
 
-		scene_manager = std::shared_ptr<SceneManager>(new SceneManager());
-		rt_renderer = std::shared_ptr<Renderer>(new Renderer());
-		user_interface = std::shared_ptr<UserInterface>(new UserInterface(window, screen_width, screen_height, rt_renderer, scene_manager));
+		module_scene = std::shared_ptr<SceneModule>(new SceneModule());
+		module_render = std::shared_ptr<RenderModule>(new RenderModule());
+		module_gui = std::shared_ptr<GuiModule>(new GuiModule(window, screen_width, screen_height, module_render, module_scene));
 	}
 
 	inline void MainSystem::Run()
 	{
 		printf("Begin main loop...\n");
 		// first upload the scene resource
-		scene_manager->UploadSceneSetting();
+		module_scene->UploadSceneSetting();
 		// past scene setting to ui interface
-		user_interface->SetCamera(scene_manager->GetCamera());
+		module_gui->SetCamera(module_scene->GetCamera());
 
 		while (!glfwWindowShouldClose(window))
 		{
 			const float current_time = glfwGetTime();
-			const uint32_t current_width = user_interface->GetWidth();
-			const uint32_t current_height = user_interface->GetHeight();
-			if (rt_renderer->GetWidth() != current_width || rt_renderer->GetHeight() != current_height)
+			const uint32_t current_width = module_gui->GetWidth();
+			const uint32_t current_height = module_gui->GetHeight();
+			if (module_render->GetWidth() != current_width || module_render->GetHeight() != current_height)
 			{
-				rt_renderer->SetRenderSettingChange(true);
-				rt_renderer->SetWidth(current_width);
-				rt_renderer->SetHeight(current_height);
-				rt_renderer->DestroyResources();
-				rt_renderer->PrepareResources();
+				module_render->SetRenderSettingChange(true);
+				module_render->SetWidth(current_width);
+				module_render->SetHeight(current_height);
+				module_render->DestroyResources();
+				module_render->PrepareResources();
 			}
 
-			user_interface->ProcessInput(window);
+			module_gui->ProcessInput(window);
 
 			glViewport(0, 0, current_width, current_height);
 			glClearColor(0.f, 0.f, 0.f, 1.f);
 			glClear(GL_COLOR_BUFFER_BIT);
 
-			uint32_t display_aov_idx = user_interface->GetDisplayAovIdx();
-			uint32_t highlight_prim_idx = user_interface->GetSelectedPrimIdx();
+			uint32_t display_aov_idx = module_gui->GetDisplayAovIdx();
+			uint32_t highlight_prim_idx = module_gui->GetSelectedPrimIdx();
 
-			bool last_frame_scene_change = scene_manager->IsSceneChange();
-			scene_manager->UpdateScene(user_interface->GetCamera(), &highlight_prim_idx);
-			user_interface->SetSelectedPrimIdx(highlight_prim_idx);
-			rt_renderer->Render(scene_manager->GetScene(), scene_manager->GetImageTextureManager(), last_frame_scene_change);
+			bool last_frame_scene_change = module_scene->IsSceneChange();
+			module_scene->UpdateScene(module_gui->GetCamera(), &highlight_prim_idx);
+			module_gui->SetSelectedPrimIdx(highlight_prim_idx);
+			module_render->Render(module_scene->GetScene(), module_scene->GetImageTextureManager(), last_frame_scene_change);
 
 			shader.Use();
 			empty_VAO.Bind();
-			glBindTextureUnit(0, rt_renderer->SetDisplayAov(display_aov_idx, highlight_prim_idx));
+			glBindTextureUnit(0, module_render->SetDisplayAov(display_aov_idx, highlight_prim_idx));
 			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 			empty_VAO.UnBind();
 
 
-			user_interface->RenderUI();
+			module_gui->RenderUI();
 
 			glfwSwapBuffers(window);
 			glfwPollEvents();

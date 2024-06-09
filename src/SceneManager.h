@@ -85,19 +85,19 @@ namespace YumeRT
 		TEXTURE_CHANGE = (1 << 20)
 	};
 
-	class SceneManager
+	class SceneModule
 	{
 	public:
-		inline SceneManager(const SceneManager&) = delete;
-		inline SceneManager(const SceneManager&&) = delete;
-		inline SceneManager& operator=(const SceneManager&) = delete;
-		inline SceneManager() 
+		inline SceneModule(const SceneModule&) = delete;
+		inline SceneModule(const SceneModule&&) = delete;
+		inline SceneModule& operator=(const SceneModule&) = delete;
+		inline SceneModule() 
 		{
 			printf("SceneManager module init...\n");
 			InitHaltonPermuteTable();
 			InitSobolMatrices();
 		}
-		inline ~SceneManager() 
+		inline ~SceneModule() 
 		{
 			printf("SceneManager module exit...\n");
 			DestroyResources();
@@ -318,7 +318,7 @@ namespace YumeRT
 		inline void InitSobolMatrices();
 	};
 
-	inline uint32_t SceneManager::AddGeometry(const std::string &name, const GeometryData& geometry)
+	inline uint32_t SceneModule::AddGeometry(const std::string &name, const GeometryData& geometry)
 	{
 		// add a shape
 		geometries.push_back(geometry);
@@ -330,7 +330,7 @@ namespace YumeRT
 		AddSceneFlag(SCENECHANGE_FLAG::GEOMETRY_ADD);
 		return (uint32_t)geometries.size() - 1;
 	}
-	inline uint32_t SceneManager::RemoveGeometry(uint32_t geometry_idx)
+	inline uint32_t SceneModule::RemoveGeometry(uint32_t geometry_idx)
 	{
 		if (geometries.empty()) { return EMPTY_UINT32; }
 		if (geometry_idx >(uint32_t)geometries.size() - 1) { return EMPTY_UINT32; }
@@ -376,7 +376,7 @@ namespace YumeRT
 		return 0;
 	}
 
-	inline uint32_t SceneManager::AddTransform(const glm::vec3 &T, const glm::vec3 &S, const glm::vec3 &R)
+	inline uint32_t SceneModule::AddTransform(const glm::vec3 &T, const glm::vec3 &S, const glm::vec3 &R)
 	{
 		TransformState transform_state;
 		transform_state.T = T;
@@ -390,7 +390,7 @@ namespace YumeRT
 		AddSceneFlag(SCENECHANGE_FLAG::TRANSFORM_ADD);
 		return (uint32_t)transform_states.size() - 1;
 	}
-	inline void SceneManager::UpdatePrimTransform(uint32_t prim_idx)
+	inline void SceneModule::UpdatePrimTransform(uint32_t prim_idx)
 	{
 		if (prim_instances.empty() || transform_states.empty()) { return; }
 		if (prim_idx >(uint32_t)prim_instances.size() - 1) { return; }
@@ -411,7 +411,7 @@ namespace YumeRT
 
 		AddSceneFlag(SCENECHANGE_FLAG::INSTANCE_MOVE);
 	}
-	inline void SceneManager::UpdateDistantLightTransform(uint32_t selected_light_idx)
+	inline void SceneModule::UpdateDistantLightTransform(uint32_t selected_light_idx)
 	{
 		if (distant_lights.empty() || transform_states.empty()) { return; }
 		if (selected_light_idx > (uint32_t)distant_lights.size() - 1) { return; }
@@ -428,7 +428,7 @@ namespace YumeRT
 
 		AddSceneFlag(SCENECHANGE_FLAG::DISTANT_LIGHT_CHANGE);
 	}
-	inline void SceneManager::UpdateVolumeTransform(uint32_t selected_volume_idx)
+	inline void SceneModule::UpdateVolumeTransform(uint32_t selected_volume_idx)
 	{
 		if (volumes.empty() || transform_states.empty()) { return; }
 		if (selected_volume_idx > (uint32_t)volumes.size() - 1) { return; }
@@ -446,7 +446,7 @@ namespace YumeRT
 		AddSceneFlag(SCENECHANGE_FLAG::VOLUME_CHANGE);
 	}
 
-	inline uint32_t SceneManager::AddPrimInstance(uint32_t geometry_idx, uint32_t transform_idx, uint32_t material_idx, int inner_volume_idx, bool treat_as_boundary)
+	inline uint32_t SceneModule::AddPrimInstance(uint32_t geometry_idx, uint32_t transform_idx, uint32_t material_idx, int inner_volume_idx, bool treat_as_boundary)
 	{
 		assert(geometry_idx >= 0 && geometry_idx < geometries.size());
 		assert(material_idx >= 0 && material_idx < materials.size());
@@ -464,7 +464,7 @@ namespace YumeRT
 		AddSceneFlag(SCENECHANGE_FLAG::INSTANCE_ADD);
 		return (uint32_t)prim_instances.size() - 1;
 	}
-	inline uint32_t SceneManager::RemovePrimInstance(uint32_t selected_prim_idx)
+	inline uint32_t SceneModule::RemovePrimInstance(uint32_t selected_prim_idx)
 	{
 		if (prim_instances.empty()) { return EMPTY_UINT32; }
 		if (selected_prim_idx >(uint32_t)prim_instances.size() - 1) { return EMPTY_UINT32; }
@@ -493,7 +493,7 @@ namespace YumeRT
 		// give the first element back
 		return 0;
 	}
-	inline void SceneManager::UpdatePrimVolume(uint32_t selected_prim_idx)
+	inline void SceneModule::UpdatePrimVolume(uint32_t selected_prim_idx)
 	{
 		if (prim_instances.empty() || 
 			selected_prim_idx > (uint32_t)prim_instances.size() - 1) { 
@@ -508,7 +508,7 @@ namespace YumeRT
 	}
 
 	// TODO: Material add, remove ,edit...
-	inline uint32_t SceneManager::AddLightMaterial(const std::string &name, const glm::vec3 &light_color, float intensity)
+	inline uint32_t SceneModule::AddLightMaterial(const std::string &name, const glm::vec3 &light_color, float intensity)
 	{
 		materials.push_back(Material().InitLightMtl(light_color, intensity));
 		material_names.push_back(name);
@@ -517,7 +517,7 @@ namespace YumeRT
 		AddSceneFlag(SCENECHANGE_FLAG::MATERIAL_ADD);
 		return (uint32_t)materials.size() - 1;
 	}
-	inline uint32_t SceneManager::AddSurfaceMaterial(const std::string &name,
+	inline uint32_t SceneModule::AddSurfaceMaterial(const std::string &name,
 																				const glm::vec3 &diffuse_albedo,
 																				const glm::vec3 &specular_albedo,
 																				float roughness_x,
@@ -562,7 +562,7 @@ namespace YumeRT
 		AddSceneFlag(SCENECHANGE_FLAG::MATERIAL_ADD);
 		return (uint32_t)materials.size() - 1;
 	}
-	inline uint32_t SceneManager::RemoveMaterial(uint32_t material_idx)
+	inline uint32_t SceneModule::RemoveMaterial(uint32_t material_idx)
 	{
 		if (materials.empty()) { return EMPTY_UINT32; }
 		if (material_idx < 0 || material_idx >(uint32_t)materials.size() - 1) { return EMPTY_UINT32; }
@@ -611,7 +611,7 @@ namespace YumeRT
 
 		return materials.empty()? EMPTY_UINT32: 0;
 	}
-	inline void SceneManager::UpdateMaterial(uint32_t material_idx)
+	inline void SceneModule::UpdateMaterial(uint32_t material_idx)
 	{
 		if (materials.empty()) { return; }
 		if (material_idx >(uint32_t)materials.size() - 1) { return; }
@@ -630,7 +630,7 @@ namespace YumeRT
 			}
 		}
 	}
-	inline void SceneManager::AssignMaterialToPrim(uint32_t prim_idx, uint32_t material_idx)
+	inline void SceneModule::AssignMaterialToPrim(uint32_t prim_idx, uint32_t material_idx)
 	{
 		if (materials.empty() || prim_instances.empty()) { return; }
 		if (prim_idx >(uint32_t)prim_instances.size() - 1) { return; }
@@ -655,7 +655,7 @@ namespace YumeRT
 	}
 
 	// TODO : distant light gui
-	inline uint32_t SceneManager::AddDistantLight(const std::string &name, uint32_t transform_idx, 
+	inline uint32_t SceneModule::AddDistantLight(const std::string &name, uint32_t transform_idx, 
 		const glm::vec3 &light_color , float intensity, float theta_max)
 	{
 		DistantLight light;
@@ -676,7 +676,7 @@ namespace YumeRT
 		AddSceneFlag(SCENECHANGE_FLAG::DISTANT_LIGHT_ADD_REMOVE);
 		return (uint32_t)distant_lights.size() - 1;
 	}
-	inline uint32_t SceneManager::RemoveDistantLight(uint32_t light_idx)
+	inline uint32_t SceneModule::RemoveDistantLight(uint32_t light_idx)
 	{
 		if (distant_lights.empty()) { return EMPTY_UINT32; }
 		if (light_idx >(uint32_t)distant_lights.size() - 1) { return EMPTY_UINT32; }
@@ -691,7 +691,7 @@ namespace YumeRT
 
 		return distant_lights.empty() ? EMPTY_UINT32 : 0;
 	}
-	inline void SceneManager::UpdateDistantLight(uint32_t distant_light_idx)
+	inline void SceneModule::UpdateDistantLight(uint32_t distant_light_idx)
 	{
 		if (distant_lights.empty()) { return; }
 		if (distant_light_idx >(uint32_t)distant_lights.size() - 1) { return; }
@@ -703,7 +703,7 @@ namespace YumeRT
 		AddSceneFlag(SCENECHANGE_FLAG::DISTANT_LIGHT_CHANGE);
 	}
 	
-	inline void SceneManager::LoadShapeLights()
+	inline void SceneModule::LoadShapeLights()
 	{
 		// delete last info
 		shape_lights.clear();
@@ -790,7 +790,7 @@ namespace YumeRT
 	}
 
 	// TODO: volume GUI
-	inline uint32_t SceneManager::AddVolume(const std::string &name, uint32_t transform_idx,
+	inline uint32_t SceneModule::AddVolume(const std::string &name, uint32_t transform_idx,
 		const glm::vec3 &sigma_t, const glm::vec3 &albedo, float g, int density_texture_idx)
 	{
 		Volume volume;
@@ -809,7 +809,7 @@ namespace YumeRT
 		AddSceneFlag(VOLUME_ADD_REMOVE);
 		return (uint32_t)volumes.size() - 1;
 	}
-	inline uint32_t SceneManager::RemoveVolume(uint32_t volume_idx)
+	inline uint32_t SceneModule::RemoveVolume(uint32_t volume_idx)
 	{
 		if (volumes.empty()) { return EMPTY_UINT32; }
 		if (volume_idx > (uint32_t)volumes.size() - 1) { return EMPTY_UINT32; }
@@ -825,7 +825,7 @@ namespace YumeRT
 
 		return volumes.empty() ? EMPTY_UINT32 : 0;
 	}
-	inline void SceneManager::UpdateVolume(uint32_t volume_idx)
+	inline void SceneModule::UpdateVolume(uint32_t volume_idx)
 	{
 		if (volumes.empty()) { return; }
 		if (volume_idx > (uint32_t)volumes.size() - 1) { return; }
@@ -838,7 +838,7 @@ namespace YumeRT
 	}
 
 	// TODO: texture GUI
-	inline uint32_t SceneManager::AddTexture(const std::string &name, const Texture& texture)
+	inline uint32_t SceneModule::AddTexture(const std::string &name, const Texture& texture)
 	{
 		textures.push_back(texture);
 		texture_names.push_back(name);
@@ -846,7 +846,7 @@ namespace YumeRT
 		AddSceneFlag(SCENECHANGE_FLAG::TEXTURE_ADD_REMOVE);
 		return (uint32_t)textures.size() - 1;
 	}
-	inline void SceneManager::UpdateTexture(uint32_t texture_idx)
+	inline void SceneModule::UpdateTexture(uint32_t texture_idx)
 	{
 		if (textures.empty()) { return; }
 		if (texture_idx > (uint32_t)textures.size() - 1) { return; }
@@ -858,7 +858,7 @@ namespace YumeRT
 		AddSceneFlag(SCENECHANGE_FLAG::TEXTURE_CHANGE);
 	}
 
-	inline void SceneManager::InitHaltonPermuteTable()
+	inline void SceneModule::InitHaltonPermuteTable()
 	{
 		size_t total_permutes = 0;
 		for (uint32_t i = 0; i < prime_count; ++i) { total_permutes += primes[i]; }
@@ -903,11 +903,11 @@ namespace YumeRT
 
 		UPLOAD_TO_GPU(scene.sampler_data.halton_permute_table, permute_table.data(), sizeof(uint32_t) * permute_table.size());
 	}
-	inline void SceneManager::InitSobolMatrices()
+	inline void SceneModule::InitSobolMatrices()
 	{
 		UPLOAD_TO_GPU(scene.sampler_data.sobol_matrices, sobol_matrices32, sizeof(uint32_t) * 4096u * 32u);
 	}
-	inline void SceneManager::DestroyResources()
+	inline void SceneModule::DestroyResources()
 	{
 		FREE_GPU_RESOURCE(scene.camera);
 
@@ -963,7 +963,7 @@ namespace YumeRT
 		assert(scene.sampler_data.sobol_matrices == nullptr);
 	}
 
-	inline Scene SceneManager::GetHostSceneData() 
+	inline Scene SceneModule::GetHostSceneData() 
 	{
 		Scene scene;
 
@@ -1002,7 +1002,7 @@ namespace YumeRT
 		return scene;
 	}
 
-	inline void SceneManager::UploadSceneSetting()
+	inline void SceneModule::UploadSceneSetting()
 	{
 		for (auto& geometry : geometries)
 		{
@@ -1052,7 +1052,7 @@ namespace YumeRT
 
 		ResetSceneFlag();
 	}
-	inline void SceneManager::UpdateScene(const Camera &cam, uint32_t *highlight_prim_idx)
+	inline void SceneModule::UpdateScene(const Camera &cam, uint32_t *highlight_prim_idx)
 	{
 		// handle transform compact
 		ClearInvaildTransform();
@@ -1172,7 +1172,7 @@ namespace YumeRT
 		CUDA_CHECK(cudaDeviceSynchronize());
 		ResetSceneFlag();
 	}
-	inline void SceneManager::ClearInvaildTransform()
+	inline void SceneModule::ClearInvaildTransform()
 	{
 		// batch update...
 		// TODO: handle distantlight's clear

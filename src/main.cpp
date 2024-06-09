@@ -7,7 +7,7 @@
 #include "MathCommon.h"
 #include "FileIO.h"
 
-void TestScene_CornellBox(const std::string &exec_path, std::shared_ptr<YumeRT::SceneManager> scene_manager, int screen_width, int screen_height)
+void TestScene_CornellBox(const std::string &exec_path, std::shared_ptr<YumeRT::SceneModule> scene_manager, int screen_width, int screen_height)
 {
 	YumeRT::GeometryData test_geo;
 	test_geo.InitCube();
