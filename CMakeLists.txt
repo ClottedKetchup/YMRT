@@ -13,6 +13,11 @@ file(GLOB CPP_SRC
 	"src/*.cpp"
 )
 
+file(GLOB CORE_SRC 
+	"src/core/*.h"
+	"src/core/*.cpp"
+)
+
 file(GLOB CUDA_SRC
 	"src/*.cu"
 	"src/*.cuh"
@@ -25,8 +30,9 @@ file(GLOB IMGUI_SRC
 
 source_group("CUDA" FILES ${CUDA_SRC})
 source_group("imgui" FILES ${IMGUI_SRC})
+source_group("core" FILES ${CORE_SRC})
 
-add_executable(${EXE_NAME} ${CPP_SRC} ${CUDA_SRC} ${IMGUI_SRC})
+add_executable(${EXE_NAME} ${CPP_SRC} ${CUDA_SRC} ${IMGUI_SRC} ${CORE_SRC})
 set_target_properties(${EXE_NAME} PROPERTIES
 					CUDA_SEPARABLE_COMPILATION ON
 					CUDA_ARCHITECTURES native
@@ -39,9 +45,7 @@ target_include_directories(${EXE_NAME} PRIVATE "${PROJECT_SOURCE_DIR}/external/g
 target_include_directories(${EXE_NAME} PRIVATE "${PROJECT_SOURCE_DIR}/external/assimp-5.1.0/include")
 target_include_directories(${EXE_NAME} PRIVATE "${PROJECT_SOURCE_DIR}/external/imgui")
 target_include_directories(${EXE_NAME} PRIVATE "${PROJECT_SOURCE_DIR}/external/image_lib")
-
-
-
+target_include_directories(${EXE_NAME} PRIVATE "${PROJECT_SOURCE_DIR}/src")
 
 set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 

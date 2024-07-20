@@ -968,25 +968,22 @@ namespace YumeRT
 		int idy = blockIdx.y * blockDim.y + threadIdx.y;
 		if (idx < width && idy < height)
 		{
-			auto get_pixel_idx = [](int x, int y, int width, int height)->uint32_t
-			{
+			auto get_pixel_idx = [](int x, int y, int width, int height)->uint32_t {
 				return y * width + x;
 			};
-			auto gamma_correction = [&](const glm::vec3 &col)->glm::vec3
-			{
+			auto gamma_correction = [&](const glm::vec3& col)->glm::vec3 {
 				return glm::pow(col, glm::vec3(1.0f / render_setting.gamma));
 			};
 
 			auto aces_tonemapping = [&](glm::vec3 col, float exposure)->glm::vec3 
 			{
-				const float A = 2.51f;
-				const float B = 0.03f;
-				const float C = 2.43f;
-				const float D = 0.59f;
-				const float E = 0.14f;
-
+				const float a = 2.51f;
+				const float b = 0.03f;
+				const float c = 2.43f;
+				const float d = 0.59f;
+				const float e = 0.14f;
 				col *= exposure;
-				return (col * (A * col + B)) / (col * (C * col + D) + E);
+				return (col * (a * col + b)) / (col * (c * col + d) + e);
 			};
 
 			uint32_t pixel_idx = get_pixel_idx(idx, idy, width, height);
@@ -1024,5 +1021,75 @@ namespace YumeRT
 			CUDA_CHECK(cudaLaunchKernel((void*)GammaCorrection, grid_dim, block_dim, args, 0, 0));
 			CUDA_CHECK(cudaStreamSynchronize(0));
 		}
+	}
+
+	__global__ void ImguiTestDrawing(const Scene *scene, glm::vec4 *beauty, const int width, const int height)
+	{
+		const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+		const int idy = blockIdx.y * blockDim.y + threadIdx.y;
+		if (idx < width && idy < height) 
+		{
+			const uint32_t pixel_idx = idy * width + idx;
+			float ndc_x = float(idx) / float(width);
+			float ndc_y = float(idy) / float(height);
+			
+			Ray ray = scene->camera[EDITOR_CAMERA_INDEX].GenerateRay(ndc_x, ndc_y);
+			beauty[pixel_idx] = glm::vec4(Background(ray.direction), 1.0f);
+		}
+	}
+
+	extern "C" void ImguiTestingAov(const Scene &scene, glm::vec4 *beauty, int width, int height, cudaStream_t &stream)
+	{
+		Scene *scene_device = nullptr;
+		// answer to whether can use pinned memory: https://forums.developer.nvidia.com/t/does-cudamemcpyasync-require-pinned-memory/40411/2.
+		CUDA_CHECK(cudaMallocAsync(&scene_device, sizeof(Scene), stream));
+		CUDA_CHECK(cudaMemcpyAsync(scene_device, &scene, sizeof(Scene), cudaMemcpyHostToDevice, stream));
+
+		dim3 block_dim(32, 32, 1);
+		dim3 grid_dim(Round_Block_Count(width, block_dim.x), Round_Block_Count(height, block_dim.y), 1);
+
+		void* args[] = { &scene_device,
+								 &beauty,
+								 &width,
+								 &height };
+		CUDA_CHECK(cudaLaunchKernel((void*)ImguiTestDrawing, grid_dim, block_dim, args, 0, stream));
+		CUDA_CHECK(cudaStreamSynchronize(stream));
+
+		FREE_GPU_RESOURCE(scene_device);
+	}
+
+	__global__ void ImguiTestPathTracing(const Scene *scene, glm::vec4 *beauty, const int width, const int height)
+	{
+		const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+		const int idy = blockIdx.y * blockDim.y + threadIdx.y;
+		if (idx < width && idy < height)
+		{
+			const uint32_t pixel_idx = idy * width + idx;
+			float ndc_x = float(idx) / float(width);
+			float ndc_y = float(idy) / float(height);
+			Ray ray = scene->camera[RENDERING_CAMERA_INDEX].GenerateRay(ndc_x, ndc_y);
+			beauty[pixel_idx] = glm::vec4(Background(ray.direction), 1.0f);
+		}
+	}
+
+
+	extern "C" void ImguiTestingRendering(const Scene &scene, glm::vec4 *beauty, int width, int height, cudaStream_t &stream)
+	{
+		Scene *scene_device = nullptr;
+		// answer to whether can use pinned memory: https://forums.developer.nvidia.com/t/does-cudamemcpyasync-require-pinned-memory/40411/2.
+		CUDA_CHECK(cudaMallocAsync(&scene_device, sizeof(Scene), stream));
+		CUDA_CHECK(cudaMemcpyAsync(scene_device, &scene, sizeof(Scene), cudaMemcpyHostToDevice, stream));
+
+		dim3 block_dim(32, 32, 1);
+		dim3 grid_dim(Round_Block_Count(width, block_dim.x), Round_Block_Count(height, block_dim.y), 1);
+
+		void* args[] = { &scene_device,
+								 &beauty,
+								 &width,
+								 &height };
+		CUDA_CHECK(cudaLaunchKernel((void*)ImguiTestPathTracing, grid_dim, block_dim, args, 0, stream));
+		CUDA_CHECK(cudaStreamSynchronize(stream));
+
+		FREE_GPU_RESOURCE(scene_device);
 	}
 };

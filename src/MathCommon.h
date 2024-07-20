@@ -145,6 +145,38 @@ namespace YumeRT
 		 return (double)v0.x * (double)v1.x + (double)v0.y * (double)v1.y + (double)v0.z * (double)v1.z;
 	 }
 
+	 __device__ __host__ inline void DoubleCross(const glm::vec3& v0, const glm::vec3& v1, double result[]) {
+		 result[0] = (double)v0.y * (double)v1.z - (double)v0.z * (double)v1.y;
+		 result[1] = -((double)v0.x * (double)v1.z - (double)v0.z * (double)v1.x);
+		 result[2] = (double)v0.x * (double)v1.y - (double)v0.y * (double)v1.x;
+	 }
+
+	 //! Computes a * b - c * d with at most 1.5 ulps of error in the result. See
+//! https://pharr.org/matt/blog/2019/11/03/difference-of-floats.html or
+//! Claude-Pierre Jeannerod, Nicolas Louvet and Jean-Michel Muller, 2013,
+//! Further analysis of Kahan's algorithm for the accurate computation of 2x2
+//! determinants, AMS Mathematics of Computation 82:284,
+//! https://doi.org/10.1090/S0025-5718-2013-02679-8
+	 __device__ __host__ inline float Kahan(float a, float b, float c, float d) {
+		 // Uncomment the line below to improve efficiency but reduce accuracy
+		 // return a * b - c * d;
+		 float cd = c * d;
+		 float error = fma(c, d, -cd);
+		 float result = fma(a, b, -cd);
+		 return result - error;
+	 }
+
+
+	 //! Implements a cross product using Kahan's algorithm for every single entry,
+	 //! i.e. the error in each output entry is at most 1.5 ulps
+	 __device__ __host__ inline glm::vec3 CrossStable(glm::vec3 lhs, glm::vec3 rhs) {
+		 return glm::vec3(
+			 Kahan(lhs.y, rhs.z, lhs.z, rhs.y),
+			 Kahan(lhs.z, rhs.x, lhs.x, rhs.z),
+			 Kahan(lhs.x, rhs.y, lhs.y, rhs.x)
+		 );
+	 }
+
 	 __device__ __host__ inline glm::vec3 GetTranslate(const glm::mat4 &m)
 	 {
 		 return glm::vec3(m[3][0], m[3][1], m[3][2]);

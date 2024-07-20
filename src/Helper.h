@@ -19,11 +19,23 @@ namespace YumeRT {
 	YumeRT::GlCheck(#call, __FILE__, __LINE__); \
 } \
 
+// note: this function will execute on the cuda default stream.
+// would allocate space.
 #define UPLOAD_TO_GPU(device_ptr, host_ptr, byte_size) \
 { \
 	if(byte_size > 0) \
 	{ \
 		CUDA_CHECK(cudaMalloc(&device_ptr, byte_size)); \
+		CUDA_CHECK(cudaMemcpy(device_ptr, host_ptr, byte_size, cudaMemcpyHostToDevice)); \
+	} \
+} \
+
+// not allocate space
+#define TRANSFER_TO_GPU(device_ptr, host_ptr, byte_size) \
+{ \
+	if(byte_size > 0) \
+	{ \
+		assert(host_ptr != nullptr && device_ptr != nullptr); \
 		CUDA_CHECK(cudaMemcpy(device_ptr, host_ptr, byte_size, cudaMemcpyHostToDevice)); \
 	} \
 } \

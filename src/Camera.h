@@ -8,10 +8,17 @@
 
 namespace YumeRT
 {
+#define CAMERA_COUNT 2
+#define RENDERING_CAMERA_INDEX 0
+#define EDITOR_CAMERA_INDEX 1
+
 	struct Camera 
 	{
 	public:
-		__device__ __host__ inline Camera()
+		int m_width;
+		int m_height;
+
+		__device__ __host__ inline Camera(): m_width(1), m_height(1), aspect_ratio(1)
 		{
 			
 		}
@@ -253,7 +260,7 @@ namespace YumeRT
 		}
 
 		__host__  void InitCameraRayTransfer(const Scene& scene);
-		
+
 	private:
 
 		glm::vec3 position;
@@ -265,6 +272,8 @@ namespace YumeRT
 		float field_of_view;
 		float len_radius;
 		float tan_half_fov;
+
+		
 
 		RayTransfer camera_ray_transfer;
 
@@ -299,9 +308,15 @@ namespace YumeRT
 
 		__device__ __host__ inline void MakeCameraBasis()
 		{
-			w = glm::normalize(w);
-			u = glm::cross(WORLD_UP, w);
-			v = glm::cross(w, u);
+			w = w * SafeRcp(glm::length(w));
+			
+			double m_u[3];
+			DoubleCross(WORLD_UP, w, m_u);
+			u = glm::vec3(m_u[0], m_u[1], m_u[2]) * SafeRcp(glm::sqrt(m_u[0] * m_u[0] + m_u[1] * m_u[1] + m_u[2] * m_u[2]));
+
+			double m_v[3];
+			DoubleCross(w, u, m_v);
+			v = glm::vec3(m_v[0], m_v[1], m_v[2]) * SafeRcp(glm::sqrt(m_v[0] * m_v[0] + m_v[1] * m_v[1] + m_v[2] * m_v[2]));
 		}
 	};
 

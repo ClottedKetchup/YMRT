@@ -1,5 +1,7 @@
 #pragma once
 
+#include <shared_mutex>
+
 #include "MathCommon.h"
 
 namespace YumeRT
@@ -25,6 +27,7 @@ namespace YumeRT
 	// TODO: turn this into void pointer!
 	struct Scene
 	{
+		uint32_t camera_count = 0;
 		Camera *camera = nullptr;
 
 		uint32_t geometry_count = 0;
@@ -60,6 +63,16 @@ namespace YumeRT
 			uint32_t *halton_permute_table = nullptr;
 			uint32_t *sobol_matrices = nullptr;
 		}sampler_data;
+	};
+
+	struct SceneResource{
+		Scene scene;
+		std::shared_mutex scene_mutex;
+		uint64_t scene_change_time;
+
+		SceneResource() :scene{}, scene_change_time(0ull){}
+		SceneResource(const SceneResource&) = delete;
+		SceneResource& operator=(const SceneResource&) = delete;
 	};
 
 	enum 
