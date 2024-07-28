@@ -2,12 +2,15 @@
 
 namespace YumeRT{
 
-	extern "C" void ImguiTestingAov(const Scene & scene, glm::vec4 * beauty, int width, int height, cudaStream_t & stream);
+#define MAX_WAIT_TIME 10
+
+	extern "C" void ImguiTestingAov(const Scene & scene, glm::vec4 * beauty, uint32_t * primitive_index, int width, int height, cudaStream_t & stream);
 
 	extern "C" void ImguiTestingRendering(const Scene & scene, glm::vec4 * beauty, int width, int height, cudaStream_t & stream);
 	
 	RenderModule::RenderModule(): 
-		m_editor_view_width(16), m_editor_view_height(16), 
+		m_editor_view_width(16), m_editor_view_height(16), editor_view_primitive_index_image(), 
+		editor_view_image_fetch_over_time(true),
 		m_path_tracing_width(16), m_path_tracing_height(16), 
 		accumulated_image_count(0), 
 		should_exit{ false }
@@ -22,9 +25,10 @@ namespace YumeRT{
 		else {
 			CUDA_CHECK(cudaStreamCreateWithPriority(&stream_main, cudaStreamDefault, max_priority));
 			CUDA_CHECK(cudaStreamCreateWithPriority(&stream_editor_view, cudaStreamDefault, max_priority));
-			CUDA_CHECK(cudaStreamCreateWithPriority(&stream_path_tracing, cudaStreamDefault, max_priority - 1));
+			CUDA_CHECK(cudaStreamCreateWithPriority(&stream_path_tracing, cudaStreamDefault, min_priority));
 		}
 
+		editor_view_primitive_index_image.Resize(m_editor_view_width, m_editor_view_height);
 		editor_view_image_resources[aov_name_beauty] = DuskImageResource(m_editor_view_width, m_editor_view_height);
 		for (auto& item : editor_view_image_resources) {
 			item.second.Init();
@@ -59,10 +63,15 @@ namespace YumeRT{
 					// pipeline.
 					auto editor_view_rendering_function = [&]() {
 						auto& scene_resource = (*task_param.scene_resource_ptr);
-						glm::vec4 *ptr = nullptr;
-						CUDA_CHECK(cudaMallocAsync(&ptr, sizeof(glm::vec4) * task_param.width * task_param.height, stream_editor_view));
+						
+						glm::vec4 *albedo_ptr = nullptr;
+						CUDA_CHECK(cudaMallocAsync(&albedo_ptr, sizeof(glm::vec4) * task_param.width * task_param.height, stream_editor_view));
+						uint32_t *primitive_index_ptr = nullptr;
+						CUDA_CHECK(cudaMallocAsync(&primitive_index_ptr, sizeof(uint32_t) * task_param.width * task_param.height, stream_editor_view));
+
 						CUDA_CHECK(cudaStreamSynchronize(stream_editor_view));
-						DuskDeviceMemory<glm::vec4> device_mem(task_param.width, task_param.height, ptr);
+						DuskDeviceMemory<glm::vec4> device_mem_albedo(task_param.width, task_param.height, albedo_ptr);
+						DuskDeviceMemory<uint32_t>  device_mem_primitive_indices(task_param.width, task_param.height, primitive_index_ptr);
 
 						// rendering block.
 						{ 
@@ -71,7 +80,7 @@ namespace YumeRT{
 							if (scene_resource.scene_change_time != task_param.scene_change_time) {
 								return;
 							}
-							ImguiTestingAov(scene_resource.scene, device_mem.GetMemPtr(), task_param.width, task_param.height, stream_editor_view);
+							ImguiTestingAov(scene_resource.scene, device_mem_albedo.GetMemPtr(), device_mem_primitive_indices.GetMemPtr(), task_param.width, task_param.height, stream_editor_view);
 						}
 
 						// result output block.
@@ -84,7 +93,8 @@ namespace YumeRT{
 
 							{
 								std::unique_lock<std::mutex> editor_view_result_queue_lk(editor_view_result_queue_mutex);
-								editor_view_result_queue.push_front(std::move(device_mem));
+								editor_view_result_queue_albedo.push_front(std::move(device_mem_albedo));
+								editor_view_result_queue_primitive_index.push_front(std::move(device_mem_primitive_indices));
 							}
 							editor_view_result_queue_cv.notify_one();
 						}
@@ -144,7 +154,7 @@ namespace YumeRT{
 
 							{
 								std::unique_lock<std::mutex> path_tracing_result_queue_lk(path_tracing_result_queue_mutex);
-								path_tracing_result_queue.push_front(std::move(device_mem));
+								path_tracing_result_queue_beauty.push_front(std::move(device_mem));
 							}
 							path_tracing_result_queue_cv.notify_one();
 						}
@@ -173,14 +183,15 @@ namespace YumeRT{
 		CUDA_CHECK(cudaStreamDestroy(stream_main));
 
 		editor_view_task_queue.clear();
-		editor_view_result_queue.clear();
+		editor_view_result_queue_albedo.clear();
+		editor_view_result_queue_primitive_index.clear();
 		for (auto& item : editor_view_image_resources) {
 			item.second.Destroy();
 		}
-		editor_view_image_resources.clear();
+		editor_view_image_resources.clear(); // note: primitive index image will auto release.
 
 		path_tracing_task_queue.clear();
-		path_tracing_result_queue.clear();
+		path_tracing_result_queue_beauty.clear();
 		for (auto& item : path_tracing_image_resources) {
 			item.second.Destroy();
 		}
@@ -198,24 +209,40 @@ namespace YumeRT{
 				resource.second.ResetSize(frame_width, frame_height);
 				resource.second.Init();
 			}
+			editor_view_primitive_index_image.Resize(frame_width, frame_height);
 		}
 
 		// execute the rendering kernel.
 		auto iter = editor_view_image_resources.find(aov_name_beauty); 
 		if (iter != editor_view_image_resources.end()) {
-			auto &image = iter->second;
+			auto& albedo_image = iter->second;
+			auto& primitive_image = editor_view_primitive_index_image;
 			
 			std::unique_lock<std::mutex> editor_view_result_queue_lk(editor_view_result_queue_mutex);
-			editor_view_result_queue_cv.wait(editor_view_result_queue_lk, [&]() {
-				return !editor_view_result_queue.empty(); 
+			editor_view_result_queue_cv.wait_for(editor_view_result_queue_lk, std::chrono::milliseconds(MAX_WAIT_TIME), [&]() {
+				return !editor_view_result_queue_albedo.empty(); 
 			});
-			// note: this memory should release after copy complete.
-			auto device_mem = std::move(editor_view_result_queue.back());
-			editor_view_result_queue.pop_back();
-			editor_view_result_queue_lk.unlock();
-			assert(device_mem.width == frame_width && device_mem.height == frame_height);
-			CUDA_CHECK(cudaMemcpyAsync(image.GetDevicePtr(), device_mem.GetMemPtr(), sizeof(glm::vec4) * frame_width * frame_height, cudaMemcpyDeviceToDevice, stream_main));
-			CUDA_CHECK(cudaStreamSynchronize(stream_main));
+			
+			editor_view_image_fetch_over_time = true;
+			if (!editor_view_result_queue_albedo.empty()) {
+				assert(!editor_view_result_queue_primitive_index.empty());
+
+				editor_view_image_fetch_over_time = false;
+				
+				auto device_mem_albedo = std::move(editor_view_result_queue_albedo.back());
+				editor_view_result_queue_albedo.pop_back();
+				auto device_mem_primitive_index = std::move(editor_view_result_queue_primitive_index.back());
+				editor_view_result_queue_primitive_index.pop_back();
+
+				editor_view_result_queue_lk.unlock();
+
+				assert(device_mem_albedo.width == albedo_image.image_width && device_mem_albedo.height == albedo_image.image_height);
+				CUDA_CHECK(cudaMemcpyAsync(albedo_image.GetDevicePtr(), device_mem_albedo.GetMemPtr(), sizeof(glm::vec4) * frame_width * frame_height, cudaMemcpyDeviceToDevice, stream_main));
+				assert(device_mem_primitive_index.width == primitive_image.width && device_mem_primitive_index.height == primitive_image.height);
+				CUDA_CHECK(cudaMemcpyAsync(primitive_image.GetMemPtr(), device_mem_primitive_index.GetMemPtr(), sizeof(uint32_t) * frame_width * frame_height, cudaMemcpyDeviceToDevice, stream_main));
+				
+				CUDA_CHECK(cudaStreamSynchronize(stream_main));
+			}
 		}
 		
 		for (auto& resource : editor_view_image_resources) {
@@ -258,15 +285,15 @@ namespace YumeRT{
 			auto& image = iter->second;
 
 			std::unique_lock<std::mutex> path_tracing_result_queue_lk(path_tracing_result_queue_mutex);
-			auto result_queue_not_empty = path_tracing_result_queue_cv.wait_for(path_tracing_result_queue_lk, std::chrono::milliseconds(10), [&]() {
-				return !path_tracing_result_queue.empty();
+			path_tracing_result_queue_cv.wait_for(path_tracing_result_queue_lk, std::chrono::milliseconds(MAX_WAIT_TIME), [&]() {
+				return !path_tracing_result_queue_beauty.empty();
 			});
 
-			assert(!path_tracing_result_queue.empty());
-			if (result_queue_not_empty) {
+			assert(!path_tracing_result_queue_beauty.empty());
+			if (!path_tracing_result_queue_beauty.empty()) {
 				// note: this memory should release after copy complete.
-				auto device_mem = std::move(path_tracing_result_queue.back());
-				path_tracing_result_queue.pop_back();
+				auto device_mem = std::move(path_tracing_result_queue_beauty.back());
+				path_tracing_result_queue_beauty.pop_back();
 				path_tracing_result_queue_lk.unlock();
 				assert(device_mem.width == frame_width && device_mem.height == frame_height);
 				CUDA_CHECK(cudaMemcpyAsync(image.GetDevicePtr(), device_mem.GetMemPtr(), sizeof(glm::vec4) * frame_width * frame_height, cudaMemcpyDeviceToDevice, stream_main));

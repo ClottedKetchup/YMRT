@@ -18,7 +18,9 @@ namespace YumeRT {
 		int width, int height,
 		std::shared_ptr<SceneModule> &module_scene,
 		std::shared_ptr<RenderModule> &module_render) :
-	m_window(window), m_width(width), m_height(height), m_module_render(module_render), m_module_scene(module_scene), trackball(module_scene->GetCamera(EDITOR_CAMERA_INDEX))
+	m_window(window), m_width(width), m_height(height), 
+		m_module_render(module_render), m_module_scene(module_scene), 
+		trackball(module_scene->GetCamera(EDITOR_CAMERA_INDEX)), clicked_pixel_primitive_index(EMPTY_UINT32)
 	{
 		glfwSetWindowUserPointer(m_window, this);
 		glfwSetFramebufferSizeCallback(m_window, FramebufferSizeCallback);
@@ -33,13 +35,22 @@ namespace YumeRT {
 
 	void GuiModule::UpdateScene()
 	{
-		auto& m_renderer = (*m_module_render);
 		auto& m_scene = (*m_module_scene);
 		if (!m_scene.SceneChanged()) {
 			return;
 		}
 
 		// host data update.
+		const bool rebuild_bounding_volume_hierarchy = m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_CREATE) ||
+																						m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_DELETE) ||
+																						m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_GEOMETRY_CHANGE) ||
+																						m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_TRANSFORM_CHANGE);
+		if (rebuild_bounding_volume_hierarchy) {
+			ACBVHBuilder SceneBuilder(m_scene.primitive_instances.data(), (uint32_t)m_scene.primitive_instances.size(), m_scene.transforms.data(), m_scene.geometries.data());
+			m_scene.top_nodes.clear();
+			SceneBuilder.BuildSceneBVH(m_scene.top_nodes, nullptr, nullptr);
+		}
+
 		if (m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_CAMERA_CHANGE)) {
 			// restore rendering camera's width, height, aspect ratio.
 			const int camera_width = m_scene.camera[RENDERING_CAMERA_INDEX].m_width, 
@@ -51,21 +62,34 @@ namespace YumeRT {
 		}
 
 		// device data update and task clear: need lock.
-		{
+		UpdateDeviceData([&]() {
 			auto& scene_resource = m_scene.scene_resource;
-			std::scoped_lock lk(scene_resource.scene_mutex,
-				m_renderer.editor_view_task_queue_mutex, m_renderer.editor_view_result_queue_mutex,
-				m_renderer.path_tracing_task_queue_mutex, m_renderer.path_tracing_result_queue_mutex);
+			auto& scene_device_data = scene_resource.scene;
+			if (m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_GEOMETRY_CREATE) || m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_GEOMETRY_DELETE)) {
+				FREE_GPU_RESOURCE(scene_device_data.geometries);
+				scene_device_data.geometry_count = (uint32_t)m_scene.geometries.size();
+				UPLOAD_TO_GPU(scene_device_data.geometries, m_scene.geometries.data(), sizeof(GeometryData) * m_scene.geometries.size());
+			}
 
-			++scene_resource.scene_change_time;
+			if (m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_TRANSFORM_CREATE) || m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_TRANSFORM_DELETE)) {
+				FREE_GPU_RESOURCE(scene_device_data.transforms);
+				FREE_GPU_RESOURCE(scene_device_data.i_transforms);
+				scene_device_data.transform_count = (uint32_t)m_scene.transforms.size();
+				UPLOAD_TO_GPU(scene_device_data.transforms, m_scene.transforms.data(), sizeof(glm::mat4) * m_scene.transforms.size());
+				UPLOAD_TO_GPU(scene_device_data.i_transforms, m_scene.i_transforms.data(), sizeof(glm::mat4) * m_scene.i_transforms.size());
+			}
 
-			m_renderer.editor_view_task_queue.clear();
-			m_renderer.editor_view_result_queue.clear();
-			m_renderer.path_tracing_task_queue.clear();
-			m_renderer.path_tracing_result_queue.clear();
+			if (rebuild_bounding_volume_hierarchy) {
+				FREE_GPU_RESOURCE(scene_device_data.top_nodes);
+				scene_device_data.top_node_count = (uint32_t)m_scene.top_nodes.size();
+				UPLOAD_TO_GPU(scene_device_data.top_nodes, m_scene.top_nodes.data(), sizeof(TopNode) * m_scene.top_nodes.size());
+
+				FREE_GPU_RESOURCE(scene_device_data.primitive_instances);
+				scene_device_data.primitive_instance_count = (uint32_t)m_scene.primitive_instances.size();
+				UPLOAD_TO_GPU(scene_device_data.primitive_instances, m_scene.primitive_instances.data(), sizeof(PrimitiveInstance) * m_scene.primitive_instances.size());
+			}
 
 			if (m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_CAMERA_CHANGE)) {
-				auto& scene_device_data = scene_resource.scene;
 				if (scene_device_data.camera == nullptr) {
 					scene_device_data.camera_count = CAMERA_COUNT;
 					UPLOAD_TO_GPU(scene_device_data.camera, m_scene.camera, sizeof(Camera) * CAMERA_COUNT);
@@ -74,35 +98,21 @@ namespace YumeRT {
 					TRANSFER_TO_GPU(scene_device_data.camera, m_scene.camera, sizeof(Camera) * CAMERA_COUNT);
 				}
 			}
-		}
-
+		});
+		
 		// reset scene flag.
 		m_scene.ResetSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_NONE_CHANGE);
 	}
 
 	void GuiModule::UpdateCamera(int index)
 	{
-		auto& m_renderer = (*m_module_render);
 		auto& m_scene = (*m_module_scene);
 
 		// re-upload one of the camera.
-		{
+		UpdateDeviceData([&]() {
 			auto& scene_resource = m_scene.scene_resource;
-			assert(scene_resource.scene.camera != nullptr && scene_resource.scene.camera_count != 0);
-
-			std::scoped_lock lk(scene_resource.scene_mutex,
-				m_renderer.editor_view_task_queue_mutex, m_renderer.editor_view_result_queue_mutex,
-				m_renderer.path_tracing_task_queue_mutex, m_renderer.path_tracing_result_queue_mutex);
-
-			++scene_resource.scene_change_time;
-
-			m_renderer.editor_view_task_queue.clear();
-			m_renderer.editor_view_result_queue.clear();
-			m_renderer.path_tracing_task_queue.clear();
-			m_renderer.path_tracing_result_queue.clear();
-
 			TRANSFER_TO_GPU(&scene_resource.scene.camera[index], &m_scene.camera[index], sizeof(Camera));
-		}
+		});
 	}
 
 	void GuiModule::RenderImages()
@@ -110,81 +120,6 @@ namespace YumeRT {
 		ImGuiIO& io = ImGui::GetIO();
 
 		UpdateScene();
-
-		// render editor view. such an window implementation can be found in imgui custom rendering example.
-		{
-			ImGui::Begin("Editor view");
-
-			// specify the render region.
-			ImVec2 draw_region_size = ImGui::GetContentRegionAvail();
-			ImVec2 draw_region_p0 = ImGui::GetCursorScreenPos();
-			ImVec2 draw_region_p1 = ImVec2(draw_region_p0.x + draw_region_size.x, draw_region_p0.y + draw_region_size.y);
-
-			draw_region_size.x = glm::max(64.0f, draw_region_size.x);
-			draw_region_size.y = glm::max(64.0f, draw_region_size.y);
-
-			const float mouse_x_pos = glm::max(0.0f, glm::min(io.MousePos.x - draw_region_p0.x, draw_region_size.x));
-			const float mouse_y_pos = glm::max(0.0f, glm::min(io.MousePos.y - draw_region_p0.y, draw_region_size.y));
-
-			auto &editor_camera = m_module_scene->GetCamera(EDITOR_CAMERA_INDEX);
-			if (editor_camera.m_width != (int)draw_region_size.x || editor_camera.m_height != (int)draw_region_size.y)
-			{
-				editor_camera.m_width = (int)draw_region_size.x, editor_camera.m_height = (int)draw_region_size.y;
-				editor_camera.SetAspectRatio(float(editor_camera.m_width) / float(editor_camera.m_height));
-				UpdateCamera(EDITOR_CAMERA_INDEX);
-			}
-
-			// render editor view based on current size.
-			auto &scene_resource = m_module_scene->scene_resource;
-			m_module_render->EditorViewFetchResult(scene_resource, (int)draw_region_size.x, (int)draw_region_size.y);
-
-			// image button style.
-			ImGui::PushID(1);
-			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0.0f, 0.0f));
-
-			// draw image button.
-			auto image_texture_handle = m_module_render->EditorViewGetTexture(aov_name_beauty);
-			ImGui::ImageButton((void*)image_texture_handle, draw_region_size, ImVec2(0.0, 1.0), ImVec2(1.0, 0.0));
-
-			const bool is_hovered = ImGui::IsItemHovered();
-			const bool is_active = ImGui::IsItemActive();
-			if (is_active && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-				trackball.prev_pos_x = mouse_x_pos;
-				trackball.prev_pos_y = mouse_y_pos;
-			}
-			if (is_active && ImGui::IsMouseDown(ImGuiMouseButton_Left))
-			{
-				glm::vec3 pre_vec = trackball.CalculTrackBallVec(
-					trackball.prev_pos_x,
-					trackball.prev_pos_y,
-					(int)draw_region_size.x,
-					(int)draw_region_size.y);
-
-				glm::vec3 cur_vec = trackball.CalculTrackBallVec(
-					mouse_x_pos,
-					mouse_y_pos,
-					(int)draw_region_size.x,
-					(int)draw_region_size.y);
-
-				if (glm::abs(glm::dot(pre_vec, cur_vec)) < 0.999f)
-				{
-					double axis[3];
-					DoubleCross(pre_vec, cur_vec, axis);
-
-					const float angle = glm::acos(glm::min(glm::dot(pre_vec, cur_vec), 1.0f));
-					trackball.Rotate(angle, glm::vec3(axis[0], axis[1], axis[2]));
-					trackball.prev_pos_x = float(mouse_x_pos);
-					trackball.prev_pos_y = float(mouse_y_pos);
-				}
-
-				m_module_scene->AddSceneFlag(SceneModule::SCENE_CAMERA_CHANGE);
-			}
-
-			ImGui::PopStyleVar();
-			ImGui::PopID();
-
-			ImGui::End();
-		}
 
 		 // render path tracing view.
 		{
@@ -220,6 +155,115 @@ namespace YumeRT {
 			// draw image button.
 			auto image_texture_handle = m_module_render->PathTracingGetTexture(aov_name_beauty);
 			ImGui::ImageButton((void*)image_texture_handle, draw_region_size, ImVec2(0.0, 1.0), ImVec2(1.0, 0.0));
+
+			ImGui::PopStyleVar();
+			ImGui::PopID();
+
+			ImGui::End();
+		}
+
+		// render editor view. such an window implementation can be found in imgui custom rendering example.
+		{
+			ImGui::Begin("Editor view");
+
+			// specify the render region.
+			ImVec2 draw_region_size = ImGui::GetContentRegionAvail();
+			ImVec2 draw_region_p0 = ImGui::GetCursorScreenPos();
+			ImVec2 draw_region_p1 = ImVec2(draw_region_p0.x + draw_region_size.x, draw_region_p0.y + draw_region_size.y);
+
+			draw_region_size.x = glm::max(64.0f, draw_region_size.x);
+			draw_region_size.y = glm::max(64.0f, draw_region_size.y);
+
+			const float mouse_x_pos = glm::max(0.0f, glm::min(io.MousePos.x - draw_region_p0.x, draw_region_size.x));
+			const float mouse_y_pos = glm::max(0.0f, glm::min(io.MousePos.y - draw_region_p0.y, draw_region_size.y));
+
+			auto& editor_camera = m_module_scene->GetCamera(EDITOR_CAMERA_INDEX);
+			if (editor_camera.m_width != (int)draw_region_size.x || editor_camera.m_height != (int)draw_region_size.y)
+			{
+				editor_camera.m_width = (int)draw_region_size.x, editor_camera.m_height = (int)draw_region_size.y;
+				editor_camera.SetAspectRatio(float(editor_camera.m_width) / float(editor_camera.m_height));
+				UpdateCamera(EDITOR_CAMERA_INDEX);
+			}
+
+			// render editor view based on current size.
+			auto& scene_resource = m_module_scene->scene_resource;
+			m_module_render->EditorViewFetchResult(scene_resource, (int)draw_region_size.x, (int)draw_region_size.y);
+
+			// image button style.
+			ImGui::PushID(1);
+			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0.0f, 0.0f));
+
+			// draw image button.
+			auto image_texture_handle = m_module_render->EditorViewGetTexture(aov_name_beauty);
+			ImGui::ImageButton((void*)image_texture_handle, draw_region_size, ImVec2(0.0, 1.0), ImVec2(1.0, 0.0));
+
+			const bool is_hovered = ImGui::IsItemHovered();
+			const bool is_active = ImGui::IsItemActive();
+			if (is_active && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+				trackball.prev_pos_x = mouse_x_pos;
+				trackball.prev_pos_y = mouse_y_pos;
+				if (!m_module_render->editor_view_image_fetch_over_time) {
+					auto read_px = (uint32_t)mouse_x_pos;
+					auto read_py = (uint32_t)glm::max(draw_region_size.y - 1.0 - mouse_y_pos, 0.0);
+					m_module_render->EditorViewReadPixel<uint32_t>(aov_name_primitive_index, read_px, read_py, &clicked_pixel_primitive_index);
+				}
+			}
+			if (is_active && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+			{
+				glm::vec3 pre_vec = trackball.CalculTrackBallVec(
+					trackball.prev_pos_x,
+					trackball.prev_pos_y,
+					(int)draw_region_size.x,
+					(int)draw_region_size.y);
+
+				glm::vec3 cur_vec = trackball.CalculTrackBallVec(
+					mouse_x_pos,
+					mouse_y_pos,
+					(int)draw_region_size.x,
+					(int)draw_region_size.y);
+
+				if (glm::abs(glm::dot(pre_vec, cur_vec)) < 0.999f)
+				{
+					double axis[3];
+					DoubleCross(pre_vec, cur_vec, axis);
+
+					const float angle = glm::acos(glm::min(glm::dot(pre_vec, cur_vec), 1.0f));
+					trackball.Rotate(angle, glm::vec3(axis[0], axis[1], axis[2]));
+					trackball.prev_pos_x = float(mouse_x_pos);
+					trackball.prev_pos_y = float(mouse_y_pos);
+				}
+
+				m_module_scene->AddSceneFlag(SceneModule::SCENE_CAMERA_CHANGE);
+			}
+			if (is_hovered) {
+				if (glm::abs(io.MouseWheel) > 0.0f) {
+					auto& cam = *(trackball.cam);
+					auto offset = io.MouseWheel;
+					auto fov = cam.GetFov();
+					fov -= glm::radians(offset);
+					cam.SetFov(glm::clamp(fov, glm::radians(1.0f), glm::radians(90.0f)));
+					m_module_scene->AddSceneFlag(SceneModule::SCENE_CAMERA_CHANGE);
+				}
+				if (ImGui::IsKeyDown(ImGuiKey_W)) {
+					trackball.CameraMoveForward();
+					m_module_scene->AddSceneFlag(SceneModule::SCENE_CAMERA_CHANGE);
+				}
+				else if (ImGui::IsKeyDown(ImGuiKey_S)) {
+					trackball.CameraMoveBackward();
+					m_module_scene->AddSceneFlag(SceneModule::SCENE_CAMERA_CHANGE);
+				}
+				else if (ImGui::IsKeyDown(ImGuiKey_A)) {
+					trackball.CameraMoveLeft();
+					m_module_scene->AddSceneFlag(SceneModule::SCENE_CAMERA_CHANGE);
+				}
+				else if (ImGui::IsKeyDown(ImGuiKey_D)) {
+					trackball.CameraMoveRight();
+					m_module_scene->AddSceneFlag(SceneModule::SCENE_CAMERA_CHANGE);
+				}
+				else {
+
+				}
+			}
 
 			ImGui::PopStyleVar();
 			ImGui::PopID();

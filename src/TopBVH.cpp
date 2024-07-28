@@ -203,8 +203,12 @@ namespace YumeRT
 		// consider when prim_instance_count == 0...
 		if (prim_instance_count == 0)
 		{
-			*time = 0.0f;
-			*highlight_prim_idx = EMPTY_UINT32;
+			if (time != nullptr) { 
+				*time = 0.0f; 
+			}
+			if (highlight_prim_idx != nullptr) {
+				*highlight_prim_idx = EMPTY_UINT32;
+			}
 			return 0;
 		}
 
@@ -270,7 +274,9 @@ namespace YumeRT
 		}
 
 		auto end_time = std::chrono::high_resolution_clock::now();
-		*time = float(std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count()) / 1000.f;
+		if (time != nullptr) {
+			*time = float(std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count()) / 1000.f;
+		}
 		return 0;
 	}
 

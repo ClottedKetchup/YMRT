@@ -335,7 +335,7 @@ namespace YumeRT
 
 			if (node.internal.left != EMPTY_UINT32)
 			{
-				const PrimitiveInstance *prim_instances = scene.prim_instances + node.leaf.offset;
+				const PrimitiveInstance *prim_instances = scene.primitive_instances + node.leaf.offset;
 				for (uint32_t leaf_prim_idx = 0; leaf_prim_idx < node.leaf.count; ++leaf_prim_idx)
 				{
 					const PrimitiveInstance &prim = prim_instances[leaf_prim_idx];
@@ -460,7 +460,7 @@ namespace YumeRT
 
 			if (node.internal.left != EMPTY_UINT32)
 			{
-				const PrimitiveInstance *prim_instances = scene.prim_instances + node.leaf.offset;
+				const PrimitiveInstance *prim_instances = scene.primitive_instances + node.leaf.offset;
 				for (uint32_t leaf_prim_idx = 0; leaf_prim_idx < node.leaf.count; ++leaf_prim_idx)
 				{
 					if (!prim_instances[leaf_prim_idx].treat_as_boundary) { 
@@ -574,7 +574,7 @@ namespace YumeRT
 
 			if (node.internal.left != EMPTY_UINT32)
 			{
-				const PrimitiveInstance *prim_instances = scene.prim_instances + node.leaf.offset;
+				const PrimitiveInstance *prim_instances = scene.primitive_instances + node.leaf.offset;
 				for (uint32_t leaf_prim_idx = 0; leaf_prim_idx < node.leaf.count; ++leaf_prim_idx)
 				{
 					// skip the test of volume boundary
@@ -808,7 +808,7 @@ namespace YumeRT
 																			glm::vec3 *hit_dndv = nullptr)
 	{
 		if (hit_record.hit_instance_idx == EMPTY_UINT32) { return; }
-		const PrimitiveInstance &hit_instance = scene.prim_instances[hit_record.hit_instance_idx];
+		const PrimitiveInstance &hit_instance = scene.primitive_instances[hit_record.hit_instance_idx];
 		const GeometryData &hit_geometry = scene.geometries[hit_instance.geometry_idx];
 		uint32_t geometry_type = hit_geometry.geometry_type;
 		if (geometry_type == GEOMETRY_TYPE::TRIANGLE_MESH)
@@ -919,7 +919,7 @@ namespace YumeRT
 																						glm::vec3 *hit_geometry_normal)
 	{
 		if (hit_record.hit_instance_idx == EMPTY_UINT32) { return; }
-		const PrimitiveInstance &hit_instance = scene.prim_instances[hit_record.hit_instance_idx];
+		const PrimitiveInstance &hit_instance = scene.primitive_instances[hit_record.hit_instance_idx];
 		const GeometryData &hit_geometry = scene.geometries[hit_instance.geometry_idx];
 		uint32_t geometry_type = hit_geometry.geometry_type;
 

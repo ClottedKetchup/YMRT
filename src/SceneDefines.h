@@ -33,8 +33,8 @@ namespace YumeRT
 		uint32_t geometry_count = 0;
 		GeometryData *geometries = nullptr;
 
-		uint32_t prim_instance_count = 0;
-		PrimitiveInstance *prim_instances = nullptr;
+		uint32_t primitive_instance_count = 0;
+		PrimitiveInstance *primitive_instances = nullptr;
 
 		uint32_t top_node_count = 0;
 		TopNode *top_nodes = nullptr;

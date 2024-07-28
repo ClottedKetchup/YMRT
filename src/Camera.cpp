@@ -41,7 +41,7 @@ namespace YumeRT {
 		camera_ray_transfer.record_count = 0;
 		for (const auto &item : prim_map) 
 		{
-			const PrimitiveInstance &prim = scene.prim_instances[item.second.hit_instance_idx];
+			const PrimitiveInstance &prim = scene.primitive_instances[item.second.hit_instance_idx];
 			const glm::mat4 &i_transform = scene.i_transforms[prim.transform_idx];
 			const Material &mtl = scene.materials[prim.material_idx];
 			

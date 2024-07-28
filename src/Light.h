@@ -86,7 +86,7 @@ namespace YumeRT
 			glm::vec3 *light_sample_geo_normal,
 			float *pdf) const
 		{
-			const PrimitiveInstance &prim = scene.prim_instances[instance_idx];
+			const PrimitiveInstance &prim = scene.primitive_instances[instance_idx];
 			const Material &light_mtl = scene.materials[prim.material_idx];
 			const GeometryData &geometry = scene.geometries[prim.geometry_idx];
 
@@ -208,7 +208,7 @@ namespace YumeRT
 																			glm::vec3 *light_sample_geo_normal,
 																			float *pdf) const
 		{
-			const PrimitiveInstance &prim = scene.prim_instances[instance_idx];
+			const PrimitiveInstance &prim = scene.primitive_instances[instance_idx];
 			const Material &light_mtl = scene.materials[prim.material_idx];
 			const GeometryData &geometry = scene.geometries[prim.geometry_idx];
 

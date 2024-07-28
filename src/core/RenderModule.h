@@ -22,6 +22,7 @@
 
 namespace YumeRT {
 
+	static const std::string aov_name_primitive_index = "primitive index";
 	static const std::string aov_name_beauty = "beauty";
 	static const std::string aov_name_normal = "normal";
 	static const std::string aov_name_accumulate = "accumulate";
@@ -107,6 +108,8 @@ namespace YumeRT {
 		 uint32_t height;
 
 		 // note: this construction take exist memory resource, don't allocate new memory.
+		 DuskDeviceMemory() : width(0), height(0), mem_ptr(nullptr) {}
+
 		DuskDeviceMemory(uint32_t width, uint32_t height, T *ptr): width(width), height(height), mem_ptr(ptr){
 			assert(ptr != nullptr);
 		}
@@ -132,6 +135,14 @@ namespace YumeRT {
 
 		T* GetMemPtr() {
 			return mem_ptr;
+		}
+
+		void Resize(uint32_t _width, uint32_t _height) {
+			if (mem_ptr != nullptr) {
+				Release();
+			}
+			width = _width, height = _height;
+			Allocate();
 		}
 		
 	private:
@@ -173,6 +184,27 @@ namespace YumeRT {
 
 		void EditorViewLaunchTask(const TaskParams& task_params);
 
+		template<typename T>
+		void EditorViewReadPixel(const std::string& name, uint32_t px, uint32_t py, T *ptr) {
+			px = glm::clamp((int)px, 0, m_editor_view_width - 1);
+			py = glm::clamp((int)py, 0, m_editor_view_height - 1);
+			
+			auto pixel_index = py * m_editor_view_width + px;
+			if (name == aov_name_primitive_index) {
+				auto primitive_index_image = editor_view_primitive_index_image.GetMemPtr();
+				CUDA_CHECK(cudaMemcpyAsync(ptr, &primitive_index_image[pixel_index], sizeof(T), cudaMemcpyDeviceToHost, stream_main));
+				CUDA_CHECK(cudaStreamSynchronize(stream_main));
+			}
+			else {
+				auto iter = editor_view_image_resources.find(name);
+				if (iter != editor_view_image_resources.end()) {
+					auto aov_image = iter->second.GetDevicePtr();
+					CUDA_CHECK(cudaMemcpyAsync(ptr, &aov_image[pixel_index], sizeof(T), cudaMemcpyDeviceToHost, stream_main));
+					CUDA_CHECK(cudaStreamSynchronize(stream_main));
+				}
+			}
+		}
+
 		void PathTracingFetchResult(SceneResource &scene_resource, const int frame_width, const int frame_height);
 
 		GLuint PathTracingGetTexture(const std::string &name);
@@ -190,6 +222,9 @@ namespace YumeRT {
 		int m_editor_view_width, m_editor_view_height;
 		std::unordered_map<std::string, DuskImageResource> editor_view_image_resources;
 
+		bool editor_view_image_fetch_over_time;
+		DuskDeviceMemory<uint32_t> editor_view_primitive_index_image;
+
 		// editor view thread async resources.
 		std::thread editor_view_thread;
 
@@ -199,7 +234,8 @@ namespace YumeRT {
 
 		std::condition_variable editor_view_result_queue_cv;
 		std::mutex editor_view_result_queue_mutex;
-		std::list<DuskDeviceMemory<glm::vec4>> editor_view_result_queue;
+		std::list<DuskDeviceMemory<glm::vec4>> editor_view_result_queue_albedo;
+		std::list<DuskDeviceMemory<uint32_t>> editor_view_result_queue_primitive_index;
 
 		// these are used by rendering thread.
 		cudaStream_t stream_path_tracing;
@@ -215,6 +251,6 @@ namespace YumeRT {
 
 		std::condition_variable path_tracing_result_queue_cv;
 		std::mutex path_tracing_result_queue_mutex;
-		std::list<DuskDeviceMemory<glm::vec4>> path_tracing_result_queue;
+		std::list<DuskDeviceMemory<glm::vec4>> path_tracing_result_queue_beauty;
 	};
 };

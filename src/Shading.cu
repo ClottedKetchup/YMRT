@@ -106,7 +106,7 @@ namespace YumeRT
 						RayTransfer shadow_ray_transfer(ray_transfer);
 						
 						if (transmit_boundary) { // refract
-							BoundaryTransitionBunch(shadow_ray_transfer, scene.prim_instances, scene.materials, nearby_hits, nearby_hit_count);
+							BoundaryTransitionBunch(shadow_ray_transfer, scene.primitive_instances, scene.materials, nearby_hits, nearby_hit_count);
 						}
 
 						shadow_ray = Ray(shadow_ray_origin, light_dir);
@@ -148,7 +148,7 @@ namespace YumeRT
 						{
 							RayTransfer shadow_ray_transfer(ray_transfer);
 							if (transmit_boundary) { // refract
-								BoundaryTransitionBunch(shadow_ray_transfer, scene.prim_instances, scene.materials, nearby_hits, nearby_hit_count);
+								BoundaryTransitionBunch(shadow_ray_transfer, scene.primitive_instances, scene.materials, nearby_hits, nearby_hit_count);
 							}
 
 							shadow_ray = Ray(shadow_ray_origin, light_dir);
@@ -314,7 +314,7 @@ namespace YumeRT
 					{
 						RayTransfer shadow_ray_transfer(ray_transfer);
 						if (transmit_boundary) {
-							BoundaryTransitionBunch(shadow_ray_transfer, scene.prim_instances, scene.materials, nearby_hits, nearby_hit_count);
+							BoundaryTransitionBunch(shadow_ray_transfer, scene.primitive_instances, scene.materials, nearby_hits, nearby_hit_count);
 						}
 
 						shadow_ray = Ray(shadow_ray_origin, light_dir);
@@ -362,7 +362,7 @@ namespace YumeRT
 						{
 							RayTransfer shadow_ray_transfer(ray_transfer);
 							if (transmit_boundary) {
-								BoundaryTransitionBunch(shadow_ray_transfer, scene.prim_instances, scene.materials, nearby_hits, nearby_hit_count);
+								BoundaryTransitionBunch(shadow_ray_transfer, scene.primitive_instances, scene.materials, nearby_hits, nearby_hit_count);
 							}
 							
 							shadow_ray = Ray(shadow_ray_origin, light_dir);
@@ -650,7 +650,7 @@ namespace YumeRT
 												&hit_dpdu,
 												&hit_dpdv);
 
-					const PrimitiveInstance &prim = scene.prim_instances[hit_record.hit_instance_idx];
+					const PrimitiveInstance &prim = scene.primitive_instances[hit_record.hit_instance_idx];
 					const Material &mtl = scene.materials[prim.material_idx];
 					
 					uint32_t mtl_ior_priority;
@@ -659,7 +659,7 @@ namespace YumeRT
 					if (!ray_transfer.empty() && mtl_ior_priority < ray_transfer.GetMaxPriorityRecord().ior_priority)
 					{
 						// note: should not consume depth
-						BoundaryTransitionBunch(ray_transfer, scene.prim_instances, scene.materials, nearby_hits, nearby_hit_count);
+						BoundaryTransitionBunch(ray_transfer, scene.primitive_instances, scene.materials, nearby_hits, nearby_hit_count);
 						ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, ray.direction, hit_geometry_normal), ray.direction);
 						camera_ray = false;
 						continue;
@@ -669,7 +669,7 @@ namespace YumeRT
 					{
 						// note: should not consume depth
 						// note: although volume is treat as boundary, but the material's ior will still affect its attribute, so remember to set it!
-						BoundaryTransitionBunch(ray_transfer, scene.prim_instances, scene.materials, nearby_hits, nearby_hit_count);
+						BoundaryTransitionBunch(ray_transfer, scene.primitive_instances, scene.materials, nearby_hits, nearby_hit_count);
 						ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, ray.direction, hit_geometry_normal), ray.direction);
 						camera_ray = false;
 						continue;
@@ -783,7 +783,7 @@ namespace YumeRT
 						break;
 					}
 					if (transmit_boundary) {
-						BoundaryTransitionBunch(ray_transfer, scene.prim_instances, scene.materials, nearby_hits, nearby_hit_count);
+						BoundaryTransitionBunch(ray_transfer, scene.primitive_instances, scene.materials, nearby_hits, nearby_hit_count);
 					}
 
 					// this method to avoid self intersection is still not robust, it makes the sphere self-intersection when radius is big
@@ -1023,7 +1023,7 @@ namespace YumeRT
 		}
 	}
 
-	__global__ void ImguiTestDrawing(const Scene *scene, glm::vec4 *beauty, const int width, const int height)
+	__global__ void ImguiTestDrawing(const Scene *scene, glm::vec4 *beauty, uint32_t *primitive_index, const int width, const int height)
 	{
 		const int idx = blockIdx.x * blockDim.x + threadIdx.x;
 		const int idy = blockIdx.y * blockDim.y + threadIdx.y;
@@ -1034,22 +1034,31 @@ namespace YumeRT
 			float ndc_y = float(idy) / float(height);
 			
 			Ray ray = scene->camera[EDITOR_CAMERA_INDEX].GenerateRay(ndc_x, ndc_y);
-			beauty[pixel_idx] = glm::vec4(Background(ray.direction), 1.0f);
+			
+			HitRecord hit_record;
+			int nearby_hit_count = 0;
+			NearbyHit nearby_hits[MAX_BOUNDARY_RECORD + 2];
+			bool hit_surface = TraceRay(*scene, ray, &hit_record, &nearby_hit_count, nearby_hits);
+
+			primitive_index[pixel_idx] = hit_surface ? hit_record.hit_instance_idx : EMPTY_UINT32;
+
+			beauty[pixel_idx] = glm::vec4(hit_surface ? glm::vec3(1, 0, 0) : Background(ray.direction), 1.0f);
 		}
 	}
 
-	extern "C" void ImguiTestingAov(const Scene &scene, glm::vec4 *beauty, int width, int height, cudaStream_t &stream)
+	extern "C" void ImguiTestingAov(const Scene &scene, glm::vec4 *beauty, uint32_t *primitive_index, int width, int height, cudaStream_t &stream)
 	{
 		Scene *scene_device = nullptr;
 		// answer to whether can use pinned memory: https://forums.developer.nvidia.com/t/does-cudamemcpyasync-require-pinned-memory/40411/2.
 		CUDA_CHECK(cudaMallocAsync(&scene_device, sizeof(Scene), stream));
 		CUDA_CHECK(cudaMemcpyAsync(scene_device, &scene, sizeof(Scene), cudaMemcpyHostToDevice, stream));
 
-		dim3 block_dim(32, 32, 1);
+		dim3 block_dim(4, 4, 1);
 		dim3 grid_dim(Round_Block_Count(width, block_dim.x), Round_Block_Count(height, block_dim.y), 1);
 
 		void* args[] = { &scene_device,
 								 &beauty,
+								 &primitive_index,
 								 &width,
 								 &height };
 		CUDA_CHECK(cudaLaunchKernel((void*)ImguiTestDrawing, grid_dim, block_dim, args, 0, stream));

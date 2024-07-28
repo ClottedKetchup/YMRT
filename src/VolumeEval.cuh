@@ -449,7 +449,7 @@ namespace YumeRT {
 				traced_distance += hit_record.hit_t;
 
 				// trace forward the ray
-				const PrimitiveInstance &prim = scene.prim_instances[hit_record.hit_instance_idx];
+				const PrimitiveInstance &prim = scene.primitive_instances[hit_record.hit_instance_idx];
 				const Material &mtl = scene.materials[prim.material_idx];
 				
 				glm::vec3 hit_position(0.0f), hit_position_error(0.0f), hit_geometry_normal(0.0f);
@@ -458,7 +458,7 @@ namespace YumeRT {
 				uint32_t mtl_ior_priority;
 				float mtl_ior = mtl.FetchIOR(&mtl_ior_priority);
 
-				BoundaryTransitionBunch(shadow_ray_transfer, scene.prim_instances, scene.materials, nearby_hits, nearby_hit_count);
+				BoundaryTransitionBunch(shadow_ray_transfer, scene.primitive_instances, scene.materials, nearby_hits, nearby_hit_count);
 				tr_ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, tr_ray.direction, hit_geometry_normal), tr_ray.direction);
 			}
 		}

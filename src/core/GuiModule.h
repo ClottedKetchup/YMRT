@@ -100,6 +100,7 @@ namespace YumeRT {
 
 	private:
 		int m_width, m_height;
+		uint32_t clicked_pixel_primitive_index;
 
 		DuskTrackball trackball;
 
@@ -113,5 +114,21 @@ namespace YumeRT {
 		void InitGUI();
 		void RenderImages();
 		void ExitGUI();
+
+		template<typename Function>
+		void UpdateDeviceData(Function update_function) 
+		{
+			auto& m_renderer = (*m_module_render);
+			auto& m_scene = (*m_module_scene);
+			auto& scene_resource = m_scene.scene_resource;
+
+			std::scoped_lock lk(scene_resource.scene_mutex, m_renderer.editor_view_task_queue_mutex, m_renderer.editor_view_result_queue_mutex, m_renderer.path_tracing_task_queue_mutex, m_renderer.path_tracing_result_queue_mutex);
+
+			++scene_resource.scene_change_time;
+
+			m_renderer.editor_view_task_queue.clear(), m_renderer.editor_view_result_queue_albedo.clear(), m_renderer.editor_view_result_queue_primitive_index.clear(), m_renderer.path_tracing_task_queue.clear(), m_renderer.path_tracing_result_queue_beauty.clear();
+
+			update_function();
+		}
 	};
 };
