@@ -1023,7 +1023,7 @@ namespace YumeRT
 		}
 	}
 
-	__global__ void ImguiTestDrawing(const Scene *scene, glm::vec4 *beauty, uint32_t *primitive_index, const int width, const int height)
+	__global__ void ImguiTestDrawing(const Scene *scene_ptr, glm::vec4 *beauty, uint32_t *primitive_index, const int width, const int height)
 	{
 		const int idx = blockIdx.x * blockDim.x + threadIdx.x;
 		const int idy = blockIdx.y * blockDim.y + threadIdx.y;
@@ -1033,16 +1033,47 @@ namespace YumeRT
 			float ndc_x = float(idx) / float(width);
 			float ndc_y = float(idy) / float(height);
 			
-			Ray ray = scene->camera[EDITOR_CAMERA_INDEX].GenerateRay(ndc_x, ndc_y);
+			const auto& scene = *scene_ptr;
+			Ray ray = scene.camera[EDITOR_CAMERA_INDEX].GenerateRay(ndc_x, ndc_y);
 			
 			HitRecord hit_record;
 			int nearby_hit_count = 0;
 			NearbyHit nearby_hits[MAX_BOUNDARY_RECORD + 2];
-			bool hit_surface = TraceRay(*scene, ray, &hit_record, &nearby_hit_count, nearby_hits);
+			bool hit_surface = TraceRay(scene, ray, &hit_record, &nearby_hit_count, nearby_hits);
 
 			primitive_index[pixel_idx] = hit_surface ? hit_record.hit_instance_idx : EMPTY_UINT32;
 
-			beauty[pixel_idx] = glm::vec4(hit_surface ? glm::vec3(1, 0, 0) : Background(ray.direction), 1.0f);
+			glm::vec3 surface_albedo(0.0f);
+			if (hit_surface) {
+				glm::vec3 hit_position(0.0f), hit_position_error(0.0f), hit_position_object_space(0.0f);
+				glm::vec3	hit_shading_normal(0.0f), hit_geometry_normal(0.0f);
+				glm::vec2	hit_uv(0.0f);
+				glm::vec3	hit_dpdu(0.0f), hit_dpdv(0.0f);
+				FetchShadingData(scene, hit_record,
+					&hit_position, &hit_position_error, &hit_position_object_space,
+					&hit_shading_normal, &hit_geometry_normal,
+					&hit_uv, 
+					&hit_dpdu, &hit_dpdv);
+
+				auto material_index = scene.primitive_instances[hit_record.hit_instance_idx].material_idx;
+				if (material_index != EMPTY_UINT32) {
+					auto& material = scene.materials[material_index];
+					if (material.material_type == DEFAULT_MTL) {
+						if (material.default_mtl.diffuse_albedo_tex == EMPTY_UINT32) {
+							surface_albedo = material.default_mtl.diffuse_albedo;
+						}
+						else {
+							TextureCoordinate texture_coordinate(hit_uv, hit_position, hit_position_object_space, glm::vec4(0.0f));
+							ImageTileCache tile_cache;
+
+							surface_albedo = TextureEval(scene.textures[material.default_mtl.diffuse_albedo_tex], 
+								scene.textures, tile_cache, texture_coordinate);
+						}
+					}
+				}
+			}
+
+			beauty[pixel_idx] = glm::vec4(hit_surface ? surface_albedo : Background(ray.direction), 1.0f);
 		}
 	}
 

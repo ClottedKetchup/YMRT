@@ -72,6 +72,11 @@ namespace YumeRT
 		float area;
 
 		__device__ __host__ inline ShapeLight() {}
+		__device__ __host__ inline ShapeLight(const uint32_t instance_idx, const uint32_t triangle_idx, const float power, const float area):
+			instance_idx(instance_idx), triangle_idx(triangle_idx), power(power), area(area)
+		{
+		
+		}
 
 		__device__ __host__ inline float PDF(const Scene &scene, const glm::vec3 &position, const glm::vec3 &wi) const
 		{
@@ -322,6 +327,11 @@ namespace YumeRT
 
 		// dir always toward the light, wi!
 		__device__ __host__ inline DistantLight() {}
+		__device__ __host__ inline DistantLight(const glm::vec3& light_color, const uint32_t transform_index, float intensity = 1.0f, float theta_max = 5.0f):
+			light_color(light_color), transform_idx(transform_index), intensity(intensity), theta_max(theta_max), cos_theta_max(glm::cos(glm::radians(theta_max)))
+		{
+		
+		}
 		__device__ __host__ inline float PDF(const Scene &scene, const glm::vec3 &wi) const
 		{
 			return 0.0f;

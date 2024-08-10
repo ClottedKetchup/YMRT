@@ -315,10 +315,8 @@ namespace YumeRT
 
 		float f_s = floor(st.x);
 		float f_t = floor(st.y);
-		if (PerlinNoiseEval(glm::vec3(f_s + 0.5f, f_t + 0.5f, 0.0f)) > 0.0f)
-		{
-			auto simple_hash = [](float f, float multi) 
-			{
+		if (PerlinNoiseEval(glm::vec3(f_s + 0.5f, f_t + 0.5f, 0.0f)) > 0.0f) {
+			auto simple_hash = [](float f, float multi) {
 				return glm::fract(f * multi) * 114.f;
 			};
 
@@ -330,8 +328,7 @@ namespace YumeRT
 			float t_center = 0.5f + max_offset * PerlinNoiseEval(glm::vec3(simple_hash(st.x, 4444.44f), simple_hash(st.y, 2333.33f), 0.0f));
 			return Sqr(ds - s_center) + Sqr(dt - t_center) < radius * radius ? tex_white_result : tex_black_result;
 		}
-		else 
-		{
+		else {
 			return tex_black_result;
 		}
 	}
@@ -412,15 +409,14 @@ namespace YumeRT
 		Texture texture_stack[texture_stack_size];
 		int16_t top = -1;
 
-		auto child_texture_eval_complete = [](const Texture& parent_tex, int16_t *next_child)->bool 
-		{
+		auto child_texture_eval_complete = [](const Texture& parent_tex, int16_t *next_child)->bool {
 			const int16_t child_texture_count = parent_tex.GetChildCount();
-			if (child_texture_count == 0) { return true; }
-			for (int16_t empty_slot_index = 0; empty_slot_index < child_texture_count; ++empty_slot_index) 
-			{
+			if (child_texture_count == 0) { 
+				return true; 
+			}
+			for (int16_t empty_slot_index = 0; empty_slot_index < child_texture_count; ++empty_slot_index) {
 				const glm::vec3 result_i = parent_tex.GetChildResult(empty_slot_index);
-				if (!(result_i.x < TEXTURE_INVALID_VALUE && result_i.y < TEXTURE_INVALID_VALUE && result_i.z < TEXTURE_INVALID_VALUE)) 
-				{
+				if (!(result_i.x < TEXTURE_INVALID_VALUE && result_i.y < TEXTURE_INVALID_VALUE && result_i.z < TEXTURE_INVALID_VALUE)) {
 					*next_child = empty_slot_index;
 					return false;
 				}
@@ -441,22 +437,25 @@ namespace YumeRT
 			{
 				const glm::vec3 top_result = EvalTexResult(top_texture, image_tile_cache, texture_coordinate);
 				int16_t top_tex_parent_idx = top_texture.GetParentIndex();
-				if (top_tex_parent_idx != -1)
-				{
-					Texture &parent_tex = texture_stack[top_tex_parent_idx];
+				if (top_tex_parent_idx != -1) {
+					Texture& parent_tex = texture_stack[top_tex_parent_idx];
 					parent_tex.SetResult(top_result, top_texture.GetIthChild());
 					--top;
 					continue;
 				}
-				else 
-				{
-					// only the root texture's parent index is -1
+				else { // note: only the root texture's parent index is -1.
 					final_result = top_result;
 					break;
 				}
 			}
 			
-			const Texture &next_texture = textures[top_texture.GetChildTextureIndex(next_child_index)];
+			uint32_t child_texture_index = top_texture.GetChildTextureIndex(next_child_index);
+			if (child_texture_index == EMPTY_UINT32) {
+				top_texture.SetResult(TEXTURE_BLACK_COLOR, next_child_index);
+				continue;
+			}
+
+			const Texture &next_texture = textures[child_texture_index];
 			int16_t next_tex_parent_idx = top;
 			
 			// push next child into stack and set its properties

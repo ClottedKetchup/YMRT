@@ -41,14 +41,30 @@ namespace YumeRT {
 		}
 
 		// host data update.
-		const bool rebuild_bounding_volume_hierarchy = m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_CREATE) ||
-																						m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_DELETE) ||
-																						m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_GEOMETRY_CHANGE) ||
-																						m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_TRANSFORM_CHANGE);
+		const bool rebuild_bounding_volume_hierarchy = 
+			m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_CREATE) ||
+			m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_DELETE) ||
+			m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_GEOMETRY_CHANGE) ||
+			m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_TRANSFORM_CHANGE);
 		if (rebuild_bounding_volume_hierarchy) {
 			ACBVHBuilder SceneBuilder(m_scene.primitive_instances.data(), (uint32_t)m_scene.primitive_instances.size(), m_scene.transforms.data(), m_scene.geometries.data());
 			m_scene.top_nodes.clear();
 			SceneBuilder.BuildSceneBVH(m_scene.top_nodes, nullptr, nullptr);
+		}
+
+		const bool rebuild_light_list = 
+			m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CREATE) || 
+			m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_DELETE) || 
+			m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE);
+		if (rebuild_light_list) {
+			m_scene.shape_lights.clear();
+			m_scene.shape_light_sample_table.clear();
+			m_scene.LoadShapeLight();
+		}
+
+		const bool init_sampler_data = (m_scene.scene_change_flag == SceneModule::SCENE_CHANGE_FLAG::SCENE_INIT);
+		if (init_sampler_data) {
+			m_scene.InitHaltonPermuteTable();
 		}
 
 		if (m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_CAMERA_CHANGE)) {
@@ -87,6 +103,43 @@ namespace YumeRT {
 				FREE_GPU_RESOURCE(scene_device_data.primitive_instances);
 				scene_device_data.primitive_instance_count = (uint32_t)m_scene.primitive_instances.size();
 				UPLOAD_TO_GPU(scene_device_data.primitive_instances, m_scene.primitive_instances.data(), sizeof(PrimitiveInstance) * m_scene.primitive_instances.size());
+			}
+
+			if (m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_MATERIAL_CREATE) || m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_MATERIAL_DELETE)) {
+				FREE_GPU_RESOURCE(scene_device_data.materials);
+				scene_device_data.material_count = (uint32_t)m_scene.materials.size();
+				UPLOAD_TO_GPU(scene_device_data.materials, m_scene.materials.data(), sizeof(Material) * m_scene.materials.size());
+			}
+
+			if (m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE) || m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_TEXTURE_DELETE)) {
+				FREE_GPU_RESOURCE(scene_device_data.textures);
+				scene_device_data.texture_count = (uint32_t)m_scene.textures.size();
+				UPLOAD_TO_GPU(scene_device_data.textures, m_scene.textures.data(), sizeof(Texture) * m_scene.textures.size());
+			}
+
+			if (m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_DISTANT_LIGHT_CREATE) || m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_DISTANT_LIGHT_DELETE)) {
+				FREE_GPU_RESOURCE(scene_device_data.distant_lights);
+				scene_device_data.distant_light_count = (uint32_t)m_scene.distant_lights.size();
+				UPLOAD_TO_GPU(scene_device_data.distant_lights, m_scene.distant_lights.data(), sizeof(DistantLight) * m_scene.distant_lights.size());
+			}
+
+			if (rebuild_light_list) {
+				FREE_GPU_RESOURCE(scene_device_data.shape_lights);
+				FREE_GPU_RESOURCE(scene_device_data.shape_light_sample_table);
+				scene_device_data.shape_light_count = (uint32_t)m_scene.shape_lights.size();
+				UPLOAD_TO_GPU(scene_device_data.shape_lights, m_scene.shape_lights.data(), sizeof(ShapeLight) * m_scene.shape_lights.size());
+				UPLOAD_TO_GPU(scene_device_data.shape_light_sample_table, m_scene.shape_light_sample_table.data(), sizeof(float) * m_scene.shape_light_sample_table.size());
+			}
+
+			if (m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_VOLUME_CREATE) || m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_VOLUME_DELETE)) {
+				FREE_GPU_RESOURCE(scene_device_data.volumes);
+				scene_device_data.volume_count = (uint32_t)m_scene.volumes.size();
+				UPLOAD_TO_GPU(scene_device_data.volumes, m_scene.volumes.data(), sizeof(Volume) * m_scene.volumes.size());
+			}
+
+			if (init_sampler_data) {
+				UPLOAD_TO_GPU(scene_device_data.sampler_data.halton_permute_table, m_scene.permute_table.data(), sizeof(uint32_t)* m_scene.permute_table.size());
+				UPLOAD_TO_GPU(scene_device_data.sampler_data.sobol_matrices, sobol_matrices32, sizeof(uint32_t) * 4096u * 32u);
 			}
 
 			if (m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_CAMERA_CHANGE)) {

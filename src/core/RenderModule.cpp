@@ -3,6 +3,7 @@
 namespace YumeRT{
 
 #define MAX_WAIT_TIME 10
+#define CV_WAIT_DURATION 1
 
 	extern "C" void ImguiTestingAov(const Scene & scene, glm::vec4 * beauty, uint32_t * primitive_index, int width, int height, cudaStream_t & stream);
 
@@ -219,9 +220,14 @@ namespace YumeRT{
 			auto& primitive_image = editor_view_primitive_index_image;
 			
 			std::unique_lock<std::mutex> editor_view_result_queue_lk(editor_view_result_queue_mutex);
-			editor_view_result_queue_cv.wait_for(editor_view_result_queue_lk, std::chrono::milliseconds(MAX_WAIT_TIME), [&]() {
-				return !editor_view_result_queue_albedo.empty(); 
-			});
+
+			auto lock_strat_time = std::chrono::steady_clock::now();
+			while (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - lock_strat_time).count() < MAX_WAIT_TIME) {
+				editor_view_result_queue_cv.wait_for(editor_view_result_queue_lk, std::chrono::milliseconds(CV_WAIT_DURATION));
+				if (!editor_view_result_queue_albedo.empty()) {
+					break;
+				}
+			}
 			
 			editor_view_image_fetch_over_time = true;
 			if (!editor_view_result_queue_albedo.empty()) {
@@ -280,16 +286,19 @@ namespace YumeRT{
 		}
 
 		auto iter = path_tracing_image_resources.find(aov_name_beauty);
-		if (iter != path_tracing_image_resources.end()) 
-		{
+		if (iter != path_tracing_image_resources.end()) {
 			auto& image = iter->second;
 
 			std::unique_lock<std::mutex> path_tracing_result_queue_lk(path_tracing_result_queue_mutex);
-			path_tracing_result_queue_cv.wait_for(path_tracing_result_queue_lk, std::chrono::milliseconds(MAX_WAIT_TIME), [&]() {
-				return !path_tracing_result_queue_beauty.empty();
-			});
+			
+			auto lock_strat_time = std::chrono::steady_clock::now();
+			while (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - lock_strat_time).count() < MAX_WAIT_TIME) {
+				path_tracing_result_queue_cv.wait_for(path_tracing_result_queue_lk, std::chrono::milliseconds(CV_WAIT_DURATION));
+				if (!path_tracing_result_queue_beauty.empty()) {
+					break;
+				}
+			}
 
-			assert(!path_tracing_result_queue_beauty.empty());
 			if (!path_tracing_result_queue_beauty.empty()) {
 				// note: this memory should release after copy complete.
 				auto device_mem = std::move(path_tracing_result_queue_beauty.back());

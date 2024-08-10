@@ -11,6 +11,7 @@ namespace YumeRT
 #define TEX_TILE_RES_X 32
 #define TEX_TILE_RES_Y 32
 #define TEXTURE_INVALID_VALUE 1E36f
+#define TEXTURE_BLACK_COLOR glm::vec3(0.0f)
 
 	enum TEXTURE_TYPE
 	{
@@ -127,12 +128,28 @@ namespace YumeRT
 			u_offset = other.u_offset;
 			v_offset = other.v_offset;
 
-			mipmap_count = other.mipmap_count;
 			channel_count = other.channel_count;
-
-			for (int16_t i = 0; i < mipmap_count; ++i) { mipmap_tile_offsets[i] = other.mipmap_tile_offsets[i]; }
+			
 			parent_index = other.parent_index;
 			ith_child = other.ith_child;
+
+			mipmap_count = other.mipmap_count;
+			mipmap_tile_offsets[0] = other.mipmap_tile_offsets[0];
+			mipmap_tile_offsets[1] = other.mipmap_tile_offsets[1];
+			mipmap_tile_offsets[2] = other.mipmap_tile_offsets[2];
+			mipmap_tile_offsets[3] = other.mipmap_tile_offsets[3];
+			mipmap_tile_offsets[4] = other.mipmap_tile_offsets[4];
+			mipmap_tile_offsets[5] = other.mipmap_tile_offsets[5];
+			mipmap_tile_offsets[6] = other.mipmap_tile_offsets[6];
+			mipmap_tile_offsets[7] = other.mipmap_tile_offsets[7];
+			mipmap_tile_offsets[8] = other.mipmap_tile_offsets[8];
+			mipmap_tile_offsets[9] = other.mipmap_tile_offsets[9];
+			mipmap_tile_offsets[10] = other.mipmap_tile_offsets[10];
+			mipmap_tile_offsets[11] = other.mipmap_tile_offsets[11];
+			mipmap_tile_offsets[12] = other.mipmap_tile_offsets[12];
+			mipmap_tile_offsets[13] = other.mipmap_tile_offsets[13];
+			mipmap_tile_offsets[14] = other.mipmap_tile_offsets[14];
+			mipmap_tile_offsets[15] = other.mipmap_tile_offsets[15];
 
 			return *this;
 		}
