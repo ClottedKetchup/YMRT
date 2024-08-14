@@ -486,6 +486,13 @@ namespace YumeRT
 	{
 	public:
 		__device__ __host__ inline PCGSampler() {}
+		__device__ __host__ inline PCGSampler& operator=(const PCGSampler& other) {
+			pixel_idx = other.pixel_idx;
+			pixel_sample_idx = other.pixel_sample_idx;
+			dim_idx = other.dim_idx;
+			frame_idx = other.frame_idx;
+			return *this;
+		}
 		__device__ __host__ inline PCGSampler(uint32_t pixel_idx, uint32_t pixel_sample_idx, uint32_t dim_idx, uint32_t frame_idx) 
 			:pixel_idx(pixel_idx), pixel_sample_idx(pixel_sample_idx), dim_idx(dim_idx), frame_idx(frame_idx){}
 		__device__ __host__ inline float Random1D() 
@@ -515,6 +522,12 @@ namespace YumeRT
 	{
 	public:
 		__device__ __host__ inline HaltonSampler() {}
+		__device__ __host__ inline HaltonSampler& operator=(const HaltonSampler& other) {
+			sample_idx = other.sample_idx;
+			dim_idx = other.dim_idx;
+			permutes = other.permutes;
+			return *this;
+		}
 		__device__ __host__ inline HaltonSampler(uint64_t sample_index, int dim_offset, uint32_t *permute_table): dim_idx(dim_offset), permutes(permute_table), sample_idx(sample_index)
 		{
 			assert(dim_offset >= 2);
@@ -600,6 +613,13 @@ namespace YumeRT
 	{
 	public:
 		__device__ __host__ inline SobolSampler() {}
+		__device__ __host__ inline SobolSampler& operator=(const SobolSampler& other) {
+			pixel_idx = other.pixel_idx;
+			sample_idx = other.sample_idx;
+			dim_idx = other.dim_idx;
+			sobol_matrices = other.sobol_matrices;
+			return *this;
+		}
 		__device__ __host__ inline SobolSampler(int pixel_sample_count,
 															   int pixel_sample_idx,
 															   int frame_idx,
@@ -712,6 +732,26 @@ namespace YumeRT
 		};
 
 		__device__ __host__ inline RandomSampler() {}
+		__device__ __host__ inline RandomSampler& operator=(const RandomSampler& other){
+			sampler_type = other.sampler_type;
+			if (sampler_type == PCG)
+			{
+				pcg_sampler = other.pcg_sampler;
+			}
+			else if (sampler_type == HALTON)
+			{
+				halton_sampler = other.halton_sampler;
+			}
+			else if (sampler_type == SOBOL)
+			{
+				sobol_sampler = other.sobol_sampler;
+			}
+			else
+			{
+				
+			}
+			return *this;
+		}
 		__device__ __host__ inline void InitPCGSampler(uint32_t pixel_idx, uint32_t pixel_sample_idx, uint32_t dim_idx, uint32_t frame_idx) 
 		{
 			sampler_type = PCG;

@@ -8,6 +8,18 @@ namespace YumeRT{
 	extern "C" void ImguiTestingAov(const Scene & scene, glm::vec4 * beauty, uint32_t * primitive_index, int width, int height, cudaStream_t & stream);
 
 	extern "C" void ImguiTestingRendering(const Scene & scene, glm::vec4 * beauty, int width, int height, cudaStream_t & stream);
+
+	extern "C" void AllocateRayCounter(RayCounterData & ray_counter_data);
+
+	extern "C" void ReleaseRayCounter(RayCounterData & ray_counter_data);
+
+	extern "C" void AllocateShadingRayData(ShadingRayData & shading_ray_data);
+
+	extern "C" void ReleaseShadingRayData(ShadingRayData & shading_ray_data);
+
+	extern "C" void AllocateShadowRayData(ShadowRayData & shadow_ray_data);
+
+	extern "C" void ReleaseShadowRayData(ShadowRayData & shadow_ray_data);
 	
 	RenderModule::RenderModule(): 
 		m_editor_view_width(16), m_editor_view_height(16), editor_view_primitive_index_image(), 
@@ -29,11 +41,19 @@ namespace YumeRT{
 			CUDA_CHECK(cudaStreamCreateWithPriority(&stream_path_tracing, cudaStreamDefault, min_priority));
 		}
 
+		AllocateRayCounter(editor_view_ray_counter_data);
+		AllocateShadingRayData(editor_view_shading_ray_data);
+		AllocateShadowRayData(editor_view_shadow_ray_data);
+
 		editor_view_primitive_index_image.Resize(m_editor_view_width, m_editor_view_height);
 		editor_view_image_resources[aov_name_beauty] = DuskImageResource(m_editor_view_width, m_editor_view_height);
 		for (auto& item : editor_view_image_resources) {
 			item.second.Init();
 		}
+
+		AllocateRayCounter(path_tracing_ray_counter_data);
+		AllocateShadingRayData(path_tracing_shading_ray_data);
+		AllocateShadowRayData(path_tracing_shadow_ray_data);
 
 		path_tracing_image_resources[aov_name_beauty] = DuskImageResource(m_path_tracing_width, m_path_tracing_height);
 		for (auto& item : path_tracing_image_resources) {
@@ -55,53 +75,13 @@ namespace YumeRT{
 				else {
 					// fetch task and rendering.
 					assert(!editor_view_task_queue.empty());
-					auto task_param = editor_view_task_queue.back();
+					TaskParams task_param = editor_view_task_queue.back();
 					editor_view_task_queue.pop_back();
 
 					// unlock task queue.
 					editor_view_task_queue_lk.unlock();
 
-					// pipeline.
-					auto editor_view_rendering_function = [&]() {
-						auto& scene_resource = (*task_param.scene_resource_ptr);
-						
-						glm::vec4 *albedo_ptr = nullptr;
-						CUDA_CHECK(cudaMallocAsync(&albedo_ptr, sizeof(glm::vec4) * task_param.width * task_param.height, stream_editor_view));
-						uint32_t *primitive_index_ptr = nullptr;
-						CUDA_CHECK(cudaMallocAsync(&primitive_index_ptr, sizeof(uint32_t) * task_param.width * task_param.height, stream_editor_view));
-
-						CUDA_CHECK(cudaStreamSynchronize(stream_editor_view));
-						DuskDeviceMemory<glm::vec4> device_mem_albedo(task_param.width, task_param.height, albedo_ptr);
-						DuskDeviceMemory<uint32_t>  device_mem_primitive_indices(task_param.width, task_param.height, primitive_index_ptr);
-
-						// rendering block.
-						{ 
-							// lock scene.
-							std::shared_lock<std::shared_mutex> scene_read_lk(scene_resource.scene_mutex);
-							if (scene_resource.scene_change_time != task_param.scene_change_time) {
-								return;
-							}
-							ImguiTestingAov(scene_resource.scene, device_mem_albedo.GetMemPtr(), device_mem_primitive_indices.GetMemPtr(), task_param.width, task_param.height, stream_editor_view);
-						}
-
-						// result output block.
-						{
-							// lock scene.
-							std::shared_lock<std::shared_mutex> scene_read_lk(scene_resource.scene_mutex);
-							if (scene_resource.scene_change_time != task_param.scene_change_time) {
-								return;
-							}
-
-							{
-								std::unique_lock<std::mutex> editor_view_result_queue_lk(editor_view_result_queue_mutex);
-								editor_view_result_queue_albedo.push_front(std::move(device_mem_albedo));
-								editor_view_result_queue_primitive_index.push_front(std::move(device_mem_primitive_indices));
-							}
-							editor_view_result_queue_cv.notify_one();
-						}
-					}; // editor view thread rendering function.
-
-					editor_view_rendering_function();
+					EditorViewExecuteTask(task_param);
 				}
 			} // rendering loop.
 		});
@@ -121,47 +101,13 @@ namespace YumeRT{
 				else {
 					// fetch task and rendering.
 					assert(!path_tracing_task_queue.empty());
-					auto task_param = path_tracing_task_queue.back();
+					TaskParams task_param = path_tracing_task_queue.back();
 					path_tracing_task_queue.pop_back();
 
 					// unlock task queue.
 					path_tracing_task_queue_lk.unlock();
 
-					// pipeline.
-					auto path_tracing_rendering_function = [&]() {
-						auto& scene_resource = (*task_param.scene_resource_ptr);
-						glm::vec4 *ptr = nullptr;
-						CUDA_CHECK(cudaMallocAsync(&ptr, sizeof(glm::vec4) * task_param.width * task_param.height, stream_path_tracing));
-						CUDA_CHECK(cudaStreamSynchronize(stream_path_tracing));
-						DuskDeviceMemory<glm::vec4> device_mem(task_param.width, task_param.height, ptr);
-
-						// rendering block.
-						{
-							// lock scene.
-							std::shared_lock<std::shared_mutex> scene_read_lk(scene_resource.scene_mutex);
-							if (scene_resource.scene_change_time != task_param.scene_change_time) {
-								return;
-							}
-							ImguiTestingRendering(scene_resource.scene, device_mem.GetMemPtr(), task_param.width, task_param.height, stream_path_tracing);
-						}
-
-						// result output block.
-						{
-							// lock scene.
-							std::shared_lock<std::shared_mutex> scene_read_lk(scene_resource.scene_mutex);
-							if (scene_resource.scene_change_time != task_param.scene_change_time) {
-								return;
-							}
-
-							{
-								std::unique_lock<std::mutex> path_tracing_result_queue_lk(path_tracing_result_queue_mutex);
-								path_tracing_result_queue_beauty.push_front(std::move(device_mem));
-							}
-							path_tracing_result_queue_cv.notify_one();
-						}
-					}; // editor view thread rendering function.
-
-					path_tracing_rendering_function();
+					PathTracingExecuteTask(task_param);
 				}
 			} // rendering loop.
 		});
@@ -178,6 +124,14 @@ namespace YumeRT{
 		if (path_tracing_thread.joinable()) {
 			path_tracing_thread.join();
 		}
+
+		ReleaseRayCounter(editor_view_ray_counter_data);
+		ReleaseShadingRayData(editor_view_shading_ray_data);
+		ReleaseShadowRayData(editor_view_shadow_ray_data);
+
+		ReleaseRayCounter(path_tracing_ray_counter_data);
+		ReleaseShadingRayData(path_tracing_shading_ray_data);
+		ReleaseShadowRayData(path_tracing_shadow_ray_data);
 
 		CUDA_CHECK(cudaStreamDestroy(stream_editor_view));
 		CUDA_CHECK(cudaStreamDestroy(stream_path_tracing));
@@ -328,5 +282,81 @@ namespace YumeRT{
 			path_tracing_task_queue.push_front(task_params); 
 		}
 		path_tracing_task_queue_cv.notify_one();
+	}
+
+	void RenderModule::EditorViewExecuteTask(TaskParams& task_param)
+	{
+		auto& scene_resource = *(task_param.scene_resource_ptr);
+
+		glm::vec4* albedo_ptr = nullptr;
+		CUDA_CHECK(cudaMallocAsync(&albedo_ptr, sizeof(glm::vec4) * task_param.width * task_param.height, stream_editor_view));
+		uint32_t* primitive_index_ptr = nullptr;
+		CUDA_CHECK(cudaMallocAsync(&primitive_index_ptr, sizeof(uint32_t) * task_param.width * task_param.height, stream_editor_view));
+
+		CUDA_CHECK(cudaStreamSynchronize(stream_editor_view));
+		DuskDeviceMemory<glm::vec4> device_mem_albedo(task_param.width, task_param.height, albedo_ptr);
+		DuskDeviceMemory<uint32_t>  device_mem_primitive_indices(task_param.width, task_param.height, primitive_index_ptr);
+
+		// rendering block.
+		{
+			// lock scene.
+			std::shared_lock<std::shared_mutex> scene_read_lk(scene_resource.scene_mutex);
+			if (scene_resource.scene_change_time != task_param.scene_change_time) {
+				return;
+			}
+			ImguiTestingAov(scene_resource.scene, device_mem_albedo.GetMemPtr(), device_mem_primitive_indices.GetMemPtr(), task_param.width, task_param.height, stream_editor_view);
+		}
+
+		// result output block.
+		{
+			// lock scene.
+			std::shared_lock<std::shared_mutex> scene_read_lk(scene_resource.scene_mutex);
+			if (scene_resource.scene_change_time != task_param.scene_change_time) {
+				return;
+			}
+
+			{
+				// push result to queue.
+				std::unique_lock<std::mutex> editor_view_result_queue_lk(editor_view_result_queue_mutex);
+				editor_view_result_queue_albedo.push_front(std::move(device_mem_albedo));
+				editor_view_result_queue_primitive_index.push_front(std::move(device_mem_primitive_indices));
+			}
+			editor_view_result_queue_cv.notify_one();
+		}
+	}
+
+	void RenderModule::PathTracingExecuteTask(TaskParams& task_param)
+	{
+		auto& scene_resource = *(task_param.scene_resource_ptr);
+		glm::vec4* ptr = nullptr;
+		CUDA_CHECK(cudaMallocAsync(&ptr, sizeof(glm::vec4) * task_param.width * task_param.height, stream_path_tracing));
+		CUDA_CHECK(cudaStreamSynchronize(stream_path_tracing));
+		DuskDeviceMemory<glm::vec4> device_mem(task_param.width, task_param.height, ptr);
+
+		// rendering block.
+		{
+			// lock scene.
+			std::shared_lock<std::shared_mutex> scene_read_lk(scene_resource.scene_mutex);
+			if (scene_resource.scene_change_time != task_param.scene_change_time) {
+				return;
+			}
+			ImguiTestingRendering(scene_resource.scene, device_mem.GetMemPtr(), task_param.width, task_param.height, stream_path_tracing);
+		}
+
+		// result output block.
+		{
+			// lock scene.
+			std::shared_lock<std::shared_mutex> scene_read_lk(scene_resource.scene_mutex);
+			if (scene_resource.scene_change_time != task_param.scene_change_time) {
+				return;
+			}
+
+			{
+				// push result to queue.
+				std::unique_lock<std::mutex> path_tracing_result_queue_lk(path_tracing_result_queue_mutex);
+				path_tracing_result_queue_beauty.push_front(std::move(device_mem));
+			}
+			path_tracing_result_queue_cv.notify_one();
+		}
 	}
 };

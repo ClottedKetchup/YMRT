@@ -237,6 +237,10 @@ namespace YumeRT {
 		std::list<DuskDeviceMemory<glm::vec4>> editor_view_result_queue_albedo;
 		std::list<DuskDeviceMemory<uint32_t>> editor_view_result_queue_primitive_index;
 
+		RayCounterData editor_view_ray_counter_data;
+		ShadingRayData editor_view_shading_ray_data;
+		ShadowRayData editor_view_shadow_ray_data;
+
 		// these are used by rendering thread.
 		cudaStream_t stream_path_tracing;
 		int m_path_tracing_width, m_path_tracing_height;
@@ -252,5 +256,13 @@ namespace YumeRT {
 		std::condition_variable path_tracing_result_queue_cv;
 		std::mutex path_tracing_result_queue_mutex;
 		std::list<DuskDeviceMemory<glm::vec4>> path_tracing_result_queue_beauty;
+
+		RayCounterData path_tracing_ray_counter_data;
+		ShadingRayData path_tracing_shading_ray_data;
+		ShadowRayData path_tracing_shadow_ray_data;
+
+		void EditorViewExecuteTask(TaskParams& task_param);
+
+		void PathTracingExecuteTask(TaskParams& task_param);
 	};
 };

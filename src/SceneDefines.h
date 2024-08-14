@@ -6,6 +6,8 @@
 
 namespace YumeRT
 {
+	struct Ray;
+
 	struct Camera;
 
 	struct GeometryData;
@@ -65,6 +67,32 @@ namespace YumeRT
 		}sampler_data;
 	};
 
+	struct RayCounter {
+		uint32_t shading_ray_counter;
+		uint32_t hit_counter;
+		uint32_t shadow_ray_counter;
+	};
+
+	struct RayCounterData
+	{
+		RayCounter *ray_counter_device;
+		RayCounter *ray_counter_host;
+	};
+
+	struct ShadingRayData 
+	{
+		Ray *ray_data_ray;
+		glm::vec3 *ray_data_L;
+		glm::vec3 *ray_data_throughput;
+		int *pixel_position_x;
+		int *pixel_position_y;
+	};
+
+	struct ShadowRayData 
+	{
+	
+	};
+
 	struct SceneResource{
 		Scene scene;
 		std::shared_mutex scene_mutex;
@@ -89,12 +117,14 @@ namespace YumeRT
 		float exposure;
 		int max_frame_count;
 		int sampler_type;
+		int padding;
 		bool enable_distant_light;
 		bool enable_volume_scattering;
 		bool enable_env_light;
 		bool enable_russian_roulette;
 
-		__device__ __host__ inline RenderSetting(): ssp(1), ray_depth(2), gamma(2.2f), exposure(1.0f), sampler_type(0),
+		__device__ __host__ inline RenderSetting(): ssp(1), ray_depth(2), gamma(2.2f), exposure(1.0f), sampler_type(0), padding(0),
 			max_frame_count(-1), enable_distant_light(false), enable_env_light(true), enable_russian_roulette(false), enable_volume_scattering(false)  {}
+		__device__ __host__ inline RenderSetting& operator=(const RenderSetting&) = default;
 	};
 };

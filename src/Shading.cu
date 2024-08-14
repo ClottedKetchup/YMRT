@@ -31,7 +31,6 @@
 
 namespace YumeRT
 {
-
 #define MAX_RAY_DEPTH 32
 
 #define TILE_X_RES 16u
@@ -1023,6 +1022,44 @@ namespace YumeRT
 		}
 	}
 
+	extern "C" void AllocateRayCounter(RayCounterData & ray_counter_data) {
+		ray_counter_data.ray_counter_host = (RayCounter*)_aligned_malloc(sizeof(RayCounter), 4ull);
+		auto& ray_counter = *(ray_counter_data.ray_counter_host);
+		ray_counter.hit_counter = 0;
+		ray_counter.shading_ray_counter = 0;
+		ray_counter.shadow_ray_counter = 0;
+		UPLOAD_TO_GPU(ray_counter_data.ray_counter_device, &ray_counter, sizeof(RayCounter));
+	}
+
+	extern "C" void ReleaseRayCounter(RayCounterData & ray_counter_data) {
+		_aligned_free(ray_counter_data.ray_counter_host);
+		CUDA_CHECK(cudaFree(ray_counter_data.ray_counter_device));
+	}
+
+	extern "C" void AllocateShadingRayData(ShadingRayData & shading_ray_data) {
+		CUDA_CHECK(cudaMalloc(&(shading_ray_data.ray_data_ray), sizeof(Ray) * MAX_RAY_COUNT));
+		CUDA_CHECK(cudaMalloc(&(shading_ray_data.ray_data_L), sizeof(glm::vec3) * MAX_RAY_COUNT));
+		CUDA_CHECK(cudaMalloc(&(shading_ray_data.ray_data_throughput), sizeof(glm::vec3) * MAX_RAY_COUNT));
+		CUDA_CHECK(cudaMalloc(&(shading_ray_data.pixel_position_x), sizeof(int) * MAX_RAY_COUNT));
+		CUDA_CHECK(cudaMalloc(&(shading_ray_data.pixel_position_y), sizeof(int) * MAX_RAY_COUNT));
+	}
+
+	extern "C" void ReleaseShadingRayData(ShadingRayData & shading_ray_data) {
+		FREE_GPU_RESOURCE(shading_ray_data.ray_data_ray);
+		FREE_GPU_RESOURCE(shading_ray_data.ray_data_L);
+		FREE_GPU_RESOURCE(shading_ray_data.ray_data_throughput);
+		FREE_GPU_RESOURCE(shading_ray_data.pixel_position_x);
+		FREE_GPU_RESOURCE(shading_ray_data.pixel_position_y);
+	}
+
+	extern "C" void AllocateShadowRayData(ShadowRayData & shadow_ray_data) {
+
+	}
+
+	extern "C" void ReleaseShadowRayData(ShadowRayData & shadow_ray_data) {
+
+	}
+
 	__global__ void ImguiTestDrawing(const Scene *scene_ptr, glm::vec4 *beauty, uint32_t *primitive_index, const int width, const int height)
 	{
 		const int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -1111,7 +1148,6 @@ namespace YumeRT
 			beauty[pixel_idx] = glm::vec4(Background(ray.direction), 1.0f);
 		}
 	}
-
 
 	extern "C" void ImguiTestingRendering(const Scene &scene, glm::vec4 *beauty, int width, int height, cudaStream_t &stream)
 	{
