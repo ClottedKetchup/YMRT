@@ -153,9 +153,9 @@ namespace YumeRT{
 		path_tracing_image_resources.clear();
 	}
 
-	void RenderModule::EditorViewFetchResult(SceneResource &scene_resource, const int frame_width, const int frame_height)
+	void RenderModule::EditorViewFetchResult(SceneResource &scene_resource, const RenderSetting &render_setting, const int frame_width, const int frame_height)
 	{
-		EditorViewLaunchTask(TaskParams(&scene_resource, frame_width, frame_height, scene_resource.scene_change_time));
+		EditorViewLaunchTask(TaskParams(&scene_resource, frame_width, frame_height, render_setting, scene_resource.scene_change_time));
 
 		if (m_editor_view_width != frame_width || m_editor_view_height != frame_height) {
 			m_editor_view_width = frame_width, m_editor_view_height = frame_height;
@@ -226,9 +226,9 @@ namespace YumeRT{
 		editor_view_task_queue_cv.notify_one();
 	}
 
-	void RenderModule::PathTracingFetchResult(SceneResource &scene_resource, const int frame_width, const int frame_height)
+	void RenderModule::PathTracingFetchResult(SceneResource &scene_resource, const RenderSetting &render_setting, const int frame_width, const int frame_height)
 	{
-		PathTracingLaunchTask(TaskParams(&scene_resource, frame_width, frame_height, scene_resource.scene_change_time));
+		PathTracingLaunchTask(TaskParams(&scene_resource, frame_width, frame_height, render_setting, scene_resource.scene_change_time));
 
 		if (m_path_tracing_width != frame_width || m_path_tracing_height != frame_height) {
 			m_path_tracing_width = frame_width, m_path_tracing_height = frame_height;

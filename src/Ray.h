@@ -19,7 +19,9 @@ namespace YumeRT
 		mutable float t;
 		float time;
 
-		__device__ __host__ inline Ray() : t(TMAX),  origin(0.0f), direction(0.0f), time(0.0f){};
+		__device__ __host__ inline Ray() : t(TMAX),  origin(0.0f), direction(0.0f), time(0.0f){
+			SetInvalid();
+		};
 
 		__device__ __host__ inline Ray(const glm::vec3 &origin, const glm::vec3 &direction)
 			:origin(origin), direction(glm::normalize(direction)), t(TMAX) {}
@@ -27,6 +29,24 @@ namespace YumeRT
 		__device__ __host__ inline glm::vec3 PositionAtT(float time)
 		{
 			return origin + direction * time;
+		}
+
+		__device__ __host__ inline void SetInvalid() {
+			auto set_float_bits = [](float& f) {
+				uint32_t& ui = *((uint32_t*)(&f));
+				ui = 0xFFFFFFFF;
+			};
+			set_float_bits(direction.x);
+			set_float_bits(direction.y);
+			set_float_bits(direction.z);
+		}
+
+		__device__ __host__ inline bool Invalid() {
+			auto check_float_bits = [](float& f) {
+				uint32_t& ui = *((uint32_t*)(&f));
+				return ui == 0xFFFFFFFF;
+			};
+			return check_float_bits(direction.x) && check_float_bits(direction.y) && check_float_bits(direction.z);
 		}
 	};
 

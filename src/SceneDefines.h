@@ -6,6 +6,26 @@
 
 namespace YumeRT
 {
+	struct RenderSetting
+	{
+		int ssp;
+		int ray_depth;
+		float gamma;
+		float exposure;
+		int max_frame_count;
+		int sampler_type;
+		int padding;
+		bool enable_distant_light;
+		bool enable_volume_scattering;
+		bool enable_env_light;
+		bool enable_russian_roulette;
+
+		__device__ __host__ inline RenderSetting() : ssp(1), ray_depth(2), gamma(2.2f), exposure(1.0f), sampler_type(0), padding(0),
+			max_frame_count(-1), enable_distant_light(false), enable_env_light(true), enable_russian_roulette(false), enable_volume_scattering(false) {}
+		__device__ __host__ inline RenderSetting(const RenderSetting&) = default;
+		__device__ __host__ inline RenderSetting& operator=(const RenderSetting&) = default;
+	};
+
 	struct Ray;
 
 	struct Camera;
@@ -61,6 +81,8 @@ namespace YumeRT
 		uint32_t texture_count = 0;
 		Texture *textures = nullptr;
 
+		RenderSetting *render_setting = nullptr;
+
 		struct {
 			uint32_t *halton_permute_table = nullptr;
 			uint32_t *sobol_matrices = nullptr;
@@ -109,22 +131,5 @@ namespace YumeRT
 		HALTON_SAMPLER = 1,
 		SOBOL_SAMPLER = 2
 	};
-	struct RenderSetting
-	{
-		int ssp;
-		int ray_depth;
-		float gamma;
-		float exposure;
-		int max_frame_count;
-		int sampler_type;
-		int padding;
-		bool enable_distant_light;
-		bool enable_volume_scattering;
-		bool enable_env_light;
-		bool enable_russian_roulette;
-
-		__device__ __host__ inline RenderSetting(): ssp(1), ray_depth(2), gamma(2.2f), exposure(1.0f), sampler_type(0), padding(0),
-			max_frame_count(-1), enable_distant_light(false), enable_env_light(true), enable_russian_roulette(false), enable_volume_scattering(false)  {}
-		__device__ __host__ inline RenderSetting& operator=(const RenderSetting&) = default;
-	};
+	
 };

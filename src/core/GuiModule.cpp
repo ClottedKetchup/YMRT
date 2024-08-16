@@ -142,6 +142,15 @@ namespace YumeRT {
 				UPLOAD_TO_GPU(scene_device_data.sampler_data.sobol_matrices, sobol_matrices32, sizeof(uint32_t) * 4096u * 32u);
 			}
 
+			if (m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_RENDER_SETTING_CHANGE)) {
+				if (scene_device_data.render_setting == nullptr) {
+					UPLOAD_TO_GPU(scene_device_data.render_setting, &m_scene.render_setting, sizeof(RenderSetting));
+				}
+				else {
+					TRANSFER_TO_GPU(scene_device_data.render_setting, &m_scene.render_setting, sizeof(RenderSetting));
+				}
+			}
+
 			if (m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_CAMERA_CHANGE)) {
 				if (scene_device_data.camera == nullptr) {
 					scene_device_data.camera_count = CAMERA_COUNT;
@@ -198,8 +207,9 @@ namespace YumeRT {
 			}
 
 			// render path tracing view based on current size.
-			auto &scene_resource = m_module_scene->scene_resource;
-			m_module_render->PathTracingFetchResult(scene_resource, (int)draw_region_size.x, (int)draw_region_size.y);
+			auto& scene_resource = m_module_scene->scene_resource;
+			auto& render_setting = m_module_scene->render_setting;
+			m_module_render->PathTracingFetchResult(scene_resource, render_setting, (int)draw_region_size.x, (int)draw_region_size.y);
 
 			// image button style.
 			ImGui::PushID(1);
@@ -240,7 +250,8 @@ namespace YumeRT {
 
 			// render editor view based on current size.
 			auto& scene_resource = m_module_scene->scene_resource;
-			m_module_render->EditorViewFetchResult(scene_resource, (int)draw_region_size.x, (int)draw_region_size.y);
+			auto& render_setting = m_module_scene->render_setting;
+			m_module_render->EditorViewFetchResult(scene_resource, render_setting, (int)draw_region_size.x, (int)draw_region_size.y);
 
 			// image button style.
 			ImGui::PushID(1);

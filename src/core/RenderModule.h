@@ -160,9 +160,10 @@ namespace YumeRT {
 	struct TaskParams {
 		SceneResource *scene_resource_ptr;
 		const int width, height;
+		const RenderSetting render_setting;
 		const uint64_t scene_change_time;
-		TaskParams(SceneResource *scene_resource_ptr, const int frame_width, const int frame_height, const uint64_t scene_change_time) :
-			scene_resource_ptr(scene_resource_ptr), width(frame_width), height(frame_height), scene_change_time(scene_change_time) {}
+		TaskParams(SceneResource *scene_resource_ptr, const int frame_width, const int frame_height, const RenderSetting &_render_setting, const uint64_t scene_change_time) :
+			scene_resource_ptr(scene_resource_ptr), width(frame_width), height(frame_height), render_setting(_render_setting), scene_change_time(scene_change_time) {}
 		TaskParams(const TaskParams&) = default;
 		TaskParams& operator=(const TaskParams&) = default;
 	};
@@ -178,7 +179,7 @@ namespace YumeRT {
 		friend class GuiModule;
 
 		// note: these function would be called by the main thread.
-		void EditorViewFetchResult(SceneResource &scene_resource, const int frame_width, const int frame_height);
+		void EditorViewFetchResult(SceneResource &scene_resource, const RenderSetting &render_setting, const int frame_width, const int frame_height);
 		
 		GLuint EditorViewGetTexture(const std::string &name);
 
@@ -205,7 +206,7 @@ namespace YumeRT {
 			}
 		}
 
-		void PathTracingFetchResult(SceneResource &scene_resource, const int frame_width, const int frame_height);
+		void PathTracingFetchResult(SceneResource &scene_resource, const RenderSetting &render_setting, const int frame_width, const int frame_height);
 
 		GLuint PathTracingGetTexture(const std::string &name);
 

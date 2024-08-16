@@ -1,7 +1,7 @@
 #include "src/core/SceneModule.h"
 
 namespace YumeRT {
-	SceneModule::SceneModule() :scene_resource{}, camera(), scene_change_flag(SCENE_INIT)
+	SceneModule::SceneModule() :scene_resource{}, camera(),  render_setting{}, scene_change_flag(SCENE_INIT)
 	{
 
 	}
@@ -58,6 +58,9 @@ namespace YumeRT {
 		scene.sampler_data.halton_permute_table = nullptr;
 		FREE_GPU_RESOURCE(scene.sampler_data.sobol_matrices);
 		scene.sampler_data.sobol_matrices = nullptr;
+
+		FREE_GPU_RESOURCE(scene.render_setting);
+		scene.render_setting = nullptr;
 
 		for (auto& geometry : geometries) {
 			geometry.Destory();

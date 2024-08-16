@@ -67,6 +67,8 @@ namespace YumeRT{
 			SCENE_VOLUME_DELETE = 1 << 26,
 			SCENE_VOLUME_CHANGE = 1 << 27,
 
+			SCENE_RENDER_SETTING_CHANGE = 1 << 28,
+
 			SCENE_INIT = 0xFFFFFFFFu
 		};
 		
@@ -198,6 +200,9 @@ namespace YumeRT{
 
 		// note: device data block.
 		SceneResource scene_resource;
+
+		// renderer parameters.
+		RenderSetting render_setting;
 
 		// note: original host data.
 		Camera camera[CAMERA_COUNT];
