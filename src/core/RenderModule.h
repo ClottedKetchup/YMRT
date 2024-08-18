@@ -157,6 +157,22 @@ namespace YumeRT {
 		
 	};
 
+	template<typename T>
+	struct DeviceMemoryGuard {
+		DeviceMemoryGuard(T *ptr): ptr(ptr) 
+		{
+		
+		}
+		~DeviceMemoryGuard() {
+			FREE_GPU_RESOURCE(ptr);
+		}
+		inline T* GetMemPtr() {
+			return ptr;
+		}
+	private:
+		T *ptr;
+	};
+
 	struct TaskParams {
 		SceneResource *scene_resource_ptr;
 		const int width, height;

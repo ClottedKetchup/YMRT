@@ -6,6 +6,14 @@
 
 namespace YumeRT
 {
+#define MAX_RAY_DEPTH 32
+
+#define TILE_X_RES 16u
+#define TILE_Y_RES 16u
+#define TILE_PIXEL_COUNT 256u
+#define TILE_PIXEL_RIGHT_SHIFT_BIT 8
+#define MAX_RAY_COUNT 1024 * 1024
+
 	struct RenderSetting
 	{
 		int ssp;
@@ -104,10 +112,10 @@ namespace YumeRT
 	struct ShadingRayData 
 	{
 		Ray *ray_data_ray;
-		glm::vec3 *ray_data_L;
+		glm::vec3 *ray_data_received_light;
 		glm::vec3 *ray_data_throughput;
-		int *pixel_position_x;
-		int *pixel_position_y;
+		int *ray_data_pixel_position_x;
+		int *ray_data_pixel_position_y;
 	};
 
 	struct ShadowRayData 

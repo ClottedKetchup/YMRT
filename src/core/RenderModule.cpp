@@ -20,6 +20,10 @@ namespace YumeRT{
 	extern "C" void AllocateShadowRayData(ShadowRayData & shadow_ray_data);
 
 	extern "C" void ReleaseShadowRayData(ShadowRayData & shadow_ray_data);
+
+	extern "C" void RayGeneration(const RenderSetting & render_setting, Scene * scene_device, RayCounter * ray_counter_device, uint32_t next_tile_index, uint32_t tile_count_this_batch, uint32_t width, uint32_t height, uint32_t tile_count_x, uint32_t tile_count_y, ShadingRayData & shading_ray_data, cudaStream_t & stream);
+	
+	extern "C" void RayTrace(const RenderSetting & render_setting, Scene * scene_device, RayCounter * ray_counter_device, RayCounter * ray_counter_host, uint32_t width, uint32_t height, glm::vec4 * beauty, uint32_t * primitive_index, ShadingRayData & shading_ray_data, cudaStream_t & stream);
 	
 	RenderModule::RenderModule(): 
 		m_editor_view_width(16), m_editor_view_height(16), editor_view_primitive_index_image(), 
@@ -288,28 +292,91 @@ namespace YumeRT{
 	{
 		auto& scene_resource = *(task_param.scene_resource_ptr);
 
-		glm::vec4* albedo_ptr = nullptr;
+		// note: allocate image buffers.
+		glm::vec4 *albedo_ptr = nullptr; 
+		uint32_t *primitive_index_ptr = nullptr;
 		CUDA_CHECK(cudaMallocAsync(&albedo_ptr, sizeof(glm::vec4) * task_param.width * task_param.height, stream_editor_view));
-		uint32_t* primitive_index_ptr = nullptr;
 		CUDA_CHECK(cudaMallocAsync(&primitive_index_ptr, sizeof(uint32_t) * task_param.width * task_param.height, stream_editor_view));
-
 		CUDA_CHECK(cudaStreamSynchronize(stream_editor_view));
 		DuskDeviceMemory<glm::vec4> device_mem_albedo(task_param.width, task_param.height, albedo_ptr);
 		DuskDeviceMemory<uint32_t>  device_mem_primitive_indices(task_param.width, task_param.height, primitive_index_ptr);
 
-		// rendering block.
+		// note: allocate device scene ptrs.
+		Scene *scene_device = nullptr;
 		{
-			// lock scene.
 			std::shared_lock<std::shared_mutex> scene_read_lk(scene_resource.scene_mutex);
 			if (scene_resource.scene_change_time != task_param.scene_change_time) {
 				return;
 			}
-			ImguiTestingAov(scene_resource.scene, device_mem_albedo.GetMemPtr(), device_mem_primitive_indices.GetMemPtr(), task_param.width, task_param.height, stream_editor_view);
+			CUDA_CHECK(cudaMallocAsync(&scene_device, sizeof(Scene), stream_editor_view));
+			CUDA_CHECK(cudaMemcpyAsync(scene_device, &scene_resource.scene, sizeof(Scene), cudaMemcpyHostToDevice, stream_editor_view));
+			CUDA_CHECK(cudaStreamSynchronize(stream_editor_view)); // note: have to make sure the gpu done the memory copy before unlock.
+		}
+		
+		const RenderSetting& render_setting = task_param.render_setting;
+		const uint32_t sample_per_pixel = render_setting.ssp;
+		const uint32_t tile_count_x = (task_param.width + TILE_X_RES - 1) / TILE_X_RES;
+		const uint32_t tile_count_y = (task_param.height + TILE_Y_RES - 1) / TILE_Y_RES;
+		const uint32_t total_tile_count = tile_count_x * tile_count_y;
+		
+		uint32_t next_tile_index = 0;
+
+		auto& ray_counter_host = editor_view_ray_counter_data.ray_counter_host;
+		auto& ray_counter_device = editor_view_ray_counter_data.ray_counter_device;
+
+		// note: clear ray counter.
+		ray_counter_host->hit_counter = 0;
+		ray_counter_host->shading_ray_counter = 0;
+		ray_counter_host->shadow_ray_counter = 0;
+		CUDA_CHECK(cudaMemcpyAsync(ray_counter_device, ray_counter_host, sizeof(RayCounter), cudaMemcpyHostToDevice, stream_editor_view));
+		CUDA_CHECK(cudaStreamSynchronize(stream_editor_view));
+
+		while (ray_counter_host->shading_ray_counter > 0 || next_tile_index < total_tile_count) 
+		{
+			const uint32_t tile_count_this_batch = (MAX_RAY_COUNT - ray_counter_host->shading_ray_counter) / (TILE_PIXEL_COUNT * sample_per_pixel);
+			
+			// stage: ray generation.
+			{
+				std::shared_lock<std::shared_mutex> scene_read_lk(scene_resource.scene_mutex);
+				if (scene_resource.scene_change_time != task_param.scene_change_time) {
+					break;
+				}
+				RayGeneration(render_setting, scene_device, ray_counter_device, next_tile_index, tile_count_this_batch, task_param.width, task_param.height, tile_count_x, tile_count_y, editor_view_shading_ray_data, stream_editor_view);
+				
+				next_tile_index += tile_count_this_batch;
+				ray_counter_host->shading_ray_counter += tile_count_this_batch * sample_per_pixel * TILE_PIXEL_COUNT;
+				CUDA_CHECK(cudaMemcpyAsync(ray_counter_device, ray_counter_host, sizeof(RayCounter), cudaMemcpyHostToDevice, stream_editor_view));
+				CUDA_CHECK(cudaStreamSynchronize(stream_editor_view));
+			}
+
+			// stage: ray trace.
+			{
+				std::shared_lock<std::shared_mutex> scene_read_lk(scene_resource.scene_mutex);
+				if (scene_resource.scene_change_time != task_param.scene_change_time) {
+					break;
+				}
+				RayTrace(render_setting, scene_device, ray_counter_device, ray_counter_host, task_param.width, task_param.height, device_mem_albedo.GetMemPtr(), device_mem_primitive_indices.GetMemPtr(), editor_view_shading_ray_data, stream_editor_view);
+			
+				ray_counter_host->shading_ray_counter = 0;
+				CUDA_CHECK(cudaMemcpyAsync(ray_counter_device, ray_counter_host, sizeof(RayCounter), cudaMemcpyHostToDevice, stream_editor_view));
+				CUDA_CHECK(cudaStreamSynchronize(stream_editor_view));
+			}
+
+			// stage: ray shading.
+			{
+			
+			}
+
+			// stage: ray shadow.
+			{
+			
+			}
 		}
 
-		// result output block.
+		FREE_GPU_RESOURCE(scene_device);
+
+		// stage: result output to queue.
 		{
-			// lock scene.
 			std::shared_lock<std::shared_mutex> scene_read_lk(scene_resource.scene_mutex);
 			if (scene_resource.scene_change_time != task_param.scene_change_time) {
 				return;
