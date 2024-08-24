@@ -36,6 +36,10 @@ namespace YumeRT
 
 	struct Ray;
 
+	struct HitRecord;
+
+	struct RandomSampler;
+
 	struct Camera;
 
 	struct GeometryData;
@@ -105,17 +109,40 @@ namespace YumeRT
 
 	struct RayCounterData
 	{
-		RayCounter *ray_counter_device;
-		RayCounter *ray_counter_host;
+		RayCounter * ray_counter_device;
+		RayCounter * ray_counter_host;
 	};
 
 	struct ShadingRayData 
 	{
-		Ray *ray_data_ray;
-		glm::vec3 *ray_data_received_light;
-		glm::vec3 *ray_data_throughput;
-		int *ray_data_pixel_position_x;
-		int *ray_data_pixel_position_y;
+		Ray * shading_ray_data_ray;
+		glm::vec3 * shading_ray_data_received_light;
+		glm::vec3 * shading_ray_data_throughput;
+		int * shading_ray_data_pixel_position_x;
+		int * shading_ray_data_pixel_position_y;
+		int * shading_ray_data_ray_depth;
+		int * shading_ray_data_never_scatter;
+		int * shading_ray_data_camera_ray;
+		RandomSampler * shading_ray_data_sampler;
+	};
+
+	struct HitData 
+	{
+		HitRecord * hit_data_hit_record;
+		int * hit_data_nearby_hit_count;
+		uint32_t * hit_data_nearby_hit_primitive_index;
+		float * hit_data_nearby_t_hit;
+		int * hit_data_nearby_hit_back;
+
+		Ray * hit_data_ray;
+		glm::vec3 * hit_data_received_light;
+		glm::vec3 * hit_data_throughput;
+		int * hit_data_pixel_position_x;
+		int * hit_data_pixel_position_y;
+		int * hit_data_ray_depth;
+		int * hit_data_never_scatter;
+		int * hit_data_camera_ray;
+		RandomSampler * hit_data_sampler;
 	};
 
 	struct ShadowRayData 
@@ -128,7 +155,7 @@ namespace YumeRT
 		std::shared_mutex scene_mutex;
 		uint64_t scene_change_time;
 
-		SceneResource() :scene{}, scene_change_time(0ull){}
+		SceneResource() :scene{}, scene_change_time(0){}
 		SceneResource(const SceneResource&) = delete;
 		SceneResource& operator=(const SceneResource&) = delete;
 	};

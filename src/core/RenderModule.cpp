@@ -17,19 +17,25 @@ namespace YumeRT{
 
 	extern "C" void ReleaseShadingRayData(ShadingRayData & shading_ray_data);
 
+	extern "C" void AllocateHitData(HitData & hit_data);
+
+	extern "C" void ReleaseHitData(HitData & hit_data);
+
 	extern "C" void AllocateShadowRayData(ShadowRayData & shadow_ray_data);
 
 	extern "C" void ReleaseShadowRayData(ShadowRayData & shadow_ray_data);
 
-	extern "C" void RayGeneration(const RenderSetting & render_setting, Scene * scene_device, RayCounter * ray_counter_device, uint32_t next_tile_index, uint32_t tile_count_this_batch, uint32_t width, uint32_t height, uint32_t tile_count_x, uint32_t tile_count_y, ShadingRayData & shading_ray_data, cudaStream_t & stream);
+	extern "C" void RayGeneration(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, HaltonEnumerator * halton_enumerator_device, RayCounter * ray_counter_device, uint32_t next_tile_index, uint32_t tile_count_this_batch, uint32_t width, uint32_t height, uint32_t tile_count_x, uint32_t tile_count_y, ShadingRayData & shading_ray_data, cudaStream_t & stream);
 	
-	extern "C" void RayTrace(const RenderSetting & render_setting, Scene * scene_device, RayCounter * ray_counter_device, RayCounter * ray_counter_host, uint32_t width, uint32_t height, glm::vec4 * beauty, uint32_t * primitive_index, ShadingRayData & shading_ray_data, cudaStream_t & stream);
+	extern "C" void RayTrace(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, RayCounter * ray_counter_device, RayCounter * ray_counter_host, uint32_t width, uint32_t height, glm::vec4 * beauty, uint32_t * primitive_index, ShadingRayData & shading_ray_data, HitData & hit_data, cudaStream_t & stream);
+	
+	extern "C" void RayShading(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, RayCounter * ray_counter_device, RayCounter * ray_counter_host, uint32_t width, uint32_t height, glm::vec4 * beauty, uint32_t * primitive_index, ShadingRayData & shading_ray_data, HitData & hit_data, ShadowRayData & shadow_ray_data, cudaStream_t & stream);
 	
 	RenderModule::RenderModule(): 
 		m_editor_view_width(16), m_editor_view_height(16), editor_view_primitive_index_image(), 
-		editor_view_image_fetch_over_time(true),
+		editor_view_image_fetch_over_time(true), path_tracing_image_fetch_over_time(true),
 		m_path_tracing_width(16), m_path_tracing_height(16), 
-		accumulated_image_count(0), 
+		editor_view_frame_index(1), path_tracing_frame_index(1),
 		should_exit{ false }
 	{
 		int min_priority = 0, max_priority = 0;
@@ -47,6 +53,7 @@ namespace YumeRT{
 
 		AllocateRayCounter(editor_view_ray_counter_data);
 		AllocateShadingRayData(editor_view_shading_ray_data);
+		AllocateHitData(editor_view_hit_data);
 		AllocateShadowRayData(editor_view_shadow_ray_data);
 
 		editor_view_primitive_index_image.Resize(m_editor_view_width, m_editor_view_height);
@@ -57,6 +64,7 @@ namespace YumeRT{
 
 		AllocateRayCounter(path_tracing_ray_counter_data);
 		AllocateShadingRayData(path_tracing_shading_ray_data);
+		AllocateHitData(path_tracing_hit_data);
 		AllocateShadowRayData(path_tracing_shadow_ray_data);
 
 		path_tracing_image_resources[aov_name_beauty] = DuskImageResource(m_path_tracing_width, m_path_tracing_height);
@@ -131,10 +139,12 @@ namespace YumeRT{
 
 		ReleaseRayCounter(editor_view_ray_counter_data);
 		ReleaseShadingRayData(editor_view_shading_ray_data);
+		ReleaseHitData(editor_view_hit_data);
 		ReleaseShadowRayData(editor_view_shadow_ray_data);
 
 		ReleaseRayCounter(path_tracing_ray_counter_data);
 		ReleaseShadingRayData(path_tracing_shading_ray_data);
+		ReleaseHitData(path_tracing_hit_data);
 		ReleaseShadowRayData(path_tracing_shadow_ray_data);
 
 		CUDA_CHECK(cudaStreamDestroy(stream_editor_view));
@@ -144,6 +154,7 @@ namespace YumeRT{
 		editor_view_task_queue.clear();
 		editor_view_result_queue_albedo.clear();
 		editor_view_result_queue_primitive_index.clear();
+		editor_view_result_queue_frame_index.clear();
 		for (auto& item : editor_view_image_resources) {
 			item.second.Destroy();
 		}
@@ -151,15 +162,16 @@ namespace YumeRT{
 
 		path_tracing_task_queue.clear();
 		path_tracing_result_queue_beauty.clear();
+		path_tracing_result_queue_frame_index.clear();
 		for (auto& item : path_tracing_image_resources) {
 			item.second.Destroy();
 		}
 		path_tracing_image_resources.clear();
 	}
 
-	void RenderModule::EditorViewFetchResult(SceneResource &scene_resource, const RenderSetting &render_setting, const int frame_width, const int frame_height)
+	void RenderModule::EditorViewFetchResult(SceneResource &scene_resource, const int scene_updated, const RenderSetting &render_setting, const int frame_width, const int frame_height)
 	{
-		EditorViewLaunchTask(TaskParams(&scene_resource, frame_width, frame_height, render_setting, scene_resource.scene_change_time));
+		EditorViewLaunchTask(TaskParams(&scene_resource, frame_width, frame_height, scene_updated, render_setting, scene_resource.scene_change_time));
 
 		if (m_editor_view_width != frame_width || m_editor_view_height != frame_height) {
 			m_editor_view_width = frame_width, m_editor_view_height = frame_height;
@@ -190,6 +202,7 @@ namespace YumeRT{
 			editor_view_image_fetch_over_time = true;
 			if (!editor_view_result_queue_albedo.empty()) {
 				assert(!editor_view_result_queue_primitive_index.empty());
+				assert(!editor_view_result_queue_frame_index.empty());
 
 				editor_view_image_fetch_over_time = false;
 				
@@ -197,6 +210,8 @@ namespace YumeRT{
 				editor_view_result_queue_albedo.pop_back();
 				auto device_mem_primitive_index = std::move(editor_view_result_queue_primitive_index.back());
 				editor_view_result_queue_primitive_index.pop_back();
+				auto image_frame_index = editor_view_result_queue_frame_index.back();
+				editor_view_result_queue_frame_index.pop_back();
 
 				editor_view_result_queue_lk.unlock();
 
@@ -230,9 +245,9 @@ namespace YumeRT{
 		editor_view_task_queue_cv.notify_one();
 	}
 
-	void RenderModule::PathTracingFetchResult(SceneResource &scene_resource, const RenderSetting &render_setting, const int frame_width, const int frame_height)
+	void RenderModule::PathTracingFetchResult(SceneResource &scene_resource,  const int scene_updated, const RenderSetting &render_setting, const int frame_width, const int frame_height)
 	{
-		PathTracingLaunchTask(TaskParams(&scene_resource, frame_width, frame_height, render_setting, scene_resource.scene_change_time));
+		PathTracingLaunchTask(TaskParams(&scene_resource, frame_width, frame_height, scene_updated, render_setting, scene_resource.scene_change_time));
 
 		if (m_path_tracing_width != frame_width || m_path_tracing_height != frame_height) {
 			m_path_tracing_width = frame_width, m_path_tracing_height = frame_height;
@@ -257,11 +272,20 @@ namespace YumeRT{
 				}
 			}
 
+			path_tracing_image_fetch_over_time = true;
 			if (!path_tracing_result_queue_beauty.empty()) {
+				assert(!path_tracing_result_queue_frame_index.empty());
+
+				path_tracing_image_fetch_over_time = false;
+
 				// note: this memory should release after copy complete.
 				auto device_mem = std::move(path_tracing_result_queue_beauty.back());
 				path_tracing_result_queue_beauty.pop_back();
+				const auto current_frame_index = path_tracing_result_queue_frame_index.back();
+				path_tracing_result_queue_frame_index.pop_back();
+
 				path_tracing_result_queue_lk.unlock();
+
 				assert(device_mem.width == frame_width && device_mem.height == frame_height);
 				CUDA_CHECK(cudaMemcpyAsync(image.GetDevicePtr(), device_mem.GetMemPtr(), sizeof(glm::vec4) * frame_width * frame_height, cudaMemcpyDeviceToDevice, stream_main));
 				CUDA_CHECK(cudaStreamSynchronize(stream_main));
@@ -292,6 +316,8 @@ namespace YumeRT{
 	{
 		auto& scene_resource = *(task_param.scene_resource_ptr);
 
+		editor_view_frame_index = task_param.scene_updated ? 1 : (editor_view_frame_index + 1);
+
 		// note: allocate image buffers.
 		glm::vec4 *albedo_ptr = nullptr; 
 		uint32_t *primitive_index_ptr = nullptr;
@@ -303,17 +329,26 @@ namespace YumeRT{
 
 		// note: allocate device scene ptrs.
 		Scene *scene_device = nullptr;
+		HaltonEnumerator *halton_enumerator_device = nullptr;
 		{
 			std::shared_lock<std::shared_mutex> scene_read_lk(scene_resource.scene_mutex);
 			if (scene_resource.scene_change_time != task_param.scene_change_time) {
 				return;
 			}
+			
 			CUDA_CHECK(cudaMallocAsync(&scene_device, sizeof(Scene), stream_editor_view));
 			CUDA_CHECK(cudaMemcpyAsync(scene_device, &scene_resource.scene, sizeof(Scene), cudaMemcpyHostToDevice, stream_editor_view));
+			
+			HaltonEnumerator halton_enumerator(task_param.width, task_param.height);
+			
+			CUDA_CHECK(cudaMallocAsync(&halton_enumerator_device, sizeof(HaltonEnumerator), stream_editor_view));
+			CUDA_CHECK(cudaMemcpyAsync(halton_enumerator_device, &halton_enumerator_device, sizeof(HaltonEnumerator), cudaMemcpyHostToDevice, stream_editor_view));
+			
 			CUDA_CHECK(cudaStreamSynchronize(stream_editor_view)); // note: have to make sure the gpu done the memory copy before unlock.
 		}
 		
 		const RenderSetting& render_setting = task_param.render_setting;
+		const int current_frame_index = editor_view_frame_index;
 		const uint32_t sample_per_pixel = render_setting.ssp;
 		const uint32_t tile_count_x = (task_param.width + TILE_X_RES - 1) / TILE_X_RES;
 		const uint32_t tile_count_y = (task_param.height + TILE_Y_RES - 1) / TILE_Y_RES;
@@ -333,21 +368,20 @@ namespace YumeRT{
 
 		while (ray_counter_host->shading_ray_counter > 0 || next_tile_index < total_tile_count) 
 		{
-			const uint32_t tile_count_this_batch = (MAX_RAY_COUNT - ray_counter_host->shading_ray_counter) / (TILE_PIXEL_COUNT * sample_per_pixel);
-			
 			// stage: ray generation.
+			const uint32_t tile_count_this_batch = (MAX_RAY_COUNT - ray_counter_host->shading_ray_counter) / (TILE_PIXEL_COUNT * sample_per_pixel);
 			{
 				std::shared_lock<std::shared_mutex> scene_read_lk(scene_resource.scene_mutex);
 				if (scene_resource.scene_change_time != task_param.scene_change_time) {
 					break;
 				}
-				RayGeneration(render_setting, scene_device, ray_counter_device, next_tile_index, tile_count_this_batch, task_param.width, task_param.height, tile_count_x, tile_count_y, editor_view_shading_ray_data, stream_editor_view);
-				
-				next_tile_index += tile_count_this_batch;
-				ray_counter_host->shading_ray_counter += tile_count_this_batch * sample_per_pixel * TILE_PIXEL_COUNT;
-				CUDA_CHECK(cudaMemcpyAsync(ray_counter_device, ray_counter_host, sizeof(RayCounter), cudaMemcpyHostToDevice, stream_editor_view));
-				CUDA_CHECK(cudaStreamSynchronize(stream_editor_view));
+				RayGeneration(current_frame_index, render_setting, scene_device, halton_enumerator_device, ray_counter_device, next_tile_index, tile_count_this_batch, task_param.width, task_param.height, tile_count_x, tile_count_y, editor_view_shading_ray_data, stream_editor_view);
 			}
+
+			next_tile_index += tile_count_this_batch;
+			ray_counter_host->shading_ray_counter += tile_count_this_batch * sample_per_pixel * TILE_PIXEL_COUNT;
+			CUDA_CHECK(cudaMemcpyAsync(ray_counter_device, ray_counter_host, sizeof(RayCounter), cudaMemcpyHostToDevice, stream_editor_view));
+			CUDA_CHECK(cudaStreamSynchronize(stream_editor_view));
 
 			// stage: ray trace.
 			{
@@ -355,17 +389,29 @@ namespace YumeRT{
 				if (scene_resource.scene_change_time != task_param.scene_change_time) {
 					break;
 				}
-				RayTrace(render_setting, scene_device, ray_counter_device, ray_counter_host, task_param.width, task_param.height, device_mem_albedo.GetMemPtr(), device_mem_primitive_indices.GetMemPtr(), editor_view_shading_ray_data, stream_editor_view);
-			
-				ray_counter_host->shading_ray_counter = 0;
-				CUDA_CHECK(cudaMemcpyAsync(ray_counter_device, ray_counter_host, sizeof(RayCounter), cudaMemcpyHostToDevice, stream_editor_view));
-				CUDA_CHECK(cudaStreamSynchronize(stream_editor_view));
+				RayTrace(current_frame_index, render_setting, scene_device, ray_counter_device, ray_counter_host, task_param.width, task_param.height, device_mem_albedo.GetMemPtr(), device_mem_primitive_indices.GetMemPtr(), editor_view_shading_ray_data, editor_view_hit_data, stream_editor_view);
 			}
+
+			CUDA_CHECK(cudaMemcpyAsync(ray_counter_host, ray_counter_device, sizeof(RayCounter), cudaMemcpyDeviceToHost, stream_editor_view));
+			CUDA_CHECK(cudaStreamSynchronize(stream_editor_view));
+			ray_counter_host->shading_ray_counter = 0;
+			CUDA_CHECK(cudaMemcpyAsync(ray_counter_device, ray_counter_host, sizeof(RayCounter), cudaMemcpyHostToDevice, stream_editor_view));
+			CUDA_CHECK(cudaStreamSynchronize(stream_editor_view));
 
 			// stage: ray shading.
 			{
-			
+				std::shared_lock<std::shared_mutex> scene_read_lk(scene_resource.scene_mutex);
+				if (scene_resource.scene_change_time != task_param.scene_change_time) {
+					break;
+				}
+				RayShading(current_frame_index, render_setting, scene_device, ray_counter_device, ray_counter_host, task_param.width, task_param.height, device_mem_albedo.GetMemPtr(), device_mem_primitive_indices.GetMemPtr(), editor_view_shading_ray_data, editor_view_hit_data, editor_view_shadow_ray_data, stream_editor_view);
 			}
+
+			CUDA_CHECK(cudaMemcpyAsync(ray_counter_host, ray_counter_device, sizeof(RayCounter), cudaMemcpyDeviceToHost, stream_editor_view));
+			CUDA_CHECK(cudaStreamSynchronize(stream_editor_view));
+			ray_counter_host->hit_counter = 0;
+			CUDA_CHECK(cudaMemcpyAsync(ray_counter_device, ray_counter_host, sizeof(RayCounter), cudaMemcpyHostToDevice, stream_editor_view));
+			CUDA_CHECK(cudaStreamSynchronize(stream_editor_view));
 
 			// stage: ray shadow.
 			{
@@ -374,6 +420,7 @@ namespace YumeRT{
 		}
 
 		FREE_GPU_RESOURCE(scene_device);
+		FREE_GPU_RESOURCE(halton_enumerator_device);
 
 		// stage: result output to queue.
 		{
@@ -387,6 +434,7 @@ namespace YumeRT{
 				std::unique_lock<std::mutex> editor_view_result_queue_lk(editor_view_result_queue_mutex);
 				editor_view_result_queue_albedo.push_front(std::move(device_mem_albedo));
 				editor_view_result_queue_primitive_index.push_front(std::move(device_mem_primitive_indices));
+				editor_view_result_queue_frame_index.push_front(current_frame_index);
 			}
 			editor_view_result_queue_cv.notify_one();
 		}
@@ -395,10 +443,15 @@ namespace YumeRT{
 	void RenderModule::PathTracingExecuteTask(TaskParams& task_param)
 	{
 		auto& scene_resource = *(task_param.scene_resource_ptr);
+
+		path_tracing_frame_index = task_param.scene_updated ? 1 : (path_tracing_frame_index + 1);
+
 		glm::vec4* ptr = nullptr;
 		CUDA_CHECK(cudaMallocAsync(&ptr, sizeof(glm::vec4) * task_param.width * task_param.height, stream_path_tracing));
 		CUDA_CHECK(cudaStreamSynchronize(stream_path_tracing));
 		DuskDeviceMemory<glm::vec4> device_mem(task_param.width, task_param.height, ptr);
+
+		const int current_frame_index = path_tracing_frame_index;
 
 		// rendering block.
 		{
@@ -422,6 +475,7 @@ namespace YumeRT{
 				// push result to queue.
 				std::unique_lock<std::mutex> path_tracing_result_queue_lk(path_tracing_result_queue_mutex);
 				path_tracing_result_queue_beauty.push_front(std::move(device_mem));
+				path_tracing_result_queue_frame_index.push_front(current_frame_index);
 			}
 			path_tracing_result_queue_cv.notify_one();
 		}

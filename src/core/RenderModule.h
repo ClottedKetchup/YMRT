@@ -3,6 +3,7 @@
 #include "src/Helper.h"
 #include "src/MathCommon.h"
 #include "src/SceneDefines.h"
+#include "src/HaltonEnumerator.h"
 #include "src/core/SceneModule.h"
 
 #include <chrono>
@@ -176,10 +177,11 @@ namespace YumeRT {
 	struct TaskParams {
 		SceneResource *scene_resource_ptr;
 		const int width, height;
+		const int scene_updated;
 		const RenderSetting render_setting;
 		const uint64_t scene_change_time;
-		TaskParams(SceneResource *scene_resource_ptr, const int frame_width, const int frame_height, const RenderSetting &_render_setting, const uint64_t scene_change_time) :
-			scene_resource_ptr(scene_resource_ptr), width(frame_width), height(frame_height), render_setting(_render_setting), scene_change_time(scene_change_time) {}
+		TaskParams(SceneResource *scene_resource_ptr, const int frame_width, const int frame_height, const int _scene_updated, const RenderSetting &_render_setting, const uint64_t scene_change_time) :
+			scene_resource_ptr(scene_resource_ptr), width(frame_width), height(frame_height), scene_updated(_scene_updated), render_setting(_render_setting), scene_change_time(scene_change_time) {}
 		TaskParams(const TaskParams&) = default;
 		TaskParams& operator=(const TaskParams&) = default;
 	};
@@ -195,7 +197,7 @@ namespace YumeRT {
 		friend class GuiModule;
 
 		// note: these function would be called by the main thread.
-		void EditorViewFetchResult(SceneResource &scene_resource, const RenderSetting &render_setting, const int frame_width, const int frame_height);
+		void EditorViewFetchResult(SceneResource &scene_resource, const int scene_updated, const RenderSetting &render_setting, const int frame_width, const int frame_height);
 		
 		GLuint EditorViewGetTexture(const std::string &name);
 
@@ -222,14 +224,13 @@ namespace YumeRT {
 			}
 		}
 
-		void PathTracingFetchResult(SceneResource &scene_resource, const RenderSetting &render_setting, const int frame_width, const int frame_height);
+		void PathTracingFetchResult(SceneResource &scene_resource, const int scene_updated, const RenderSetting &render_setting, const int frame_width, const int frame_height);
 
 		GLuint PathTracingGetTexture(const std::string &name);
 
 		void PathTracingLaunchTask(const TaskParams& task_params);
 	
 	private:
-		int accumulated_image_count;
 		std::atomic_bool should_exit;
 
 		cudaStream_t stream_main;
@@ -238,12 +239,12 @@ namespace YumeRT {
 		cudaStream_t stream_editor_view;
 		int m_editor_view_width, m_editor_view_height;
 		std::unordered_map<std::string, DuskImageResource> editor_view_image_resources;
-
-		bool editor_view_image_fetch_over_time;
 		DuskDeviceMemory<uint32_t> editor_view_primitive_index_image;
 
 		// editor view thread async resources.
 		std::thread editor_view_thread;
+
+		bool editor_view_image_fetch_over_time;
 
 		std::condition_variable editor_view_task_queue_cv;
 		std::mutex editor_view_task_queue_mutex;
@@ -253,9 +254,12 @@ namespace YumeRT {
 		std::mutex editor_view_result_queue_mutex;
 		std::list<DuskDeviceMemory<glm::vec4>> editor_view_result_queue_albedo;
 		std::list<DuskDeviceMemory<uint32_t>> editor_view_result_queue_primitive_index;
+		std::list<int> editor_view_result_queue_frame_index;
 
+		int editor_view_frame_index;
 		RayCounterData editor_view_ray_counter_data;
 		ShadingRayData editor_view_shading_ray_data;
+		HitData editor_view_hit_data;
 		ShadowRayData editor_view_shadow_ray_data;
 
 		// these are used by rendering thread.
@@ -266,6 +270,8 @@ namespace YumeRT {
 		// rendering thread async resources.
 		std::thread path_tracing_thread;
 
+		bool path_tracing_image_fetch_over_time;
+
 		std::condition_variable path_tracing_task_queue_cv;
 		std::mutex path_tracing_task_queue_mutex;
 		std::list<TaskParams> path_tracing_task_queue;
@@ -273,9 +279,12 @@ namespace YumeRT {
 		std::condition_variable path_tracing_result_queue_cv;
 		std::mutex path_tracing_result_queue_mutex;
 		std::list<DuskDeviceMemory<glm::vec4>> path_tracing_result_queue_beauty;
+		std::list<int> path_tracing_result_queue_frame_index;
 
+		int path_tracing_frame_index;
 		RayCounterData path_tracing_ray_counter_data;
 		ShadingRayData path_tracing_shading_ray_data;
+		HitData path_tracing_hit_data;
 		ShadowRayData path_tracing_shadow_ray_data;
 
 		void EditorViewExecuteTask(TaskParams& task_param);

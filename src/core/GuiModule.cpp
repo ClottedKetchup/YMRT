@@ -33,11 +33,11 @@ namespace YumeRT {
 		ExitGUI();
 	}
 
-	void GuiModule::UpdateScene()
+	bool GuiModule::UpdateScene()
 	{
 		auto& m_scene = (*m_module_scene);
 		if (!m_scene.SceneChanged()) {
-			return;
+			return false;
 		}
 
 		// host data update.
@@ -164,9 +164,10 @@ namespace YumeRT {
 		
 		// reset scene flag.
 		m_scene.ResetSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_NONE_CHANGE);
+		return true;
 	}
 
-	void GuiModule::UpdateCamera(int index)
+	bool GuiModule::UpdateCamera(int index)
 	{
 		auto& m_scene = (*m_module_scene);
 
@@ -175,13 +176,17 @@ namespace YumeRT {
 			auto& scene_resource = m_scene.scene_resource;
 			TRANSFER_TO_GPU(&scene_resource.scene.camera[index], &m_scene.camera[index], sizeof(Camera));
 		});
+		return true;
 	}
 
 	void GuiModule::RenderImages()
 	{
 		ImGuiIO& io = ImGui::GetIO();
 
-		UpdateScene();
+		bool scene_updated = false;
+		if (UpdateScene()) {
+			scene_updated = true;
+		}
 
 		 // render path tracing view.
 		{
@@ -204,12 +209,14 @@ namespace YumeRT {
 				rendering_camera.m_width = (int)draw_region_size.x, rendering_camera.m_height = (int)draw_region_size.y;
 				rendering_camera.SetAspectRatio(float(rendering_camera.m_width) / float(rendering_camera.m_height));
 				UpdateCamera(RENDERING_CAMERA_INDEX);
+				
+				scene_updated = true;
 			}
 
 			// render path tracing view based on current size.
 			auto& scene_resource = m_module_scene->scene_resource;
 			auto& render_setting = m_module_scene->render_setting;
-			m_module_render->PathTracingFetchResult(scene_resource, render_setting, (int)draw_region_size.x, (int)draw_region_size.y);
+			m_module_render->PathTracingFetchResult(scene_resource, scene_updated, render_setting, (int)draw_region_size.x, (int)draw_region_size.y);
 
 			// image button style.
 			ImGui::PushID(1);
@@ -246,12 +253,14 @@ namespace YumeRT {
 				editor_camera.m_width = (int)draw_region_size.x, editor_camera.m_height = (int)draw_region_size.y;
 				editor_camera.SetAspectRatio(float(editor_camera.m_width) / float(editor_camera.m_height));
 				UpdateCamera(EDITOR_CAMERA_INDEX);
+
+				scene_updated = true;
 			}
 
 			// render editor view based on current size.
 			auto& scene_resource = m_module_scene->scene_resource;
 			auto& render_setting = m_module_scene->render_setting;
-			m_module_render->EditorViewFetchResult(scene_resource, render_setting, (int)draw_region_size.x, (int)draw_region_size.y);
+			m_module_render->EditorViewFetchResult(scene_resource, scene_updated, render_setting, (int)draw_region_size.x, (int)draw_region_size.y);
 
 			// image button style.
 			ImGui::PushID(1);

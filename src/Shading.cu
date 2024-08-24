@@ -7,6 +7,7 @@
 #include <driver_types.h>
 
 #include <device_launch_parameters.h>
+#include <cooperative_groups.h>
 
 #include "Helper.h"
 #include "MathCommon.h"
@@ -1015,6 +1016,7 @@ namespace YumeRT
 
 	extern "C" void AllocateRayCounter(RayCounterData & ray_counter_data) {
 		ray_counter_data.ray_counter_host = (RayCounter*)_aligned_malloc(sizeof(RayCounter), 4ull);
+		assert(ray_counter_data.ray_counter_host != nullptr);
 		auto& ray_counter = *(ray_counter_data.ray_counter_host);
 		ray_counter.hit_counter = 0;
 		ray_counter.shading_ray_counter = 0;
@@ -1028,23 +1030,72 @@ namespace YumeRT
 	}
 
 	extern "C" void AllocateShadingRayData(ShadingRayData & shading_ray_data) {
-		CUDA_CHECK(cudaMalloc(&(shading_ray_data.ray_data_ray), sizeof(Ray) * MAX_RAY_COUNT));
-		CUDA_CHECK(cudaMalloc(&(shading_ray_data.ray_data_received_light), sizeof(glm::vec3) * MAX_RAY_COUNT));
-		CUDA_CHECK(cudaMalloc(&(shading_ray_data.ray_data_throughput), sizeof(glm::vec3) * MAX_RAY_COUNT));
-		CUDA_CHECK(cudaMalloc(&(shading_ray_data.ray_data_pixel_position_x), sizeof(int) * MAX_RAY_COUNT));
-		CUDA_CHECK(cudaMalloc(&(shading_ray_data.ray_data_pixel_position_y), sizeof(int) * MAX_RAY_COUNT));
+		// TODO: memory consume profile.
+		CUDA_CHECK(cudaMalloc(&(shading_ray_data.shading_ray_data_ray), sizeof(Ray) * MAX_RAY_COUNT));
+		CUDA_CHECK(cudaMalloc(&(shading_ray_data.shading_ray_data_received_light), sizeof(glm::vec3) * MAX_RAY_COUNT));
+		CUDA_CHECK(cudaMalloc(&(shading_ray_data.shading_ray_data_throughput), sizeof(glm::vec3) * MAX_RAY_COUNT));
+		CUDA_CHECK(cudaMalloc(&(shading_ray_data.shading_ray_data_pixel_position_x), sizeof(int) * MAX_RAY_COUNT));
+		CUDA_CHECK(cudaMalloc(&(shading_ray_data.shading_ray_data_pixel_position_y), sizeof(int) * MAX_RAY_COUNT));
+		CUDA_CHECK(cudaMalloc(&(shading_ray_data.shading_ray_data_ray_depth), sizeof(int) * MAX_RAY_COUNT));
+		CUDA_CHECK(cudaMalloc(&(shading_ray_data.shading_ray_data_never_scatter), sizeof(int) * MAX_RAY_COUNT));
+		CUDA_CHECK(cudaMalloc(&(shading_ray_data.shading_ray_data_camera_ray), sizeof(int) * MAX_RAY_COUNT));
+		CUDA_CHECK(cudaMalloc(&(shading_ray_data.shading_ray_data_sampler), sizeof(RandomSampler) * MAX_RAY_COUNT));
 	}
 
 	extern "C" void ReleaseShadingRayData(ShadingRayData & shading_ray_data) {
-		FREE_GPU_RESOURCE(shading_ray_data.ray_data_ray);
-		FREE_GPU_RESOURCE(shading_ray_data.ray_data_received_light);
-		FREE_GPU_RESOURCE(shading_ray_data.ray_data_throughput);
-		FREE_GPU_RESOURCE(shading_ray_data.ray_data_pixel_position_x);
-		FREE_GPU_RESOURCE(shading_ray_data.ray_data_pixel_position_y);
+		FREE_GPU_RESOURCE(shading_ray_data.shading_ray_data_ray);
+		FREE_GPU_RESOURCE(shading_ray_data.shading_ray_data_received_light);
+		FREE_GPU_RESOURCE(shading_ray_data.shading_ray_data_throughput);
+		FREE_GPU_RESOURCE(shading_ray_data.shading_ray_data_pixel_position_x);
+		FREE_GPU_RESOURCE(shading_ray_data.shading_ray_data_pixel_position_y);
+		FREE_GPU_RESOURCE(shading_ray_data.shading_ray_data_ray_depth);
+		FREE_GPU_RESOURCE(shading_ray_data.shading_ray_data_never_scatter);
+		FREE_GPU_RESOURCE(shading_ray_data.shading_ray_data_camera_ray);
+		FREE_GPU_RESOURCE(shading_ray_data.shading_ray_data_sampler);
+	}
+
+	extern "C" void AllocateHitData(HitData & hit_data) {
+		// TODO: memory consume profile.
+		CUDA_CHECK(cudaMalloc(&(hit_data.hit_data_hit_record), sizeof(HitRecord) * MAX_RAY_COUNT));
+		CUDA_CHECK(cudaMalloc(&(hit_data.hit_data_nearby_hit_count), sizeof(int) * MAX_RAY_COUNT));
+		
+		const size_t max_nearby_hit_count = MAX_BOUNDARY_RECORD + 2;
+		CUDA_CHECK(cudaMalloc(&(hit_data.hit_data_nearby_hit_primitive_index), sizeof(uint32_t) * max_nearby_hit_count * MAX_RAY_COUNT));
+		CUDA_CHECK(cudaMalloc(&(hit_data.hit_data_nearby_t_hit), sizeof(float) * max_nearby_hit_count * MAX_RAY_COUNT));
+		CUDA_CHECK(cudaMalloc(&(hit_data.hit_data_nearby_hit_back), sizeof(int) * max_nearby_hit_count * MAX_RAY_COUNT));
+
+		CUDA_CHECK(cudaMalloc(&(hit_data.hit_data_ray), sizeof(Ray) * MAX_RAY_COUNT));
+		CUDA_CHECK(cudaMalloc(&(hit_data.hit_data_received_light), sizeof(glm::vec3) * MAX_RAY_COUNT));
+		CUDA_CHECK(cudaMalloc(&(hit_data.hit_data_throughput), sizeof(glm::vec3) * MAX_RAY_COUNT));
+		CUDA_CHECK(cudaMalloc(&(hit_data.hit_data_pixel_position_x), sizeof(int) * MAX_RAY_COUNT));
+		CUDA_CHECK(cudaMalloc(&(hit_data.hit_data_pixel_position_y), sizeof(int) * MAX_RAY_COUNT));
+		CUDA_CHECK(cudaMalloc(&(hit_data.hit_data_ray_depth), sizeof(int) * MAX_RAY_COUNT));
+		CUDA_CHECK(cudaMalloc(&(hit_data.hit_data_never_scatter), sizeof(int) * MAX_RAY_COUNT));
+		CUDA_CHECK(cudaMalloc(&(hit_data.hit_data_camera_ray), sizeof(int) * MAX_RAY_COUNT));
+		CUDA_CHECK(cudaMalloc(&(hit_data.hit_data_sampler), sizeof(RandomSampler) * MAX_RAY_COUNT));
+	}
+
+	extern "C" void ReleaseHitData(HitData & hit_data) {
+		FREE_GPU_RESOURCE(hit_data.hit_data_hit_record);
+		FREE_GPU_RESOURCE(hit_data.hit_data_nearby_hit_count);
+
+		FREE_GPU_RESOURCE(hit_data.hit_data_nearby_hit_primitive_index);
+		FREE_GPU_RESOURCE(hit_data.hit_data_nearby_t_hit);
+		FREE_GPU_RESOURCE(hit_data.hit_data_nearby_hit_back);
+
+		FREE_GPU_RESOURCE(hit_data.hit_data_ray);
+		FREE_GPU_RESOURCE(hit_data.hit_data_received_light);
+		FREE_GPU_RESOURCE(hit_data.hit_data_throughput);
+		FREE_GPU_RESOURCE(hit_data.hit_data_pixel_position_x);
+		FREE_GPU_RESOURCE(hit_data.hit_data_pixel_position_y);
+		FREE_GPU_RESOURCE(hit_data.hit_data_ray_depth);
+		FREE_GPU_RESOURCE(hit_data.hit_data_never_scatter);
+		FREE_GPU_RESOURCE(hit_data.hit_data_camera_ray);
+		FREE_GPU_RESOURCE(hit_data.hit_data_sampler);
 	}
 
 	extern "C" void AllocateShadowRayData(ShadowRayData & shadow_ray_data) {
-
+		// TODO: memory consume profile.
 	}
 
 	extern "C" void ReleaseShadowRayData(ShadowRayData & shadow_ray_data) {
@@ -1147,7 +1198,7 @@ namespace YumeRT
 		CUDA_CHECK(cudaMallocAsync(&scene_device, sizeof(Scene), stream));
 		CUDA_CHECK(cudaMemcpyAsync(scene_device, &scene, sizeof(Scene), cudaMemcpyHostToDevice, stream));
 
-		dim3 block_dim(32, 32, 1);
+		dim3 block_dim(8, 8, 1);
 		dim3 grid_dim(Round_Block_Count(width, block_dim.x), Round_Block_Count(height, block_dim.y), 1);
 
 		void* args[] = { &scene_device,
@@ -1160,7 +1211,9 @@ namespace YumeRT
 		FREE_GPU_RESOURCE(scene_device);
 	}
 
-	__global__ void Ray_generation(const Scene * scene_device, 
+	__global__ void Ray_generation(const int current_frame_index,
+		const Scene * scene_device, 
+		const HaltonEnumerator * halton_enumerator_device,
 		const RayCounter * ray_counter_device, 
 		const uint32_t next_tile_index, 
 		const uint32_t ray_count_this_batch, 
@@ -1169,17 +1222,22 @@ namespace YumeRT
 		const uint32_t height,
 		const uint32_t tile_count_x,
 		const uint32_t tile_count_y,
-		Ray * ray_data_ray,
-		glm::vec3 * ray_data_received_light,
-		glm::vec3 * ray_data_throughput,
-		int * ray_data_pixel_position_x,
-		int * ray_data_pixel_position_y)
+		Ray * shading_ray_data_ray,
+		glm::vec3 * shading_ray_data_received_light,
+		glm::vec3 * shading_ray_data_throughput,
+		int * shading_ray_data_pixel_position_x,
+		int * shading_ray_data_pixel_position_y,
+		int * shading_ray_data_ray_depth,
+		int * shading_ray_data_never_scatter,
+		int * shading_ray_data_camera_ray,
+		RandomSampler * shading_ray_data_sampler)
 	{
 		const uint32_t thread_index = blockIdx.x * blockDim.x + threadIdx.x;
 		if (!(thread_index < ray_count_this_batch)) {
 			return;
 		}
 		const auto& ray_counter = *(ray_counter_device);
+		
 		const uint32_t ray_index = ray_counter.shading_ray_counter + thread_index;
 
 		const uint32_t tile_index_this_batch = thread_index / (TILE_PIXEL_COUNT * sample_per_pixel);
@@ -1195,19 +1253,55 @@ namespace YumeRT
 
 		const uint32_t pixel_index_x = tile_index_x * TILE_X_RES + tile_pixel_index_x;
 		const uint32_t pixel_index_y = tile_index_y * TILE_Y_RES + tile_pixel_index_y;
-		
-		Ray ray;
-		if (pixel_index_x < width && pixel_index_y < height) {
-			ray = scene_device->camera[EDITOR_CAMERA_INDEX].GenerateRay(float(pixel_index_x + 0.5f) / float(width), float(pixel_index_y + 0.5f) / float(height));
+
+		shading_ray_data_pixel_position_x[ray_index] = pixel_index_x;
+		shading_ray_data_pixel_position_y[ray_index] = pixel_index_y;
+		if (!(pixel_index_x < width && pixel_index_y < height)) {
+			return;
 		}
-		ray_data_ray[ray_index] = ray;
-		ray_data_received_light[ray_index] = glm::vec3(0.0f);
-		ray_data_throughput[ray_index] = glm::vec3(1.0f);
-		ray_data_pixel_position_x[ray_index] = pixel_index_x;
-		ray_data_pixel_position_y[ray_index] = pixel_index_y;
+
+		const auto& scene = *scene_device;
+		const auto& halton_enumerator = *halton_enumerator_device;
+		const auto& render_setting = *scene.render_setting;
+		
+		const uint32_t pixel_index = pixel_index_y * width + pixel_index_x;
+
+		RandomSampler sampler;
+		glm::vec2 pixel_offset;
+		if (render_setting.sampler_type == PCG) {
+			sampler.InitPCGSampler(pixel_index, pixel_sample_index, 0, current_frame_index - 1);
+			pixel_offset = sampler.SamplePixelOffset();
+		}
+		else if (render_setting.sampler_type == HALTON) {
+			const uint64_t sample_index = halton_enumerator.GetIndex(pixel_index_x, pixel_index_y, (current_frame_index - 1) * render_setting.ssp + pixel_sample_index);
+			sampler.InitHaltonSampler(sample_index, 2, scene.sampler_data.halton_permute_table);
+			pixel_offset = sampler.SamplePixelOffset();
+			pixel_offset.x = halton_enumerator.ScaleX(pixel_offset.x) - float(pixel_index_x);
+			pixel_offset.y = halton_enumerator.ScaleY(pixel_offset.y) - float(pixel_index_y);
+			pixel_offset = glm::clamp(pixel_offset, glm::vec2(0.000001f), glm::vec2(0.999999f));
+		}
+		else if (render_setting.sampler_type == SOBOL) {
+			sampler.InitSobolSampler(render_setting.ssp, pixel_sample_index, current_frame_index - 1, 1, pixel_index, scene.sampler_data.sobol_matrices);
+			pixel_offset = sampler.SamplePixelOffset();
+		}
+		else {
+			pixel_offset = glm::vec2(0.5f);
+		}
+		
+		Ray ray = scene.camera[EDITOR_CAMERA_INDEX].GenerateRay(float(pixel_index_x + pixel_offset.x) / float(width), float(pixel_index_y + pixel_offset.y) / float(height));
+
+		shading_ray_data_ray[ray_index] = ray;
+		shading_ray_data_received_light[ray_index] = glm::vec3(0.0f);
+		shading_ray_data_throughput[ray_index] = glm::vec3(1.0f);
+		shading_ray_data_ray_depth[ray_index] = 1;
+		shading_ray_data_never_scatter[ray_index] = true;
+		shading_ray_data_camera_ray[ray_index] = true;
+		shading_ray_data_sampler[ray_index] = sampler;
+		
+			// TODO: fill other stuff.
 	}
 
-	extern "C" void RayGeneration(const RenderSetting & render_setting, Scene * scene_device, RayCounter * ray_counter_device, uint32_t next_tile_index, uint32_t tile_count_this_batch, uint32_t width, uint32_t height, uint32_t tile_count_x, uint32_t tile_count_y, ShadingRayData & shading_ray_data, cudaStream_t & stream)
+	extern "C" void RayGeneration(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, HaltonEnumerator * halton_enumerator_device, RayCounter * ray_counter_device, uint32_t next_tile_index, uint32_t tile_count_this_batch, uint32_t width, uint32_t height, uint32_t tile_count_x, uint32_t tile_count_y, ShadingRayData & shading_ray_data, cudaStream_t & stream)
 	{
 		uint32_t sample_per_pixel = render_setting.ssp;
 		uint32_t ray_count_this_batch = tile_count_this_batch * sample_per_pixel * TILE_PIXEL_COUNT;
@@ -1215,7 +1309,9 @@ namespace YumeRT
 		dim3 block_dim(32, 1, 1);
 		dim3 grid_dim(Round_Block_Count(ray_count_this_batch, block_dim.x), 1, 1);
 
-		void* args[] = { &scene_device,
+		void* args[] = { &current_frame_index,
+								 &scene_device,
+								 &halton_enumerator_device,
 								 &ray_counter_device,
 								 &next_tile_index,
 								 &ray_count_this_batch,
@@ -1224,74 +1320,231 @@ namespace YumeRT
 								 &height,
 								 &tile_count_x,
 								 &tile_count_y,
-								 &shading_ray_data.ray_data_ray,
-								 &shading_ray_data.ray_data_received_light,
-								 &shading_ray_data.ray_data_throughput,
-								 &shading_ray_data.ray_data_pixel_position_x,
-								 &shading_ray_data.ray_data_pixel_position_y };
+								 &shading_ray_data.shading_ray_data_ray,
+								 &shading_ray_data.shading_ray_data_received_light,
+								 &shading_ray_data.shading_ray_data_throughput,
+								 &shading_ray_data.shading_ray_data_pixel_position_x,
+								 &shading_ray_data.shading_ray_data_pixel_position_y,
+								 &shading_ray_data.shading_ray_data_ray_depth,
+								 &shading_ray_data.shading_ray_data_never_scatter,
+								 &shading_ray_data.shading_ray_data_camera_ray,
+								 &shading_ray_data.shading_ray_data_sampler};
 
 		CUDA_CHECK(cudaLaunchKernel((void*)Ray_generation, grid_dim, block_dim, args, 0, stream));
 		CUDA_CHECK(cudaStreamSynchronize(stream));
 	}
 
-	__global__ void Ray_trace(const Scene *scene_device,
-		RayCounter *ray_counter_device,
+	__global__ void Ray_trace(const int current_frame_index,
+		const Scene * scene_device,
+		RayCounter * ray_counter_device,
 		const uint32_t total_ray_count_this_batch,
 		const uint32_t width,
 		const uint32_t height,
-		glm::vec4 *beauty,
-		uint32_t *primitive_index,
-		const Ray *ray_data_ray,
-		const glm::vec3 *ray_data_received_light,
-		const glm::vec3 *ray_data_throughput,
-		const int *ray_data_pixel_position_x,
-		const int *ray_data_pixel_position_y) 
+		glm::vec4 * beauty,
+		uint32_t * primitive_index,
+		const Ray * shading_ray_data_ray, // note: shading ray data.
+		const glm::vec3 * shading_ray_data_received_light,
+		const glm::vec3 * shading_ray_data_throughput,
+		const int * shading_ray_data_pixel_position_x,
+		const int * shading_ray_data_pixel_position_y,
+		const int * shading_ray_data_ray_depth,
+		const int * shading_ray_data_never_scatter,
+		const int * shading_ray_data_camera_ray,
+		const RandomSampler * shading_ray_data_sampler,
+		HitRecord * hit_data_hit_record, // note: hit data.
+		int * hit_data_nearby_hit_count,
+		uint32_t * hit_data_nearby_hit_primitive_index,
+		float * hit_data_nearby_t_hit,
+		int * hit_data_nearby_hit_back,
+		Ray * hit_data_ray,
+		glm::vec3 * hit_data_received_light,
+		glm::vec3 * hit_data_throughput,
+		int * hit_data_pixel_position_x,
+		int * hit_data_pixel_position_y,
+		int * hit_data_ray_depth,
+		int * hit_data_never_scatter,
+		int * hit_data_camera_ray,
+		RandomSampler * hit_data_sampler)
 	{
-		const uint32_t thread_index = blockIdx.x * blockDim.x + threadIdx.x;
-		if (!(thread_index < total_ray_count_this_batch)) {
+		const uint32_t ray_index = blockIdx.x * blockDim.x + threadIdx.x;
+		if (!(ray_index < total_ray_count_this_batch)) {
 			return;
 		}
 
-		const uint32_t pixel_position_x = ray_data_pixel_position_x[thread_index];
-		const uint32_t pixel_position_y = ray_data_pixel_position_y[thread_index];
+		const uint32_t pixel_position_x = shading_ray_data_pixel_position_x[ray_index];
+		const uint32_t pixel_position_y = shading_ray_data_pixel_position_y[ray_index];
 		const uint32_t pixel_index = pixel_position_y * width + pixel_position_x;
 		if (!(pixel_position_x < width && pixel_position_y < height)) {
 			return;
 		}
 
 		const auto& scene = *scene_device;
-		const Ray &ray = ray_data_ray[thread_index];
+		const auto& ray_counter = *ray_counter_device;
 
+		const Ray ray = shading_ray_data_ray[ray_index];
 		HitRecord hit_record;
 		int nearby_hit_count = 0;
 		NearbyHit nearby_hits[MAX_BOUNDARY_RECORD + 2];
 		const bool hit_surface = TraceRay(scene, ray, &hit_record, &nearby_hit_count, nearby_hits);
+		
+		const uint32_t hit_index = atomicAdd((int*)(&(ray_counter.hit_counter)), 1);
+			
+		hit_data_hit_record[hit_index] = hit_record;
+		hit_data_nearby_hit_count[hit_index] = nearby_hit_count;
+		const uint32_t nearby_hits_start_index = (MAX_BOUNDARY_RECORD + 2) * hit_index;
+		for (uint32_t nearby_hit_index = 0; nearby_hit_index < MAX_BOUNDARY_RECORD + 2; ++nearby_hit_index) {
+			const uint32_t actual_index = nearby_hits_start_index + nearby_hit_index;
+			hit_data_nearby_hit_primitive_index[actual_index] = nearby_hits[nearby_hit_index].hit_prim_idx;
+			hit_data_nearby_t_hit[actual_index] = nearby_hits[nearby_hit_index].t_hit;
+			hit_data_nearby_hit_back[actual_index] = nearby_hits[nearby_hit_index].hit_back;
+		}
 
-		primitive_index[pixel_index] = hit_surface ? hit_record.hit_instance_idx : EMPTY_UINT32;
-		beauty[pixel_index] = glm::vec4(hit_surface ? glm::vec3(1.0f) : Background(ray.direction), 1.0f);
+		hit_data_ray[hit_index] = ray;
+		hit_data_received_light[hit_index] = shading_ray_data_received_light[ray_index];
+		hit_data_throughput[hit_index] = shading_ray_data_throughput[ray_index];
+		hit_data_pixel_position_x[hit_index] = shading_ray_data_pixel_position_x[ray_index];
+		hit_data_pixel_position_y[hit_index] = shading_ray_data_pixel_position_y[ray_index];
+		hit_data_ray_depth[hit_index] = shading_ray_data_ray_depth[ray_index];
+		hit_data_never_scatter[hit_index] = shading_ray_data_never_scatter[ray_index];
+		hit_data_camera_ray[hit_index] = shading_ray_data_camera_ray[ray_index];
+		hit_data_sampler[hit_index] = shading_ray_data_sampler[ray_index];
 	}
 
-	extern "C" void RayTrace(const RenderSetting & render_setting, Scene * scene_device, RayCounter * ray_counter_device, RayCounter * ray_counter_host, uint32_t width, uint32_t height, glm::vec4 * beauty, uint32_t * primitive_index, ShadingRayData & shading_ray_data, cudaStream_t & stream)
+	__global__ void Ray_shading(const int current_frame_index,
+		const Scene * scene_device,
+		RayCounter * ray_counter_device,
+		const uint32_t total_hit_count_this_batch,
+		const uint32_t width,
+		const uint32_t height,
+		glm::vec4 * beauty,
+		uint32_t * primitive_index,
+		Ray * shading_ray_data_ray, // note: shading ray data.
+		glm::vec3 * shading_ray_data_received_light,
+		glm::vec3 * shading_ray_data_throughput,
+		int * shading_ray_data_pixel_position_x,
+		int * shading_ray_data_pixel_position_y,
+		int * shading_ray_data_ray_depth,
+		int * shading_ray_data_never_scatter,
+		int * shading_ray_data_camera_ray,
+		RandomSampler * shading_ray_data_sampler,
+		const HitRecord * hit_data_hit_record, // note: hit data.
+		const int * hit_data_nearby_hit_count,
+		const uint32_t * hit_data_nearby_hit_primitive_index,
+		const float * hit_data_nearby_t_hit,
+		const int * hit_data_nearby_hit_back,
+		const Ray * hit_data_ray,
+		const glm::vec3 * hit_data_received_light,
+		const glm::vec3 * hit_data_throughput,
+		const int * hit_data_pixel_position_x,
+		const int * hit_data_pixel_position_y,
+		const int * hit_data_ray_depth,
+		const int * hit_data_never_scatter,
+		const int * hit_data_camera_ray,
+		const RandomSampler * hit_data_sampler)
+	{
+		const uint32_t hit_index = blockIdx.x * blockDim.x + threadIdx.x;
+		if (!(hit_index < total_hit_count_this_batch)) {
+			return;
+		}
+
+		const uint32_t pixel_position_x = hit_data_pixel_position_x[hit_index];
+		const uint32_t pixel_position_y = hit_data_pixel_position_y[hit_index];
+		const uint32_t pixel_index = pixel_position_y * width + pixel_position_x;
+		assert(pixel_position_x < width&& pixel_position_y < height);
+
+		const auto& scene = *scene_device;
+		const auto& ray_counter = *ray_counter_device;
+
+		const Ray ray = hit_data_ray[hit_index];
+		const HitRecord hit_record = hit_data_hit_record[hit_index];
+		const bool hit_something = (hit_record.hit_instance_idx != EMPTY_UINT32);
+		primitive_index[pixel_index] = hit_something ? hit_record.hit_instance_idx : EMPTY_UINT32;
+		beauty[pixel_index] = glm::vec4(hit_something ? glm::vec3(1.0f) : Background(ray.direction), 1.0f);
+	}
+
+	extern "C" void RayTrace(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, RayCounter * ray_counter_device, RayCounter * ray_counter_host, uint32_t width, uint32_t height, glm::vec4 * beauty, uint32_t * primitive_index, ShadingRayData & shading_ray_data, HitData & hit_data, cudaStream_t & stream)
 	{
 		uint32_t total_ray_count_this_batch = ray_counter_host->shading_ray_counter;
 
 		dim3 block_dim(32, 1, 1);
 		dim3 grid_dim(Round_Block_Count(total_ray_count_this_batch, block_dim.x), 1, 1);
 
-		void* args[] = { &scene_device,
+		void* args[] = { &current_frame_index,
+								 &scene_device,
 								 &ray_counter_device,
 								 &total_ray_count_this_batch,
 								 &width,
 								 &height,
-								 &beauty, 
+								 &beauty,
 								 &primitive_index,
-								 &shading_ray_data.ray_data_ray,
-								 &shading_ray_data.ray_data_received_light,
-								 &shading_ray_data.ray_data_throughput,
-								 &shading_ray_data.ray_data_pixel_position_x,
-								 &shading_ray_data.ray_data_pixel_position_y };
+								 &shading_ray_data.shading_ray_data_ray,
+								 &shading_ray_data.shading_ray_data_received_light,
+								 &shading_ray_data.shading_ray_data_throughput,
+								 &shading_ray_data.shading_ray_data_pixel_position_x,
+								 &shading_ray_data.shading_ray_data_pixel_position_y,
+								 &shading_ray_data.shading_ray_data_ray_depth,
+								 &shading_ray_data.shading_ray_data_never_scatter,
+								 &shading_ray_data.shading_ray_data_camera_ray,
+								 &shading_ray_data.shading_ray_data_sampler,
+								 &hit_data.hit_data_hit_record,
+								 &hit_data.hit_data_nearby_hit_count,
+								 &hit_data.hit_data_nearby_hit_primitive_index,
+							 	 &hit_data.hit_data_nearby_t_hit,
+								 &hit_data.hit_data_nearby_hit_back,
+								 &hit_data.hit_data_ray,
+								 &hit_data.hit_data_received_light,
+								 &hit_data.hit_data_throughput,
+								 &hit_data.hit_data_pixel_position_x,
+								 &hit_data.hit_data_pixel_position_y,
+								 &hit_data.hit_data_ray_depth,
+								 &hit_data.hit_data_never_scatter,
+								 &hit_data.hit_data_camera_ray,
+								 &hit_data.hit_data_sampler };
 
 		CUDA_CHECK(cudaLaunchKernel((void*)Ray_trace, grid_dim, block_dim, args, 0, stream));
+		CUDA_CHECK(cudaStreamSynchronize(stream));
+	}
+
+	extern "C" void RayShading(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, RayCounter * ray_counter_device, RayCounter * ray_counter_host, uint32_t width, uint32_t height, glm::vec4 * beauty, uint32_t * primitive_index, ShadingRayData & shading_ray_data, HitData & hit_data, ShadowRayData & shadow_ray_data, cudaStream_t & stream)
+	{
+		uint32_t total_hit_count_this_batch = ray_counter_host->hit_counter;
+
+		dim3 block_dim(32, 1, 1);
+		dim3 grid_dim(Round_Block_Count(total_hit_count_this_batch, block_dim.x), 1, 1);
+
+		void* args[] = { &current_frame_index,
+								 &scene_device,
+								 &ray_counter_device,
+								 &total_hit_count_this_batch,
+								 &width,
+								 &height,
+								 &beauty,
+								 &primitive_index,
+								 &shading_ray_data.shading_ray_data_ray,
+								 &shading_ray_data.shading_ray_data_received_light,
+								 &shading_ray_data.shading_ray_data_throughput,
+								 &shading_ray_data.shading_ray_data_pixel_position_x,
+								 &shading_ray_data.shading_ray_data_pixel_position_y,
+								 &shading_ray_data.shading_ray_data_ray_depth,
+								 &shading_ray_data.shading_ray_data_never_scatter,
+								 &shading_ray_data.shading_ray_data_camera_ray,
+								 &shading_ray_data.shading_ray_data_sampler,
+								 &hit_data.hit_data_hit_record,
+								 &hit_data.hit_data_nearby_hit_count,
+								 &hit_data.hit_data_nearby_hit_primitive_index,
+								 &hit_data.hit_data_nearby_t_hit,
+								 &hit_data.hit_data_nearby_hit_back,
+								 &hit_data.hit_data_ray,
+								 &hit_data.hit_data_received_light,
+								 &hit_data.hit_data_throughput,
+								 &hit_data.hit_data_pixel_position_x,
+								 &hit_data.hit_data_pixel_position_y,
+								 &hit_data.hit_data_ray_depth,
+								 &hit_data.hit_data_never_scatter,
+								 &hit_data.hit_data_camera_ray,
+								 &hit_data.hit_data_sampler };
+
+		CUDA_CHECK(cudaLaunchKernel((void*)Ray_shading, grid_dim, block_dim, args, 0, stream));
 		CUDA_CHECK(cudaStreamSynchronize(stream));
 	}
 };

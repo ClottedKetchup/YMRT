@@ -108,8 +108,8 @@ namespace YumeRT {
 		std::shared_ptr<SceneModule> m_module_scene;
 		std::shared_ptr<RenderModule> m_module_render;
 		
-		void UpdateScene();
-		void UpdateCamera(int index);
+		bool UpdateScene();
+		bool UpdateCamera(int index);
 
 		void InitGUI();
 		void RenderImages();
@@ -126,7 +126,14 @@ namespace YumeRT {
 
 			++scene_resource.scene_change_time;
 
-			m_renderer.editor_view_task_queue.clear(), m_renderer.editor_view_result_queue_albedo.clear(), m_renderer.editor_view_result_queue_primitive_index.clear(), m_renderer.path_tracing_task_queue.clear(), m_renderer.path_tracing_result_queue_beauty.clear();
+			m_renderer.editor_view_task_queue.clear(); 
+			m_renderer.editor_view_result_queue_albedo.clear();
+			m_renderer.editor_view_result_queue_primitive_index.clear();
+			m_renderer.editor_view_result_queue_frame_index.clear();
+
+			m_renderer.path_tracing_task_queue.clear();
+			m_renderer.path_tracing_result_queue_beauty.clear();
+			m_renderer.path_tracing_result_queue_frame_index.clear();
 
 			update_function();
 		}
