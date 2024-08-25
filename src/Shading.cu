@@ -1305,6 +1305,9 @@ namespace YumeRT
 	{
 		uint32_t sample_per_pixel = render_setting.ssp;
 		uint32_t ray_count_this_batch = tile_count_this_batch * sample_per_pixel * TILE_PIXEL_COUNT;
+		if (ray_count_this_batch == 0) {
+			return;
+		}
 
 		dim3 block_dim(32, 1, 1);
 		dim3 grid_dim(Round_Block_Count(ray_count_this_batch, block_dim.x), 1, 1);
@@ -1380,13 +1383,25 @@ namespace YumeRT
 
 		const auto& scene = *scene_device;
 		const auto& ray_counter = *ray_counter_device;
+		const auto& render_setting = *scene.render_setting;
 
 		const Ray ray = shading_ray_data_ray[ray_index];
 		HitRecord hit_record;
 		int nearby_hit_count = 0;
 		NearbyHit nearby_hits[MAX_BOUNDARY_RECORD + 2];
-		const bool hit_surface = TraceRay(scene, ray, &hit_record, &nearby_hit_count, nearby_hits);
+		bool hit_something = TraceRay(scene, ray, &hit_record, &nearby_hit_count, nearby_hits);
 		
+		if (render_setting.enable_volume_scattering) {
+			// TODO: account volume hit.
+		}
+
+		if (!hit_something) {
+			const glm::vec3 throughput = shading_ray_data_throughput[ray_index];
+			primitive_index[pixel_index] = EMPTY_UINT32;
+			beauty[pixel_index] = glm::vec4(throughput * Background(ray.direction), 1.0f);
+			return;
+		}
+
 		const uint32_t hit_index = atomicAdd((int*)(&(ray_counter.hit_counter)), 1);
 			
 		hit_data_hit_record[hit_index] = hit_record;
@@ -1399,7 +1414,7 @@ namespace YumeRT
 			hit_data_nearby_hit_back[actual_index] = nearby_hits[nearby_hit_index].hit_back;
 		}
 
-		hit_data_ray[hit_index] = ray;
+		hit_data_ray[hit_index] = ray; // note: local ray's t may already get modified.
 		hit_data_received_light[hit_index] = shading_ray_data_received_light[ray_index];
 		hit_data_throughput[hit_index] = shading_ray_data_throughput[ray_index];
 		hit_data_pixel_position_x[hit_index] = shading_ray_data_pixel_position_x[ray_index];
@@ -1408,6 +1423,52 @@ namespace YumeRT
 		hit_data_never_scatter[hit_index] = shading_ray_data_never_scatter[ray_index];
 		hit_data_camera_ray[hit_index] = shading_ray_data_camera_ray[ray_index];
 		hit_data_sampler[hit_index] = shading_ray_data_sampler[ray_index];
+	}
+
+	extern "C" void RayTrace(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, RayCounter * ray_counter_device, RayCounter * ray_counter_host, uint32_t width, uint32_t height, glm::vec4 * beauty, uint32_t * primitive_index, ShadingRayData & shading_ray_data, HitData & hit_data, cudaStream_t & stream)
+	{
+		uint32_t total_ray_count_this_batch = ray_counter_host->shading_ray_counter;
+		if (total_ray_count_this_batch == 0) {
+			return;
+		}
+
+		dim3 block_dim(32, 1, 1);
+		dim3 grid_dim(Round_Block_Count(total_ray_count_this_batch, block_dim.x), 1, 1);
+
+		void* args[] = { &current_frame_index,
+								 &scene_device,
+								 &ray_counter_device,
+								 &total_ray_count_this_batch,
+								 &width,
+								 &height,
+								 &beauty,
+								 &primitive_index,
+								 &shading_ray_data.shading_ray_data_ray,
+								 &shading_ray_data.shading_ray_data_received_light,
+								 &shading_ray_data.shading_ray_data_throughput,
+								 &shading_ray_data.shading_ray_data_pixel_position_x,
+								 &shading_ray_data.shading_ray_data_pixel_position_y,
+								 &shading_ray_data.shading_ray_data_ray_depth,
+								 &shading_ray_data.shading_ray_data_never_scatter,
+								 &shading_ray_data.shading_ray_data_camera_ray,
+								 &shading_ray_data.shading_ray_data_sampler,
+								 &hit_data.hit_data_hit_record,
+								 &hit_data.hit_data_nearby_hit_count,
+								 &hit_data.hit_data_nearby_hit_primitive_index,
+							 	 &hit_data.hit_data_nearby_t_hit,
+								 &hit_data.hit_data_nearby_hit_back,
+								 &hit_data.hit_data_ray,
+								 &hit_data.hit_data_received_light,
+								 &hit_data.hit_data_throughput,
+								 &hit_data.hit_data_pixel_position_x,
+								 &hit_data.hit_data_pixel_position_y,
+								 &hit_data.hit_data_ray_depth,
+								 &hit_data.hit_data_never_scatter,
+								 &hit_data.hit_data_camera_ray,
+								 &hit_data.hit_data_sampler };
+
+		CUDA_CHECK(cudaLaunchKernel((void*)Ray_trace, grid_dim, block_dim, args, 0, stream));
+		CUDA_CHECK(cudaStreamSynchronize(stream));
 	}
 
 	__global__ void Ray_shading(const int current_frame_index,
@@ -1457,57 +1518,45 @@ namespace YumeRT
 
 		const Ray ray = hit_data_ray[hit_index];
 		const HitRecord hit_record = hit_data_hit_record[hit_index];
-		const bool hit_something = (hit_record.hit_instance_idx != EMPTY_UINT32);
-		primitive_index[pixel_index] = hit_something ? hit_record.hit_instance_idx : EMPTY_UINT32;
-		beauty[pixel_index] = glm::vec4(hit_something ? glm::vec3(1.0f) : Background(ray.direction), 1.0f);
-	}
 
-	extern "C" void RayTrace(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, RayCounter * ray_counter_device, RayCounter * ray_counter_host, uint32_t width, uint32_t height, glm::vec4 * beauty, uint32_t * primitive_index, ShadingRayData & shading_ray_data, HitData & hit_data, cudaStream_t & stream)
-	{
-		uint32_t total_ray_count_this_batch = ray_counter_host->shading_ray_counter;
+		glm::vec3 surface_albedo;
+		glm::vec3 hit_position(0.0f), hit_position_error(0.0f), hit_position_object_space(0.0f);
+		glm::vec3	hit_shading_normal(0.0f), hit_geometry_normal(0.0f);
+		glm::vec2	hit_uv(0.0f);
+		glm::vec3	hit_dpdu(0.0f), hit_dpdv(0.0f);
+		FetchShadingData(scene, hit_record,
+			&hit_position, &hit_position_error, &hit_position_object_space,
+			&hit_shading_normal, &hit_geometry_normal,
+			&hit_uv,
+			&hit_dpdu, &hit_dpdv);
 
-		dim3 block_dim(32, 1, 1);
-		dim3 grid_dim(Round_Block_Count(total_ray_count_this_batch, block_dim.x), 1, 1);
+		auto material_index = scene.primitive_instances[hit_record.hit_instance_idx].material_idx;
+		if (material_index != EMPTY_UINT32) {
+			auto& material = scene.materials[material_index];
+			if (material.material_type == DEFAULT_MTL) {
+				if (material.default_mtl.diffuse_albedo_tex == EMPTY_UINT32) {
+					surface_albedo = material.default_mtl.diffuse_albedo;
+				}
+				else {
+					TextureCoordinate texture_coordinate(hit_uv, hit_position, hit_position_object_space, glm::vec4(0.0f));
+					ImageTileCache tile_cache;
 
-		void* args[] = { &current_frame_index,
-								 &scene_device,
-								 &ray_counter_device,
-								 &total_ray_count_this_batch,
-								 &width,
-								 &height,
-								 &beauty,
-								 &primitive_index,
-								 &shading_ray_data.shading_ray_data_ray,
-								 &shading_ray_data.shading_ray_data_received_light,
-								 &shading_ray_data.shading_ray_data_throughput,
-								 &shading_ray_data.shading_ray_data_pixel_position_x,
-								 &shading_ray_data.shading_ray_data_pixel_position_y,
-								 &shading_ray_data.shading_ray_data_ray_depth,
-								 &shading_ray_data.shading_ray_data_never_scatter,
-								 &shading_ray_data.shading_ray_data_camera_ray,
-								 &shading_ray_data.shading_ray_data_sampler,
-								 &hit_data.hit_data_hit_record,
-								 &hit_data.hit_data_nearby_hit_count,
-								 &hit_data.hit_data_nearby_hit_primitive_index,
-							 	 &hit_data.hit_data_nearby_t_hit,
-								 &hit_data.hit_data_nearby_hit_back,
-								 &hit_data.hit_data_ray,
-								 &hit_data.hit_data_received_light,
-								 &hit_data.hit_data_throughput,
-								 &hit_data.hit_data_pixel_position_x,
-								 &hit_data.hit_data_pixel_position_y,
-								 &hit_data.hit_data_ray_depth,
-								 &hit_data.hit_data_never_scatter,
-								 &hit_data.hit_data_camera_ray,
-								 &hit_data.hit_data_sampler };
+					surface_albedo = TextureEval(scene.textures[material.default_mtl.diffuse_albedo_tex],
+						scene.textures, tile_cache, texture_coordinate);
+				}
+			}
+		}
 
-		CUDA_CHECK(cudaLaunchKernel((void*)Ray_trace, grid_dim, block_dim, args, 0, stream));
-		CUDA_CHECK(cudaStreamSynchronize(stream));
+		primitive_index[pixel_index] = hit_record.hit_instance_idx;
+		beauty[pixel_index] = glm::vec4(surface_albedo, 1.0f);
 	}
 
 	extern "C" void RayShading(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, RayCounter * ray_counter_device, RayCounter * ray_counter_host, uint32_t width, uint32_t height, glm::vec4 * beauty, uint32_t * primitive_index, ShadingRayData & shading_ray_data, HitData & hit_data, ShadowRayData & shadow_ray_data, cudaStream_t & stream)
 	{
 		uint32_t total_hit_count_this_batch = ray_counter_host->hit_counter;
+		if (total_hit_count_this_batch == 0) {
+			return;
+		}
 
 		dim3 block_dim(32, 1, 1);
 		dim3 grid_dim(Round_Block_Count(total_hit_count_this_batch, block_dim.x), 1, 1);

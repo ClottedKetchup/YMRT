@@ -630,4 +630,34 @@ namespace YumeRT {
 			permutes_offset += primes[i];
 		}
 	}
+
+	Scene SceneModule::GetHostSceneDataPointer()
+	{
+		Scene scene_host;
+		scene_host.geometry_count = (uint32_t)geometries.size();
+		scene_host.geometries = geometries.data();
+		scene_host.primitive_instance_count = (uint32_t)primitive_instances.size();
+		scene_host.primitive_instances = primitive_instances.data();
+		scene_host.top_node_count = (uint32_t)top_nodes.size();
+		scene_host.top_nodes = top_nodes.data();
+		scene_host.transform_count = (uint32_t)transforms.size();
+		scene_host.transforms = transforms.data();
+		scene_host.i_transforms = i_transforms.data();
+		scene_host.material_count = (uint32_t)materials.size();
+		scene_host.materials = materials.data();
+		scene_host.distant_light_count = (uint32_t)distant_lights.size();
+		scene_host.distant_lights = distant_lights.data();
+		scene_host.shape_light_count = (uint32_t)shape_lights.size();
+		scene_host.shape_lights = shape_lights.data();
+		scene_host.shape_light_sample_table = shape_light_sample_table.data();
+		scene_host.volume_count = (uint32_t)volumes.size();
+		scene_host.volumes = volumes.data();
+		scene_host.texture_count = (uint32_t)textures.size();
+		scene_host.textures = textures.data();
+		scene_host.sampler_data.halton_permute_table = permute_table.data();
+		scene_host.sampler_data.sobol_matrices = (uint32_t*)sobol_matrices32;
+		scene_host.camera_count = CAMERA_COUNT;
+		scene_host.camera = camera;
+		return scene_host;
+	}
 };

@@ -240,5 +240,6 @@ namespace YumeRT{
 		std::vector<uint32_t> permute_table;
 
 		void InitHaltonPermuteTable();
+		Scene GetHostSceneDataPointer();
 	};
 }

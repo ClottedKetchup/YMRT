@@ -68,6 +68,8 @@ namespace YumeRT {
 		}
 
 		if (m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_CAMERA_CHANGE)) {
+			m_scene.camera[RENDERING_CAMERA_INDEX].InitCameraRayTransfer(m_scene.GetHostSceneDataPointer());
+
 			// restore rendering camera's width, height, aspect ratio.
 			const int camera_width = m_scene.camera[RENDERING_CAMERA_INDEX].m_width, 
 				camera_height = m_scene.camera[RENDERING_CAMERA_INDEX].m_height;
