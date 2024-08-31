@@ -24,6 +24,7 @@
 #include "src/Volume.h"
 
 #include "src/LowDiscrepancy.h"
+#include "src/TextureManager.h"
 
 namespace YumeRT{
 	class SceneModule {
@@ -68,6 +69,9 @@ namespace YumeRT{
 			SCENE_VOLUME_CHANGE = 1 << 27,
 
 			SCENE_RENDER_SETTING_CHANGE = 1 << 28,
+
+			SCENE_IMAGE_TILE_CREATE = 1 << 29,
+			SCENE_IMAGE_TILE_DELETE = 1 << 30,
 
 			SCENE_INIT = 0xFFFFFFFFu
 		};
@@ -238,6 +242,10 @@ namespace YumeRT{
 		std::vector<std::string> volume_names;
 
 		std::vector<uint32_t> permute_table;
+
+		ImageTileCache image_tile_cache;
+		std::vector<ImageFile> image_texture_files;
+		std::vector<ImageTile> image_texture_tiles; // current implementation: tile rgb data will in both host and device when they are loaded. 
 
 		void InitHaltonPermuteTable();
 		Scene GetHostSceneDataPointer();

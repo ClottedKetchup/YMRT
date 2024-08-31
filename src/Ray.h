@@ -26,7 +26,7 @@ namespace YumeRT
 		__device__ __host__ inline Ray(const glm::vec3 &origin, const glm::vec3 &direction)
 			:origin(origin), direction(glm::normalize(direction)), t(TMAX) {}
 
-		__device__ __host__ inline glm::vec3 PositionAtT(float time)
+		__device__ __host__ inline glm::vec3 PositionAtT(float time) const
 		{
 			return origin + direction * time;
 		}
@@ -113,6 +113,14 @@ namespace YumeRT
 			for (int record_idx = 0; record_idx < record_count; ++record_idx) {
 				boundary_records[record_idx] = other.boundary_records[record_idx];
 			}
+		}
+
+		__device__ __host__ inline RayTransfer& operator=(const RayTransfer& other) {
+			max_priority_record_index = other.max_priority_record_index, record_count = other.record_count;
+			for (int record_idx = 0; record_idx < record_count; ++record_idx) {
+				boundary_records[record_idx] = other.boundary_records[record_idx];
+			}
+			return *this;
 		}
 
 		// give the volume count

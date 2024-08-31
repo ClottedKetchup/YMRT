@@ -54,6 +54,18 @@ namespace YumeRT {
 		scene.volume_count = 0;
 		scene.volumes = nullptr;
 
+		FREE_GPU_RESOURCE(scene.image_tile_cache);
+		 // free tile device.
+		FREE_GPU_RESOURCE(image_tile_cache.image_tiles_device);
+		// free tile host.
+		image_tile_cache.image_tiles_host = nullptr;
+		for (auto& image_tile : image_texture_tiles) {
+			FREE_GPU_RESOURCE(image_tile.device_data);
+			if (image_tile.host_data != nullptr) {
+				free(image_tile.host_data);
+			}
+		}
+
 		FREE_GPU_RESOURCE(scene.sampler_data.halton_permute_table);
 		scene.sampler_data.halton_permute_table = nullptr;
 		FREE_GPU_RESOURCE(scene.sampler_data.sobol_matrices);
@@ -654,6 +666,7 @@ namespace YumeRT {
 		scene_host.volumes = volumes.data();
 		scene_host.texture_count = (uint32_t)textures.size();
 		scene_host.textures = textures.data();
+		scene_host.image_tile_cache = &image_tile_cache;
 		scene_host.sampler_data.halton_permute_table = permute_table.data();
 		scene_host.sampler_data.sobol_matrices = (uint32_t*)sobol_matrices32;
 		scene_host.camera_count = CAMERA_COUNT;

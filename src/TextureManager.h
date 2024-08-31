@@ -37,14 +37,14 @@ namespace YumeRT
 	struct ImageTileCache
 	{
 		ImageTile *image_tiles_device;
-		ImageTile *image_tiles_Host;
-		__device__ __host__ inline ImageTileCache() : image_tiles_device(nullptr), image_tiles_Host(nullptr) {}
+		ImageTile *image_tiles_host;
+		__device__ __host__ inline ImageTileCache() : image_tiles_device(nullptr), image_tiles_host(nullptr) {}
 		__device__ __host__ inline ImageTile* GetImageTiles() const
 		{
 #ifdef __CUDA_ARCH__
 			return image_tiles_device;
 #else
-			return image_tiles_Host;
+			return image_tiles_host;
 #endif 
 		}
 	};
@@ -64,16 +64,16 @@ namespace YumeRT
 				UPLOAD_TO_GPU(tile.device_data, tile.host_data, tile.data_size);
 			}
 			// be careful when you upload new image, you have to reset both the host pointer and device pointer!
-			image_tile_cache.image_tiles_Host = image_texture_tiles.data();
+			image_tile_cache.image_tiles_host = image_texture_tiles.data();
 			UPLOAD_TO_GPU(image_tile_cache.image_tiles_device, image_texture_tiles.data(), sizeof(ImageTile) * image_texture_tiles.size());
 		}
 		__host__ inline void RefreshHostData()
 		{
-			image_tile_cache.image_tiles_Host = image_texture_tiles.data();
+			image_tile_cache.image_tiles_host = image_texture_tiles.data();
 		}
 		__host__ inline void Release() 
 		{
-			image_tile_cache.image_tiles_Host = nullptr;
+			image_tile_cache.image_tiles_host = nullptr;
 			FREE_GPU_RESOURCE(image_tile_cache.image_tiles_device);
 			for (ImageTile& tile : image_texture_tiles) 
 			{

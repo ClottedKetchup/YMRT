@@ -139,6 +139,17 @@ namespace YumeRT {
 				UPLOAD_TO_GPU(scene_device_data.volumes, m_scene.volumes.data(), sizeof(Volume) * m_scene.volumes.size());
 			}
 
+			if (m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_IMAGE_TILE_CREATE) || m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_IMAGE_TILE_DELETE)) {
+				FREE_GPU_RESOURCE(m_scene.image_tile_cache.image_tiles_device);
+				m_scene.image_tile_cache.image_tiles_host = nullptr;
+				FREE_GPU_RESOURCE(scene_device_data.image_tile_cache);
+
+				m_scene.image_tile_cache.image_tiles_host = m_scene.image_texture_tiles.data();
+				UPLOAD_TO_GPU(m_scene.image_tile_cache.image_tiles_device, m_scene.image_texture_tiles.data(), sizeof(ImageTile) * m_scene.image_texture_tiles.size());
+
+				UPLOAD_TO_GPU(scene_device_data.image_tile_cache, &(m_scene.image_tile_cache), sizeof(ImageTileCache));
+			}
+
 			if (init_sampler_data) {
 				UPLOAD_TO_GPU(scene_device_data.sampler_data.halton_permute_table, m_scene.permute_table.data(), sizeof(uint32_t)* m_scene.permute_table.size());
 				UPLOAD_TO_GPU(scene_device_data.sampler_data.sobol_matrices, sobol_matrices32, sizeof(uint32_t) * 4096u * 32u);
@@ -218,7 +229,8 @@ namespace YumeRT {
 			// render path tracing view based on current size.
 			auto& scene_resource = m_module_scene->scene_resource;
 			auto& render_setting = m_module_scene->render_setting;
-			m_module_render->PathTracingFetchResult(scene_resource, scene_updated, render_setting, (int)draw_region_size.x, (int)draw_region_size.y);
+			static ExtraTaskResults path_tracing_extra_task_results = {};
+			m_module_render->PathTracingFetchResult(scene_resource, scene_updated, render_setting, (int)draw_region_size.x, (int)draw_region_size.y, &path_tracing_extra_task_results);
 
 			// image button style.
 			ImGui::PushID(1);
@@ -262,7 +274,8 @@ namespace YumeRT {
 			// render editor view based on current size.
 			auto& scene_resource = m_module_scene->scene_resource;
 			auto& render_setting = m_module_scene->render_setting;
-			m_module_render->EditorViewFetchResult(scene_resource, scene_updated, render_setting, (int)draw_region_size.x, (int)draw_region_size.y);
+			static ExtraTaskResults editor_view_extra_task_results = {};
+			m_module_render->EditorViewFetchResult(scene_resource, scene_updated, render_setting, (int)draw_region_size.x, (int)draw_region_size.y, &editor_view_extra_task_results);
 
 			// image button style.
 			ImGui::PushID(1);

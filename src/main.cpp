@@ -41,6 +41,8 @@ int main(int argc, char *argv[])
 		scene_manager.CreatePrimitiveInstance(sphere_geometry_index, sphere_transform_index_1, sphere_material_index_1);
 		scene_manager.CreatePrimitiveInstance(sphere_geometry_index, sphere_transform_index_2, sphere_material_index_2);
 
+		scene_manager.CreateDistantLight("default distant light", glm::vec3(1.0f), scene_manager.CreateTransform("transform_distant_light", glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(-180.0f, 0.0f, 30.0f)), 5.0f);
+
 		auto& camera = scene_manager.GetCamera(EDITOR_CAMERA_INDEX);
 		camera.SetFov(glm::radians(45.0f));
 		camera.SetPosition(glm::vec3(0.0f, 0.0f, 10.0f));

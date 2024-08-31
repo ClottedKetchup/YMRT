@@ -981,6 +981,7 @@ namespace YumeRT
 		return true;
 	}
 
+
 	__device__  __host__ inline glm::vec3 OffsetRayOrigin(const glm::vec3 &p, const glm::vec3 &p_error, const glm::vec3 &new_dir, const glm::vec3 &geometry_normal)
 	{
 		const float distance = glm::dot(glm::abs(geometry_normal), p_error);

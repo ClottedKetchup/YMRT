@@ -129,11 +129,11 @@ namespace YumeRT {
 			m_renderer.editor_view_task_queue.clear(); 
 			m_renderer.editor_view_result_queue_albedo.clear();
 			m_renderer.editor_view_result_queue_primitive_index.clear();
-			m_renderer.editor_view_result_queue_frame_index.clear();
+			m_renderer.editor_view_result_queue_extra.clear();
 
 			m_renderer.path_tracing_task_queue.clear();
 			m_renderer.path_tracing_result_queue_beauty.clear();
-			m_renderer.path_tracing_result_queue_frame_index.clear();
+			m_renderer.path_tracing_result_queue_extra.clear();
 
 			update_function();
 		}

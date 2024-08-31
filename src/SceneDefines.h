@@ -29,12 +29,14 @@ namespace YumeRT
 		bool enable_russian_roulette;
 
 		__device__ __host__ inline RenderSetting() : ssp(1), ray_depth(2), gamma(2.2f), exposure(1.0f), sampler_type(0), padding(0),
-			max_frame_count(-1), enable_distant_light(false), enable_env_light(true), enable_russian_roulette(false), enable_volume_scattering(false) {}
+			max_frame_count(-1), enable_distant_light(true), enable_env_light(true), enable_russian_roulette(false), enable_volume_scattering(false) {}
 		__device__ __host__ inline RenderSetting(const RenderSetting&) = default;
 		__device__ __host__ inline RenderSetting& operator=(const RenderSetting&) = default;
 	};
 
 	struct Ray;
+
+	struct RayTransfer;
 
 	struct HitRecord;
 
@@ -58,7 +60,8 @@ namespace YumeRT
 
 	struct Texture;
 	
-	// TODO: turn this into void pointer!
+	struct ImageTileCache;
+
 	struct Scene
 	{
 		uint32_t camera_count = 0;
@@ -95,6 +98,8 @@ namespace YumeRT
 
 		RenderSetting *render_setting = nullptr;
 
+		ImageTileCache *image_tile_cache = nullptr;
+
 		struct {
 			uint32_t *halton_permute_table = nullptr;
 			uint32_t *sobol_matrices = nullptr;
@@ -123,7 +128,9 @@ namespace YumeRT
 		int * shading_ray_data_ray_depth;
 		int * shading_ray_data_never_scatter;
 		int * shading_ray_data_camera_ray;
+		int * shading_ray_data_pixel_sample_index;
 		RandomSampler * shading_ray_data_sampler;
+		RayTransfer * shading_ray_data_ray_transfer;
 	};
 
 	struct HitData 
@@ -142,7 +149,9 @@ namespace YumeRT
 		int * hit_data_ray_depth;
 		int * hit_data_never_scatter;
 		int * hit_data_camera_ray;
+		int * hit_data_pixel_sample_index;
 		RandomSampler * hit_data_sampler;
+		RayTransfer * hit_data_ray_transfer;
 	};
 
 	struct ShadowRayData 

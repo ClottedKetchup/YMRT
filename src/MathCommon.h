@@ -240,6 +240,8 @@ namespace YumeRT
 		 return result_p;
 	 }
 
+	 
+
 	 // method is got by learning pbrt
 	 __device__ __host__ inline float NextFloatUp(float f)
 	 {

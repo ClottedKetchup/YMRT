@@ -5,6 +5,7 @@
 #include "src/SceneDefines.h"
 #include "src/HaltonEnumerator.h"
 #include "src/core/SceneModule.h"
+#include "src/Timer.h"
 
 #include <chrono>
 #include <thread>
@@ -186,6 +187,11 @@ namespace YumeRT {
 		TaskParams& operator=(const TaskParams&) = default;
 	};
 
+	struct ExtraTaskResults {
+		int task_frame_index;
+		float task_render_time;
+	};
+
 	class RenderModule {
 	public:
 		RenderModule();
@@ -197,7 +203,7 @@ namespace YumeRT {
 		friend class GuiModule;
 
 		// note: these function would be called by the main thread.
-		void EditorViewFetchResult(SceneResource &scene_resource, const int scene_updated, const RenderSetting &render_setting, const int frame_width, const int frame_height);
+		void EditorViewFetchResult(SceneResource &scene_resource, const int scene_updated, const RenderSetting &render_setting, const int frame_width, const int frame_height, ExtraTaskResults *extra_task_results = nullptr);
 		
 		GLuint EditorViewGetTexture(const std::string &name);
 
@@ -224,7 +230,7 @@ namespace YumeRT {
 			}
 		}
 
-		void PathTracingFetchResult(SceneResource &scene_resource, const int scene_updated, const RenderSetting &render_setting, const int frame_width, const int frame_height);
+		void PathTracingFetchResult(SceneResource &scene_resource, const int scene_updated, const RenderSetting &render_setting, const int frame_width, const int frame_height, ExtraTaskResults *extra_task_results = nullptr);
 
 		GLuint PathTracingGetTexture(const std::string &name);
 
@@ -254,7 +260,7 @@ namespace YumeRT {
 		std::mutex editor_view_result_queue_mutex;
 		std::list<DuskDeviceMemory<glm::vec4>> editor_view_result_queue_albedo;
 		std::list<DuskDeviceMemory<uint32_t>> editor_view_result_queue_primitive_index;
-		std::list<int> editor_view_result_queue_frame_index;
+		std::list<ExtraTaskResults> editor_view_result_queue_extra;
 
 		int editor_view_frame_index;
 		RayCounterData editor_view_ray_counter_data;
@@ -279,7 +285,7 @@ namespace YumeRT {
 		std::condition_variable path_tracing_result_queue_cv;
 		std::mutex path_tracing_result_queue_mutex;
 		std::list<DuskDeviceMemory<glm::vec4>> path_tracing_result_queue_beauty;
-		std::list<int> path_tracing_result_queue_frame_index;
+		std::list<ExtraTaskResults> path_tracing_result_queue_extra;
 
 		int path_tracing_frame_index;
 		RayCounterData path_tracing_ray_counter_data;
