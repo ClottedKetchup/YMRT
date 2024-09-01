@@ -115,8 +115,16 @@ namespace YumeRT {
 		void RenderImages();
 		void ExitGUI();
 
+		enum TASK_QUEUE_CLEAR_FLAG
+		{
+			NONE_QUEUE = 0b0000,
+			EDITOR_VIEW_QUEUE = 0b0001,
+			PATH_TRACING_QUEUE = 0b0010,
+			BOTH_QUEUE = 0b0011,
+		};
+
 		template<typename Function>
-		void UpdateDeviceData(Function update_function) 
+		void UpdateDeviceData(Function update_function)
 		{
 			auto& m_renderer = (*m_module_render);
 			auto& m_scene = (*m_module_scene);

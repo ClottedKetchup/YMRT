@@ -28,6 +28,7 @@ namespace YumeRT {
 	static const std::string aov_name_beauty = "beauty";
 	static const std::string aov_name_normal = "normal";
 	static const std::string aov_name_accumulate = "accumulate";
+	static const std::string aov_name_post_processing = "post_processing";
 
 	// note: allocate and transfer on default stream.
 	struct DuskImageResource 
@@ -190,6 +191,7 @@ namespace YumeRT {
 	struct ExtraTaskResults {
 		int task_frame_index;
 		float task_render_time;
+		int max_accumulate_frame;
 	};
 
 	class RenderModule {

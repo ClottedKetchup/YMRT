@@ -28,7 +28,7 @@ namespace YumeRT
 		bool enable_env_light;
 		bool enable_russian_roulette;
 
-		__device__ __host__ inline RenderSetting() : ssp(1), ray_depth(2), gamma(2.2f), exposure(1.0f), sampler_type(0), padding(0),
+		__device__ __host__ inline RenderSetting() : ssp(1), ray_depth(4), gamma(2.2f), exposure(1.0f), sampler_type(0), padding(0),
 			max_frame_count(-1), enable_distant_light(true), enable_env_light(true), enable_russian_roulette(false), enable_volume_scattering(false) {}
 		__device__ __host__ inline RenderSetting(const RenderSetting&) = default;
 		__device__ __host__ inline RenderSetting& operator=(const RenderSetting&) = default;

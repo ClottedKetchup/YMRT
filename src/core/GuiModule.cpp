@@ -217,27 +217,29 @@ namespace YumeRT {
 			const float mouse_y_pos = glm::max(0.0f, glm::min(io.MousePos.y - draw_region_p0.y, draw_region_size.y));
 
 			auto &rendering_camera = m_module_scene->GetCamera(RENDERING_CAMERA_INDEX);
+			bool path_tracing_scene_updated = false;
 			if (rendering_camera.m_width != (int)draw_region_size.x || rendering_camera.m_height != (int)draw_region_size.y)
 			{
 				rendering_camera.m_width = (int)draw_region_size.x, rendering_camera.m_height = (int)draw_region_size.y;
 				rendering_camera.SetAspectRatio(float(rendering_camera.m_width) / float(rendering_camera.m_height));
 				UpdateCamera(RENDERING_CAMERA_INDEX);
 				
-				scene_updated = true;
+				path_tracing_scene_updated = true;
 			}
+			path_tracing_scene_updated = path_tracing_scene_updated || scene_updated;
 
 			// render path tracing view based on current size.
 			auto& scene_resource = m_module_scene->scene_resource;
 			auto& render_setting = m_module_scene->render_setting;
 			static ExtraTaskResults path_tracing_extra_task_results = {};
-			m_module_render->PathTracingFetchResult(scene_resource, scene_updated, render_setting, (int)draw_region_size.x, (int)draw_region_size.y, &path_tracing_extra_task_results);
+			m_module_render->PathTracingFetchResult(scene_resource, path_tracing_scene_updated, render_setting, (int)draw_region_size.x, (int)draw_region_size.y, &path_tracing_extra_task_results);
 
 			// image button style.
 			ImGui::PushID(1);
 			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0.0f, 0.0f));
 
 			// draw image button.
-			auto image_texture_handle = m_module_render->PathTracingGetTexture(aov_name_beauty);
+			auto image_texture_handle = m_module_render->PathTracingGetTexture(aov_name_post_processing);
 			ImGui::ImageButton((void*)image_texture_handle, draw_region_size, ImVec2(0.0, 1.0), ImVec2(1.0, 0.0));
 
 			ImGui::PopStyleVar();
@@ -262,27 +264,29 @@ namespace YumeRT {
 			const float mouse_y_pos = glm::max(0.0f, glm::min(io.MousePos.y - draw_region_p0.y, draw_region_size.y));
 
 			auto& editor_camera = m_module_scene->GetCamera(EDITOR_CAMERA_INDEX);
+			bool editor_view_scene_updated = false;
 			if (editor_camera.m_width != (int)draw_region_size.x || editor_camera.m_height != (int)draw_region_size.y)
 			{
 				editor_camera.m_width = (int)draw_region_size.x, editor_camera.m_height = (int)draw_region_size.y;
 				editor_camera.SetAspectRatio(float(editor_camera.m_width) / float(editor_camera.m_height));
 				UpdateCamera(EDITOR_CAMERA_INDEX);
 
-				scene_updated = true;
+				editor_view_scene_updated = true;
 			}
+			editor_view_scene_updated = editor_view_scene_updated || scene_updated;
 
 			// render editor view based on current size.
 			auto& scene_resource = m_module_scene->scene_resource;
 			auto& render_setting = m_module_scene->render_setting;
 			static ExtraTaskResults editor_view_extra_task_results = {};
-			m_module_render->EditorViewFetchResult(scene_resource, scene_updated, render_setting, (int)draw_region_size.x, (int)draw_region_size.y, &editor_view_extra_task_results);
+			m_module_render->EditorViewFetchResult(scene_resource, editor_view_scene_updated, render_setting, (int)draw_region_size.x, (int)draw_region_size.y, &editor_view_extra_task_results);
 
 			// image button style.
 			ImGui::PushID(1);
 			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0.0f, 0.0f));
 
 			// draw image button.
-			auto image_texture_handle = m_module_render->EditorViewGetTexture(aov_name_beauty);
+			auto image_texture_handle = m_module_render->EditorViewGetTexture(aov_name_post_processing);
 			ImGui::ImageButton((void*)image_texture_handle, draw_region_size, ImVec2(0.0, 1.0), ImVec2(1.0, 0.0));
 
 			const bool is_hovered = ImGui::IsItemHovered();

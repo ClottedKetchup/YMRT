@@ -25,12 +25,24 @@ namespace YumeRT{
 
 	extern "C" void ReleaseShadowRayData(ShadowRayData & shadow_ray_data);
 
-	extern "C" void RayGeneration(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, HaltonEnumerator * halton_enumerator_device, RayCounter * ray_counter_device, uint32_t next_tile_index, uint32_t tile_count_this_batch, uint32_t width, uint32_t height, uint32_t tile_count_x, uint32_t tile_count_y, ShadingRayData & shading_ray_data, cudaStream_t & stream);
+	extern "C" void RayGenerationEditorView(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, HaltonEnumerator * halton_enumerator_device, RayCounter * ray_counter_device, uint32_t next_tile_index, uint32_t tile_count_this_batch, uint32_t width, uint32_t height, uint32_t tile_count_x, uint32_t tile_count_y, ShadingRayData & shading_ray_data, cudaStream_t & stream);
 	
-	extern "C" void RayTrace(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, RayCounter * ray_counter_device, RayCounter * ray_counter_host, uint32_t width, uint32_t height, glm::vec4 * beauty, uint32_t * primitive_index, ShadingRayData & shading_ray_data, HitData & hit_data, cudaStream_t & stream);
+	extern "C" void RayTraceEditorView(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, RayCounter * ray_counter_device, RayCounter * ray_counter_host, uint32_t width, uint32_t height, glm::vec4 * beauty, uint32_t * primitive_index, ShadingRayData & shading_ray_data, HitData & hit_data, cudaStream_t & stream);
 	
-	extern "C" void RayShading(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, RayCounter * ray_counter_device, RayCounter * ray_counter_host, uint32_t width, uint32_t height, glm::vec4 * beauty, uint32_t * primitive_index, ShadingRayData & shading_ray_data, HitData & hit_data, ShadowRayData & shadow_ray_data, cudaStream_t & stream);
+	extern "C" void RayShadingEditorView(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, RayCounter * ray_counter_device, RayCounter * ray_counter_host, uint32_t width, uint32_t height, glm::vec4 * beauty, uint32_t * primitive_index, ShadingRayData & shading_ray_data, HitData & hit_data, ShadowRayData & shadow_ray_data, cudaStream_t & stream);
 	
+	extern "C" void RayGenerationPathTracing(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, HaltonEnumerator * halton_enumerator_device, RayCounter * ray_counter_device, uint32_t next_tile_index, uint32_t tile_count_this_batch, uint32_t width, uint32_t height, uint32_t tile_count_x, uint32_t tile_count_y, ShadingRayData & shading_ray_data, cudaStream_t & stream);
+
+	extern "C" void RayTracePathTracing(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, RayCounter * ray_counter_device, RayCounter * ray_counter_host, uint32_t width, uint32_t height, glm::vec4 * noise_image, ShadingRayData & shading_ray_data, HitData & hit_data, cudaStream_t & stream);
+
+	extern "C" void RayShadingPathTracing(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, RayCounter * ray_counter_device, RayCounter * ray_counter_host, uint32_t width, uint32_t height, glm::vec4 * noise_image, ShadingRayData & shading_ray_data, HitData & hit_data, ShadowRayData & shadow_ray_data, cudaStream_t & stream);
+
+	extern "C" void AccumulateImagePathTracing(const glm::vec4 * noise_image, glm::vec4 * accumulated_image, uint32_t width, uint32_t height, int frame_index, const int max_accumulate_frame, cudaStream_t & stream);
+
+	extern "C" void PostProcessingEditorView(glm::vec4 * image, uint32_t width, uint32_t height, float gamma, float exposure, cudaStream_t & stream);
+
+	extern "C" void PostProcessingPathTracing(glm::vec4 * image, uint32_t width, uint32_t height, float gamma, float exposure, cudaStream_t & stream);
+
 	RenderModule::RenderModule(): 
 		m_editor_view_width(16), m_editor_view_height(16), editor_view_primitive_index_image(), 
 		editor_view_image_fetch_over_time(true), path_tracing_image_fetch_over_time(true),
@@ -58,6 +70,8 @@ namespace YumeRT{
 
 		editor_view_primitive_index_image.Resize(m_editor_view_width, m_editor_view_height);
 		editor_view_image_resources[aov_name_beauty] = DuskImageResource(m_editor_view_width, m_editor_view_height);
+		editor_view_image_resources[aov_name_normal] = DuskImageResource(m_editor_view_width, m_editor_view_height);
+		editor_view_image_resources[aov_name_post_processing] = DuskImageResource(m_editor_view_width, m_editor_view_height);
 		for (auto& item : editor_view_image_resources) {
 			item.second.Init();
 		}
@@ -68,6 +82,8 @@ namespace YumeRT{
 		AllocateShadowRayData(path_tracing_shadow_ray_data);
 
 		path_tracing_image_resources[aov_name_beauty] = DuskImageResource(m_path_tracing_width, m_path_tracing_height);
+		path_tracing_image_resources[aov_name_accumulate] = DuskImageResource(m_path_tracing_width, m_path_tracing_height);
+		path_tracing_image_resources[aov_name_post_processing] = DuskImageResource(m_path_tracing_width, m_path_tracing_height);
 		for (auto& item : path_tracing_image_resources) {
 			item.second.Init();
 		}
@@ -184,9 +200,11 @@ namespace YumeRT{
 		}
 
 		// execute the rendering kernel.
-		auto iter = editor_view_image_resources.find(aov_name_beauty); 
-		if (iter != editor_view_image_resources.end()) {
-			auto& albedo_image = iter->second;
+		auto iter_beauty = editor_view_image_resources.find(aov_name_beauty); 
+		auto iter_postprocessing = editor_view_image_resources.find(aov_name_post_processing);
+		if (iter_beauty != editor_view_image_resources.end() && iter_postprocessing != editor_view_image_resources.end()) {
+			auto& beauty_image = iter_beauty->second;
+			auto& postprocessing_image = iter_postprocessing->second;
 			auto& primitive_image = editor_view_primitive_index_image;
 			
 			std::unique_lock<std::mutex> editor_view_result_queue_lk(editor_view_result_queue_mutex);
@@ -201,9 +219,7 @@ namespace YumeRT{
 			
 			editor_view_image_fetch_over_time = true;
 			if (!editor_view_result_queue_albedo.empty()) {
-				assert(!editor_view_result_queue_primitive_index.empty());
-				assert(!editor_view_result_queue_frame_index.empty());
-
+				assert(!editor_view_result_queue_primitive_index.empty() && !editor_view_result_queue_extra.empty());
 				editor_view_image_fetch_over_time = false;
 				
 				auto device_mem_albedo = std::move(editor_view_result_queue_albedo.back());
@@ -219,10 +235,13 @@ namespace YumeRT{
 					*extra_task_results = extra_frame_results;
 				}
 
-				assert(device_mem_albedo.width == albedo_image.image_width && device_mem_albedo.height == albedo_image.image_height);
-				CUDA_CHECK(cudaMemcpyAsync(albedo_image.GetDevicePtr(), device_mem_albedo.GetMemPtr(), sizeof(glm::vec4) * frame_width * frame_height, cudaMemcpyDeviceToDevice, stream_main));
+				assert(device_mem_albedo.width == beauty_image.image_width && device_mem_albedo.height == beauty_image.image_height);
+				CUDA_CHECK(cudaMemcpyAsync(beauty_image.GetDevicePtr(), device_mem_albedo.GetMemPtr(), sizeof(glm::vec4) * frame_width * frame_height, cudaMemcpyDeviceToDevice, stream_main));
 				assert(device_mem_primitive_index.width == primitive_image.width && device_mem_primitive_index.height == primitive_image.height);
 				CUDA_CHECK(cudaMemcpyAsync(primitive_image.GetMemPtr(), device_mem_primitive_index.GetMemPtr(), sizeof(uint32_t) * frame_width * frame_height, cudaMemcpyDeviceToDevice, stream_main));
+				
+				CUDA_CHECK(cudaMemcpyAsync(postprocessing_image.GetDevicePtr(), beauty_image.GetDevicePtr(), sizeof(glm::vec4) * frame_width * frame_height, cudaMemcpyDeviceToDevice, stream_main));
+				PostProcessingEditorView(postprocessing_image.GetDevicePtr(), frame_width, frame_height, render_setting.gamma, render_setting.exposure, stream_main);
 				CUDA_CHECK(cudaStreamSynchronize(stream_main));
 			}
 		}
@@ -261,9 +280,13 @@ namespace YumeRT{
 			}
 		}
 
-		auto iter = path_tracing_image_resources.find(aov_name_beauty);
-		if (iter != path_tracing_image_resources.end()) {
-			auto& image = iter->second;
+		auto iter_noise_image = path_tracing_image_resources.find(aov_name_beauty);
+		auto iter_accumulate_image = path_tracing_image_resources.find(aov_name_accumulate);
+		auto iter_postprocessing = path_tracing_image_resources.find(aov_name_post_processing);
+		if (iter_noise_image != path_tracing_image_resources.end() && iter_accumulate_image != path_tracing_image_resources.end() && iter_postprocessing != path_tracing_image_resources.end()) {
+			auto& noise_image = iter_noise_image->second;
+			auto& accumulate_image = iter_accumulate_image->second;
+			auto& postprocessing_image = iter_postprocessing->second;
 
 			std::unique_lock<std::mutex> path_tracing_result_queue_lk(path_tracing_result_queue_mutex);
 			
@@ -277,8 +300,7 @@ namespace YumeRT{
 
 			path_tracing_image_fetch_over_time = true;
 			if (!path_tracing_result_queue_beauty.empty()) {
-				assert(!path_tracing_result_queue_frame_index.empty());
-
+				assert(!path_tracing_result_queue_frame_index.empty() && !path_tracing_result_queue_extra.empty());
 				path_tracing_image_fetch_over_time = false;
 
 				// note: this memory should release after copy complete.
@@ -294,7 +316,10 @@ namespace YumeRT{
 				}
 
 				assert(device_mem.width == frame_width && device_mem.height == frame_height);
-				CUDA_CHECK(cudaMemcpyAsync(image.GetDevicePtr(), device_mem.GetMemPtr(), sizeof(glm::vec4) * frame_width * frame_height, cudaMemcpyDeviceToDevice, stream_main));
+				CUDA_CHECK(cudaMemcpyAsync(noise_image.GetDevicePtr(), device_mem.GetMemPtr(), sizeof(glm::vec4) * frame_width * frame_height, cudaMemcpyDeviceToDevice, stream_main));
+				AccumulateImagePathTracing(noise_image.GetDevicePtr(), accumulate_image.GetDevicePtr(), frame_width, frame_height, extra_frame_results.task_frame_index, extra_frame_results.max_accumulate_frame, stream_main);
+				CUDA_CHECK(cudaMemcpyAsync(postprocessing_image.GetDevicePtr(), accumulate_image.GetDevicePtr(), sizeof(glm::vec4) * frame_width * frame_height, cudaMemcpyDeviceToDevice, stream_main));
+				PostProcessingPathTracing(postprocessing_image.GetDevicePtr(), frame_width, frame_height, render_setting.gamma, render_setting.exposure, stream_main);
 				CUDA_CHECK(cudaStreamSynchronize(stream_main));
 			}
 		}
@@ -323,7 +348,9 @@ namespace YumeRT{
 	{
 		auto& scene_resource = *(task_param.scene_resource_ptr);
 
-		editor_view_frame_index = task_param.scene_updated ? 1 : (editor_view_frame_index + 1);
+		if (task_param.scene_updated) {
+			editor_view_frame_index = 1;
+		}
 
 		DuskTimer editor_view_timer;
 
@@ -388,7 +415,7 @@ namespace YumeRT{
 				if (scene_resource.scene_change_time != task_param.scene_change_time) {
 					break;
 				}
-				RayGeneration(current_frame_index, render_setting, scene_device, halton_enumerator_device, ray_counter_device, next_tile_index, tile_count_this_batch, task_param.width, task_param.height, tile_count_x, tile_count_y, editor_view_shading_ray_data, stream_editor_view);
+				RayGenerationEditorView(current_frame_index, render_setting, scene_device, halton_enumerator_device, ray_counter_device, next_tile_index, tile_count_this_batch, task_param.width, task_param.height, tile_count_x, tile_count_y, editor_view_shading_ray_data, stream_editor_view);
 			}
 
 			next_tile_index += tile_count_this_batch;
@@ -402,7 +429,7 @@ namespace YumeRT{
 				if (scene_resource.scene_change_time != task_param.scene_change_time) {
 					break;
 				}
-				RayTrace(current_frame_index, render_setting, scene_device, ray_counter_device, ray_counter_host, task_param.width, task_param.height, device_mem_albedo.GetMemPtr(), device_mem_primitive_indices.GetMemPtr(), editor_view_shading_ray_data, editor_view_hit_data, stream_editor_view);
+				RayTraceEditorView(current_frame_index, render_setting, scene_device, ray_counter_device, ray_counter_host, task_param.width, task_param.height, device_mem_albedo.GetMemPtr(), device_mem_primitive_indices.GetMemPtr(), editor_view_shading_ray_data, editor_view_hit_data, stream_editor_view);
 			}
 
 			CUDA_CHECK(cudaMemcpyAsync(ray_counter_host, ray_counter_device, sizeof(RayCounter), cudaMemcpyDeviceToHost, stream_editor_view));
@@ -417,7 +444,7 @@ namespace YumeRT{
 				if (scene_resource.scene_change_time != task_param.scene_change_time) {
 					break;
 				}
-				RayShading(current_frame_index, render_setting, scene_device, ray_counter_device, ray_counter_host, task_param.width, task_param.height, device_mem_albedo.GetMemPtr(), device_mem_primitive_indices.GetMemPtr(), editor_view_shading_ray_data, editor_view_hit_data, editor_view_shadow_ray_data, stream_editor_view);
+				RayShadingEditorView(current_frame_index, render_setting, scene_device, ray_counter_device, ray_counter_host, task_param.width, task_param.height, device_mem_albedo.GetMemPtr(), device_mem_primitive_indices.GetMemPtr(), editor_view_shading_ray_data, editor_view_hit_data, editor_view_shadow_ray_data, stream_editor_view);
 			}
 
 			CUDA_CHECK(cudaMemcpyAsync(ray_counter_host, ray_counter_device, sizeof(RayCounter), cudaMemcpyDeviceToHost, stream_editor_view));
@@ -447,7 +474,8 @@ namespace YumeRT{
 				std::unique_lock<std::mutex> editor_view_result_queue_lk(editor_view_result_queue_mutex);
 				editor_view_result_queue_albedo.push_front(std::move(device_mem_albedo));
 				editor_view_result_queue_primitive_index.push_front(std::move(device_mem_primitive_indices));
-				editor_view_result_queue_extra.push_front({ current_frame_index, editor_view_timer.Stop() });
+				editor_view_result_queue_extra.push_front({ current_frame_index, editor_view_timer.Stop(), render_setting.max_frame_count });
+				editor_view_frame_index = current_frame_index + 1;
 			}
 			editor_view_result_queue_cv.notify_one();
 		}
@@ -457,28 +485,115 @@ namespace YumeRT{
 	{
 		auto& scene_resource = *(task_param.scene_resource_ptr);
 
-		path_tracing_frame_index = task_param.scene_updated ? 1 : (path_tracing_frame_index + 1);
+		if (task_param.scene_updated) {
+			path_tracing_frame_index = 1;
+		}
 
 		DuskTimer path_tracing_timer;
 
 		path_tracing_timer.Start();
 
-		glm::vec4* ptr = nullptr;
-		CUDA_CHECK(cudaMallocAsync(&ptr, sizeof(glm::vec4) * task_param.width * task_param.height, stream_path_tracing));
+		// note: allocate image buffers.
+		glm::vec4* noise_image = nullptr;
+		CUDA_CHECK(cudaMallocAsync(&noise_image, sizeof(glm::vec4) * task_param.width * task_param.height, stream_path_tracing));
+		CUDA_CHECK(cudaMemsetAsync(noise_image, 0, sizeof(glm::vec4) * task_param.width * task_param.height, stream_path_tracing));
 		CUDA_CHECK(cudaStreamSynchronize(stream_path_tracing));
-		DuskDeviceMemory<glm::vec4> device_mem(task_param.width, task_param.height, ptr);
+		DuskDeviceMemory<glm::vec4> device_mem_noise_image(task_param.width, task_param.height, noise_image);
 
-		const int current_frame_index = path_tracing_frame_index;
-
-		// rendering block.
+		// note: allocate device scene ptrs.
+		Scene *scene_device = nullptr;
+		HaltonEnumerator *halton_enumerator_device = nullptr;
 		{
-			// lock scene.
 			std::shared_lock<std::shared_mutex> scene_read_lk(scene_resource.scene_mutex);
 			if (scene_resource.scene_change_time != task_param.scene_change_time) {
 				return;
 			}
-			ImguiTestingRendering(scene_resource.scene, device_mem.GetMemPtr(), task_param.width, task_param.height, stream_path_tracing);
+
+			CUDA_CHECK(cudaMallocAsync(&scene_device, sizeof(Scene), stream_path_tracing));
+			CUDA_CHECK(cudaMemcpyAsync(scene_device, &scene_resource.scene, sizeof(Scene), cudaMemcpyHostToDevice, stream_path_tracing));
+
+			HaltonEnumerator halton_enumerator(task_param.width, task_param.height);
+
+			CUDA_CHECK(cudaMallocAsync(&halton_enumerator_device, sizeof(HaltonEnumerator), stream_path_tracing));
+			CUDA_CHECK(cudaMemcpyAsync(halton_enumerator_device, &halton_enumerator_device, sizeof(HaltonEnumerator), cudaMemcpyHostToDevice, stream_path_tracing));
+
+			CUDA_CHECK(cudaStreamSynchronize(stream_path_tracing)); // note: have to make sure the gpu done the memory copy before unlock.
 		}
+
+		const RenderSetting& render_setting = task_param.render_setting;
+		const int current_frame_index = path_tracing_frame_index;
+		const uint32_t sample_per_pixel = render_setting.ssp;
+		const uint32_t tile_count_x = (task_param.width + TILE_X_RES - 1) / TILE_X_RES;
+		const uint32_t tile_count_y = (task_param.height + TILE_Y_RES - 1) / TILE_Y_RES;
+		const uint32_t total_tile_count = tile_count_x * tile_count_y;
+
+		uint32_t next_tile_index = 0;
+
+		auto& ray_counter_host = path_tracing_ray_counter_data.ray_counter_host;
+		auto& ray_counter_device = path_tracing_ray_counter_data.ray_counter_device;
+
+		// note: clear ray counter.
+		ray_counter_host->hit_counter = 0;
+		ray_counter_host->shading_ray_counter = 0;
+		ray_counter_host->shadow_ray_counter = 0;
+		CUDA_CHECK(cudaMemcpyAsync(ray_counter_device, ray_counter_host, sizeof(RayCounter), cudaMemcpyHostToDevice, stream_path_tracing));
+		CUDA_CHECK(cudaStreamSynchronize(stream_path_tracing));
+
+		while (ray_counter_host->shading_ray_counter > 0 || next_tile_index < total_tile_count)
+		{
+			// stage: ray generation.
+			const uint32_t tile_count_this_batch = (MAX_RAY_COUNT - ray_counter_host->shading_ray_counter) / (TILE_PIXEL_COUNT * sample_per_pixel);
+			{
+				std::shared_lock<std::shared_mutex> scene_read_lk(scene_resource.scene_mutex);
+				if (scene_resource.scene_change_time != task_param.scene_change_time) {
+					break;
+				}
+				RayGenerationPathTracing(current_frame_index, render_setting, scene_device, halton_enumerator_device, ray_counter_device, next_tile_index, tile_count_this_batch, task_param.width, task_param.height, tile_count_x, tile_count_y, path_tracing_shading_ray_data, stream_path_tracing);
+			}
+
+			next_tile_index += tile_count_this_batch;
+			ray_counter_host->shading_ray_counter += tile_count_this_batch * sample_per_pixel * TILE_PIXEL_COUNT;
+			CUDA_CHECK(cudaMemcpyAsync(ray_counter_device, ray_counter_host, sizeof(RayCounter), cudaMemcpyHostToDevice, stream_path_tracing));
+			CUDA_CHECK(cudaStreamSynchronize(stream_path_tracing));
+
+			// stage: ray trace.
+			{
+				std::shared_lock<std::shared_mutex> scene_read_lk(scene_resource.scene_mutex);
+				if (scene_resource.scene_change_time != task_param.scene_change_time) {
+					break;
+				}
+				RayTracePathTracing(current_frame_index, render_setting, scene_device, ray_counter_device, ray_counter_host, task_param.width, task_param.height, device_mem_noise_image.GetMemPtr(), path_tracing_shading_ray_data, path_tracing_hit_data, stream_path_tracing);
+			}
+
+			CUDA_CHECK(cudaMemcpyAsync(ray_counter_host, ray_counter_device, sizeof(RayCounter), cudaMemcpyDeviceToHost, stream_path_tracing));
+			CUDA_CHECK(cudaStreamSynchronize(stream_path_tracing));
+			ray_counter_host->shading_ray_counter = 0;
+			CUDA_CHECK(cudaMemcpyAsync(ray_counter_device, ray_counter_host, sizeof(RayCounter), cudaMemcpyHostToDevice, stream_path_tracing));
+			CUDA_CHECK(cudaStreamSynchronize(stream_path_tracing));
+
+			// stage: ray shading.
+			{
+				std::shared_lock<std::shared_mutex> scene_read_lk(scene_resource.scene_mutex);
+				if (scene_resource.scene_change_time != task_param.scene_change_time) {
+					break;
+				}
+				RayShadingPathTracing(current_frame_index, render_setting, scene_device, ray_counter_device, ray_counter_host, task_param.width, task_param.height, device_mem_noise_image.GetMemPtr(), path_tracing_shading_ray_data, path_tracing_hit_data, path_tracing_shadow_ray_data, stream_path_tracing);
+			}
+
+			CUDA_CHECK(cudaMemcpyAsync(ray_counter_host, ray_counter_device, sizeof(RayCounter), cudaMemcpyDeviceToHost, stream_path_tracing));
+			CUDA_CHECK(cudaStreamSynchronize(stream_path_tracing));
+			ray_counter_host->hit_counter = 0;
+			CUDA_CHECK(cudaMemcpyAsync(ray_counter_device, ray_counter_host, sizeof(RayCounter), cudaMemcpyHostToDevice, stream_path_tracing));
+			CUDA_CHECK(cudaStreamSynchronize(stream_path_tracing));
+
+			// TODO: stage ray shadow.
+			{
+
+			}
+		}
+
+		FREE_GPU_RESOURCE(scene_device);
+		FREE_GPU_RESOURCE(halton_enumerator_device);
 
 		// result output block.
 		{
@@ -491,8 +606,9 @@ namespace YumeRT{
 			{
 				// push result to queue.
 				std::unique_lock<std::mutex> path_tracing_result_queue_lk(path_tracing_result_queue_mutex);
-				path_tracing_result_queue_beauty.push_front(std::move(device_mem));
-				path_tracing_result_queue_extra.push_front({ current_frame_index, path_tracing_timer.Stop() });
+				path_tracing_result_queue_beauty.push_front(std::move(device_mem_noise_image));
+				path_tracing_result_queue_extra.push_front({ current_frame_index, path_tracing_timer.Stop(), render_setting.max_frame_count });
+				path_tracing_frame_index = current_frame_index + 1;
 			}
 			path_tracing_result_queue_cv.notify_one();
 		}
