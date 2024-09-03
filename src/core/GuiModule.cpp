@@ -279,7 +279,7 @@ namespace YumeRT {
 			auto& scene_resource = m_module_scene->scene_resource;
 			auto& render_setting = m_module_scene->render_setting;
 			static ExtraTaskResults editor_view_extra_task_results = {};
-			m_module_render->EditorViewFetchResult(scene_resource, editor_view_scene_updated, render_setting, (int)draw_region_size.x, (int)draw_region_size.y, &editor_view_extra_task_results);
+			m_module_render->EditorViewFetchResult(scene_resource, editor_view_scene_updated, render_setting, (int)draw_region_size.x, (int)draw_region_size.y, clicked_pixel_primitive_index, true, &editor_view_extra_task_results);
 
 			// image button style.
 			ImGui::PushID(1);
@@ -323,9 +323,9 @@ namespace YumeRT {
 					trackball.Rotate(angle, glm::vec3(axis[0], axis[1], axis[2]));
 					trackball.prev_pos_x = float(mouse_x_pos);
 					trackball.prev_pos_y = float(mouse_y_pos);
-				}
 
-				m_module_scene->AddSceneFlag(SceneModule::SCENE_CAMERA_CHANGE);
+					m_module_scene->AddSceneFlag(SceneModule::SCENE_CAMERA_CHANGE);
+				}
 			}
 			if (is_hovered) {
 				if (glm::abs(io.MouseWheel) > 0.0f) {

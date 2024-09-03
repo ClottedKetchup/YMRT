@@ -39,7 +39,7 @@ namespace YumeRT{
 
 	extern "C" void AccumulateImagePathTracing(const glm::vec4 * noise_image, glm::vec4 * accumulated_image, uint32_t width, uint32_t height, int frame_index, const int max_accumulate_frame, cudaStream_t & stream);
 
-	extern "C" void PostProcessingEditorView(glm::vec4 * image, uint32_t width, uint32_t height, float gamma, float exposure, cudaStream_t & stream);
+	extern "C" void PostProcessingEditorView(glm::vec4 * image, uint32_t * primitive_index, uint32_t width, uint32_t height, uint32_t clicked_primitive_index, float gamma, float exposure, bool draw_selected_effect, cudaStream_t & stream);
 
 	extern "C" void PostProcessingPathTracing(glm::vec4 * image, uint32_t width, uint32_t height, float gamma, float exposure, cudaStream_t & stream);
 
@@ -185,7 +185,7 @@ namespace YumeRT{
 		path_tracing_image_resources.clear();
 	}
 
-	void RenderModule::EditorViewFetchResult(SceneResource &scene_resource, const int scene_updated, const RenderSetting &render_setting, const int frame_width, const int frame_height, ExtraTaskResults *extra_task_results)
+	void RenderModule::EditorViewFetchResult(SceneResource &scene_resource, const int scene_updated, const RenderSetting &render_setting, const int frame_width, const int frame_height, const uint32_t clicked_primitive_index, bool draw_selected_effect, ExtraTaskResults *extra_task_results)
 	{
 		EditorViewLaunchTask(TaskParams(&scene_resource, frame_width, frame_height, scene_updated, render_setting, scene_resource.scene_change_time));
 
@@ -241,7 +241,7 @@ namespace YumeRT{
 				CUDA_CHECK(cudaMemcpyAsync(primitive_image.GetMemPtr(), device_mem_primitive_index.GetMemPtr(), sizeof(uint32_t) * frame_width * frame_height, cudaMemcpyDeviceToDevice, stream_main));
 				
 				CUDA_CHECK(cudaMemcpyAsync(postprocessing_image.GetDevicePtr(), beauty_image.GetDevicePtr(), sizeof(glm::vec4) * frame_width * frame_height, cudaMemcpyDeviceToDevice, stream_main));
-				PostProcessingEditorView(postprocessing_image.GetDevicePtr(), frame_width, frame_height, render_setting.gamma, render_setting.exposure, stream_main);
+				PostProcessingEditorView(postprocessing_image.GetDevicePtr(), primitive_image.GetMemPtr(), frame_width, frame_height, clicked_primitive_index, render_setting.gamma, render_setting.exposure, draw_selected_effect, stream_main);
 				CUDA_CHECK(cudaStreamSynchronize(stream_main));
 			}
 		}
@@ -362,7 +362,7 @@ namespace YumeRT{
 		CUDA_CHECK(cudaMallocAsync(&albedo_ptr, sizeof(glm::vec4) * task_param.width * task_param.height, stream_editor_view));
 		CUDA_CHECK(cudaMemsetAsync(albedo_ptr, 0, sizeof(glm::vec4) * task_param.width * task_param.height, stream_editor_view));
 		CUDA_CHECK(cudaMallocAsync(&primitive_index_ptr, sizeof(uint32_t) * task_param.width * task_param.height, stream_editor_view));
-		CUDA_CHECK(cudaMemsetAsync(primitive_index_ptr, 0, sizeof(uint32_t) * task_param.width * task_param.height, stream_editor_view));
+		CUDA_CHECK(cudaMemsetAsync(primitive_index_ptr, 0xFFFFFFFF, sizeof(uint32_t) * task_param.width * task_param.height, stream_editor_view));
 		CUDA_CHECK(cudaStreamSynchronize(stream_editor_view));
 		DuskDeviceMemory<glm::vec4> device_mem_albedo(task_param.width, task_param.height, albedo_ptr);
 		DuskDeviceMemory<uint32_t>  device_mem_primitive_indices(task_param.width, task_param.height, primitive_index_ptr);

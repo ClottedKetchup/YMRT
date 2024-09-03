@@ -2,8 +2,8 @@
 
 namespace YumeRT {
 
-	static constexpr int default_width = 1280;
-	static constexpr int default_height = 960;
+	static constexpr int default_width = 800;
+	static constexpr int default_height = 600;
 
 	DuskRenderer::DuskRenderer() :window(nullptr), module_scene(nullptr), module_render(nullptr), module_gui(nullptr)
 	{

@@ -205,7 +205,7 @@ namespace YumeRT {
 		friend class GuiModule;
 
 		// note: these function would be called by the main thread.
-		void EditorViewFetchResult(SceneResource &scene_resource, const int scene_updated, const RenderSetting &render_setting, const int frame_width, const int frame_height, ExtraTaskResults *extra_task_results = nullptr);
+		void EditorViewFetchResult(SceneResource &scene_resource, const int scene_updated, const RenderSetting &render_setting, const int frame_width, const int frame_height, const uint32_t clicked_primitive_index, bool draw_selected_effect, ExtraTaskResults *extra_task_results = nullptr);
 		
 		GLuint EditorViewGetTexture(const std::string &name);
 

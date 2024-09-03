@@ -2502,6 +2502,7 @@ namespace YumeRT
 		CUDA_CHECK(cudaStreamSynchronize(stream));
 	}
 
+	
 	__global__ void Gamma_correction_common(glm::vec4 * image,
 		const float gamma,
 		const float exposure,
@@ -2533,19 +2534,78 @@ namespace YumeRT
 		image[pixel_index] = glm::vec4(gamma_correction(result_col), 1.0f);
 	}
 
-	extern "C" void PostProcessingEditorView(glm::vec4 * image,  uint32_t width,  uint32_t height, float gamma, float exposure, cudaStream_t & stream)
+	__global__ void Draw_outline(glm::vec4 * image,
+		const uint32_t * primitive_index,
+		const uint32_t width,
+		const uint32_t height,
+		const uint32_t clicked_primitive_index)
 	{
-		assert(image != nullptr);
+		int idx = blockIdx.x * blockDim.x + threadIdx.x;
+		int idy = blockIdx.y * blockDim.y + threadIdx.y;
+		if (!(idx < width && idy < height)) {
+			return;
+		}
+
+		auto in_range = [](int x, int y, int width, int height) {
+			return x >= 0 && x < width && y >= 0 && y < height;
+		};
+		auto get_pixel_index = [](int x, int y, int width, int height) {
+			return y * width + x;
+		};
+
+		int highlight = 0, total_sample = 0;
+		for (int x = -1; x <= 1; ++x) {
+			for (int y = -1; y <= 1; ++y) {
+				int sample_x = idx + x, sample_y = idy + y;
+				if (in_range(sample_x, sample_y, width, height))
+				{
+					++total_sample;
+					if (primitive_index[get_pixel_index(sample_x, sample_y, width, height)] == clicked_primitive_index) {
+						++highlight;
+					}
+				}
+			}
+		}
+
+		const uint32_t pixel_index = get_pixel_index(idx, idy, width, height);
+		const glm::vec4 dim_color = image[pixel_index];
+
+		glm::vec3 result_col(0.0f);
+		if (highlight == 0) {
+			result_col = glm::vec3(dim_color);
+		}
+		else if (highlight == total_sample) {
+			result_col = glm::mix(glm::vec3(dim_color), glm::vec3(0.9f, 0.2f, 0.2f), 0.6f);
+		}
+		else {
+			result_col = glm::vec3(1.0f, 0.0f, 0.0f);
+		}
+		image[pixel_index] = glm::vec4(result_col, 1.0f);
+	}
+
+	extern "C" void PostProcessingEditorView(glm::vec4 * image, uint32_t * primitive_index, uint32_t width,  uint32_t height, uint32_t clicked_primitive_index, float gamma, float exposure, bool draw_selected_effect, cudaStream_t & stream)
+	{
+		assert(image != nullptr && primitive_index != nullptr);
 
 		dim3 block_dim(32, 32, 1);
 		dim3 grid_dim(Round_Block_Count(width, block_dim.x), Round_Block_Count(height, block_dim.y), 1);
+			
+		void* gamma_args[] = { &image,
+											&gamma,
+											&exposure,
+											&width,
+											&height };
+		CUDA_CHECK(cudaLaunchKernel((void*)Gamma_correction_common, grid_dim, block_dim, gamma_args, 0, stream));
 
-		void* args[] = { &image,
-								 &gamma,
-								 &exposure,
-								 &width,
-								 &height };
-		CUDA_CHECK(cudaLaunchKernel((void*)Gamma_correction_common, grid_dim, block_dim, args, 0, stream));
+		const bool draw_outline = draw_selected_effect && (clicked_primitive_index != EMPTY_UINT32);
+		if (draw_outline) {
+			void* outline_args[] = { &image,
+												&primitive_index,
+												&width,
+												&height, 
+												&clicked_primitive_index };
+			CUDA_CHECK(cudaLaunchKernel((void*)Draw_outline, grid_dim, block_dim, outline_args, 0, stream));
+		}
 		CUDA_CHECK(cudaStreamSynchronize(stream));
 	}
 
