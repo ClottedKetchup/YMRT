@@ -171,8 +171,7 @@ namespace YumeRT
 				const Triangle *tris = triangles + node.leaf.offset;
 				for (uint32_t leaf_prim_idx = 0; leaf_prim_idx < node.leaf.count; ++leaf_prim_idx)
 				{
-					if (IntersectTri(tris[leaf_prim_idx], positions, vidxs, ray, hit_record, extra_hit_info))
-					{
+					if (IntersectTri(tris[leaf_prim_idx], positions, vidxs, ray, hit_record, extra_hit_info)) {
 						hit_record->hit_triangle_idx = node.leaf.offset + leaf_prim_idx;
 						hit = hit || true;
 					}
@@ -361,8 +360,7 @@ namespace YumeRT
 						ray.t = object_ray.t;
 
 						// TODO: update upper bound and lower bound
-						t_upper_bound = NextFloatUp(NextFloatUp(ray.t));
-						t_lower_bound = NextFloatDown(NextFloatDown(ray.t));
+						t_upper_bound = NextFloatUp(NextFloatUp(ray.t)), t_lower_bound = NextFloatDown(NextFloatDown(ray.t));
 
 						// TODO: update the nearby object list
 						int head = 0, tail = nearby_prim_count - 1;

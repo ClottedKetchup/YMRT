@@ -778,4 +778,8 @@ namespace YumeRT
 			}
 		}
 	};
+
+	__device__ __host__ inline glm::vec3 MaterialSurfaceCol() {
+		return glm::vec3(0.0f);
+	}
 };

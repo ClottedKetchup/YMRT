@@ -1336,7 +1336,7 @@ namespace YumeRT
 			return;
 		}
 
-		dim3 block_dim(32, 1, 1);
+		dim3 block_dim(STAGE_RAY_GEN_BLOCK_SIZE, 1, 1);
 		dim3 grid_dim(Round_Block_Count(ray_count_this_batch, block_dim.x), 1, 1);
 
 		void* args[] = { &current_frame_index,
@@ -1501,7 +1501,7 @@ namespace YumeRT
 			return;
 		}
 
-		dim3 block_dim(32, 1, 1);
+		dim3 block_dim(STAGE_RAY_TRACE_BLOCK_SIZE, 1, 1);
 		dim3 grid_dim(Round_Block_Count(total_ray_count_this_batch, block_dim.x), 1, 1);
 
 		void* args[] = { &current_frame_index,
@@ -1809,7 +1809,7 @@ namespace YumeRT
 			return;
 		}
 
-		dim3 block_dim(32, 1, 1);
+		dim3 block_dim(STAGE_RAY_SHADING_BLOCK_SIZE, 1, 1);
 		dim3 grid_dim(Round_Block_Count(total_hit_count_this_batch, block_dim.x), 1, 1);
 
 		void* args[] = { &current_frame_index,
@@ -1953,7 +1953,7 @@ namespace YumeRT
 			return;
 		}
 
-		dim3 block_dim(32, 1, 1);
+		dim3 block_dim(STAGE_RAY_GEN_BLOCK_SIZE, 1, 1);
 		dim3 grid_dim(Round_Block_Count(ray_count_this_batch, block_dim.x), 1, 1);
 
 		void* args[] = { &current_frame_index,
@@ -2117,7 +2117,7 @@ namespace YumeRT
 			return;
 		}
 
-		dim3 block_dim(32, 1, 1);
+		dim3 block_dim(STAGE_RAY_TRACE_BLOCK_SIZE, 1, 1);
 		dim3 grid_dim(Round_Block_Count(total_ray_count_this_batch, block_dim.x), 1, 1);
 
 		void* args[] = { &current_frame_index,
@@ -2420,7 +2420,7 @@ namespace YumeRT
 			return;
 		}
 
-		dim3 block_dim(32, 1, 1);
+		dim3 block_dim(STAGE_RAY_SHADING_BLOCK_SIZE, 1, 1);
 		dim3 grid_dim(Round_Block_Count(total_hit_count_this_batch, block_dim.x), 1, 1);
 
 		void* args[] = { &current_frame_index,

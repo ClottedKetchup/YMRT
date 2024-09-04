@@ -26,6 +26,10 @@ namespace YumeRT
 #define EMPTY_UINT32 0xFFFFFFFF
 #define EMPTY_UINT16 0xFFFF
 
+#define STAGE_RAY_GEN_BLOCK_SIZE 256
+#define STAGE_RAY_TRACE_BLOCK_SIZE 128
+#define STAGE_RAY_SHADING_BLOCK_SIZE 128
+
 #define Matrix_T(t) (glm::translate(glm::mat4(1.0f), t))
 #define Matrix_S(s) (glm::scale(glm::mat4(1.0f), s))
 #define Matrix_R(axis, angle) (glm::rotate(glm::mat4(1.0f), angle, axis))
