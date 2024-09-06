@@ -25,7 +25,7 @@ namespace YumeRT{
 
 	extern "C" void ReleaseShadowRayData(ShadowRayData & shadow_ray_data);
 
-	extern "C" void RayGenerationEditorView(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, HaltonEnumerator * halton_enumerator_device, RayCounter * ray_counter_device, uint32_t next_tile_index, uint32_t tile_count_this_batch, uint32_t width, uint32_t height, uint32_t tile_count_x, uint32_t tile_count_y, ShadingRayData & shading_ray_data, cudaStream_t & stream);
+	extern "C" void RayGenerationEditorView(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, RayCounter * ray_counter_device, uint32_t next_tile_index, uint32_t tile_count_this_batch, uint32_t width, uint32_t height, uint32_t tile_count_x, uint32_t tile_count_y, ShadingRayData & shading_ray_data, cudaStream_t & stream);
 	
 	extern "C" void RayTraceEditorView(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, RayCounter * ray_counter_device, RayCounter * ray_counter_host, uint32_t width, uint32_t height, glm::vec4 * beauty, uint32_t * primitive_index, ShadingRayData & shading_ray_data, HitData & hit_data, cudaStream_t & stream);
 	
@@ -369,7 +369,6 @@ namespace YumeRT{
 
 		// note: allocate device scene ptrs.
 		Scene *scene_device = nullptr;
-		HaltonEnumerator *halton_enumerator_device = nullptr;
 		{
 			std::shared_lock<std::shared_mutex> scene_read_lk(scene_resource.scene_mutex);
 			if (scene_resource.scene_change_time != task_param.scene_change_time) {
@@ -378,18 +377,11 @@ namespace YumeRT{
 			
 			CUDA_CHECK(cudaMallocAsync(&scene_device, sizeof(Scene), stream_editor_view));
 			CUDA_CHECK(cudaMemcpyAsync(scene_device, &scene_resource.scene, sizeof(Scene), cudaMemcpyHostToDevice, stream_editor_view));
-			
-			HaltonEnumerator halton_enumerator(task_param.width, task_param.height);
-			
-			CUDA_CHECK(cudaMallocAsync(&halton_enumerator_device, sizeof(HaltonEnumerator), stream_editor_view));
-			CUDA_CHECK(cudaMemcpyAsync(halton_enumerator_device, &halton_enumerator_device, sizeof(HaltonEnumerator), cudaMemcpyHostToDevice, stream_editor_view));
-			
 			CUDA_CHECK(cudaStreamSynchronize(stream_editor_view)); // note: have to make sure the gpu done the memory copy before unlock.
 		}
 		
 		const RenderSetting& render_setting = task_param.render_setting;
 		const int current_frame_index = editor_view_frame_index;
-		const uint32_t sample_per_pixel = render_setting.ssp;
 		const uint32_t tile_count_x = (task_param.width + TILE_X_RES - 1) / TILE_X_RES;
 		const uint32_t tile_count_y = (task_param.height + TILE_Y_RES - 1) / TILE_Y_RES;
 		const uint32_t total_tile_count = tile_count_x * tile_count_y;
@@ -409,17 +401,17 @@ namespace YumeRT{
 		while (ray_counter_host->shading_ray_counter > 0 || next_tile_index < total_tile_count) 
 		{
 			// stage: ray generation.
-			const uint32_t tile_count_this_batch = (MAX_RAY_COUNT - ray_counter_host->shading_ray_counter) / (TILE_PIXEL_COUNT * sample_per_pixel);
+			const uint32_t tile_count_this_batch = (MAX_RAY_COUNT - ray_counter_host->shading_ray_counter) / TILE_PIXEL_COUNT;
 			{
 				std::shared_lock<std::shared_mutex> scene_read_lk(scene_resource.scene_mutex);
 				if (scene_resource.scene_change_time != task_param.scene_change_time) {
 					break;
 				}
-				RayGenerationEditorView(current_frame_index, render_setting, scene_device, halton_enumerator_device, ray_counter_device, next_tile_index, tile_count_this_batch, task_param.width, task_param.height, tile_count_x, tile_count_y, editor_view_shading_ray_data, stream_editor_view);
+				RayGenerationEditorView(current_frame_index, render_setting, scene_device, ray_counter_device, next_tile_index, tile_count_this_batch, task_param.width, task_param.height, tile_count_x, tile_count_y, editor_view_shading_ray_data, stream_editor_view);
 			}
 
 			next_tile_index += tile_count_this_batch;
-			ray_counter_host->shading_ray_counter += tile_count_this_batch * sample_per_pixel * TILE_PIXEL_COUNT;
+			ray_counter_host->shading_ray_counter += tile_count_this_batch * TILE_PIXEL_COUNT;
 			CUDA_CHECK(cudaMemcpyAsync(ray_counter_device, ray_counter_host, sizeof(RayCounter), cudaMemcpyHostToDevice, stream_editor_view));
 			CUDA_CHECK(cudaStreamSynchronize(stream_editor_view));
 
@@ -460,7 +452,6 @@ namespace YumeRT{
 		}
 
 		FREE_GPU_RESOURCE(scene_device);
-		FREE_GPU_RESOURCE(halton_enumerator_device);
 
 		// stage: result output to queue.
 		{

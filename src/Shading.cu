@@ -1237,11 +1237,9 @@ namespace YumeRT
 
 	__global__ void Ray_generation_editor_view(const int current_frame_index,
 		const Scene * scene_device, 
-		const HaltonEnumerator * halton_enumerator_device,
 		const RayCounter * ray_counter_device, 
 		const uint32_t next_tile_index, 
 		const uint32_t ray_count_this_batch, 
-		const uint32_t sample_per_pixel,
 		const uint32_t width, 
 		const uint32_t height,
 		const uint32_t tile_count_x,
@@ -1266,13 +1264,14 @@ namespace YumeRT
 		
 		const uint32_t ray_index = ray_counter.shading_ray_counter + thread_index;
 
-		const uint32_t tile_index_this_batch = thread_index / (TILE_PIXEL_COUNT * sample_per_pixel);
+		const uint32_t tile_index_this_batch = thread_index / TILE_PIXEL_COUNT;
 		const uint32_t tile_index_y = (tile_index_this_batch + next_tile_index) / tile_count_x;
 		const uint32_t tile_index_x = (tile_index_this_batch + next_tile_index) - tile_count_x * tile_index_y;
 
-		const uint32_t tile_local_sample_index = thread_index - tile_index_this_batch * (TILE_PIXEL_COUNT * sample_per_pixel);
-		const uint32_t tile_pixel_index = tile_local_sample_index / sample_per_pixel;
-		const uint32_t pixel_sample_index = tile_local_sample_index - tile_pixel_index * sample_per_pixel;
+		const uint32_t tile_local_sample_index = thread_index - tile_index_this_batch * TILE_PIXEL_COUNT;
+		const uint32_t tile_pixel_index = tile_local_sample_index;
+		const uint32_t pixel_sample_index = tile_local_sample_index - tile_pixel_index;
+		assert(pixel_sample_index == 0);
 
 		const uint32_t tile_pixel_index_y = tile_pixel_index / TILE_X_RES;
 		const uint32_t tile_pixel_index_x = tile_pixel_index - tile_pixel_index_y * TILE_X_RES;
@@ -1287,51 +1286,21 @@ namespace YumeRT
 		}
 
 		const auto& scene = *scene_device;
-		const auto& halton_enumerator = *halton_enumerator_device;
 		const auto& render_setting = *scene.render_setting;
 		const auto& image_tile_cache = *scene.image_tile_cache;
 		
 		const uint32_t pixel_index = pixel_index_y * width + pixel_index_x;
 
-		RandomSampler sampler;
-		glm::vec2 pixel_offset;
-		if (render_setting.sampler_type == PCG) {
-			sampler.InitPCGSampler(pixel_index, pixel_sample_index, 0, current_frame_index - 1);
-			pixel_offset = sampler.SamplePixelOffset();
-		}
-		else if (render_setting.sampler_type == HALTON) {
-			const uint64_t sample_index = halton_enumerator.GetIndex(pixel_index_x, pixel_index_y, (current_frame_index - 1) * render_setting.ssp + pixel_sample_index);
-			sampler.InitHaltonSampler(sample_index, 2, scene.sampler_data.halton_permute_table);
-			pixel_offset = sampler.SamplePixelOffset();
-			pixel_offset.x = halton_enumerator.ScaleX(pixel_offset.x) - float(pixel_index_x);
-			pixel_offset.y = halton_enumerator.ScaleY(pixel_offset.y) - float(pixel_index_y);
-			pixel_offset = glm::clamp(pixel_offset, glm::vec2(0.000001f), glm::vec2(0.999999f));
-		}
-		else if (render_setting.sampler_type == SOBOL) {
-			sampler.InitSobolSampler(render_setting.ssp, pixel_sample_index, current_frame_index - 1, 1, pixel_index, scene.sampler_data.sobol_matrices);
-			pixel_offset = sampler.SamplePixelOffset();
-		}
-		else {
-			pixel_offset = glm::vec2(0.5f);
-		}
-		
-		Ray ray = scene.camera[EDITOR_CAMERA_INDEX].GenerateRay(float(pixel_index_x + pixel_offset.x) / float(width), float(pixel_index_y + pixel_offset.y) / float(height));
+		Ray ray = scene.camera[EDITOR_CAMERA_INDEX].GenerateRay(float(pixel_index_x + 0.5f) / float(width), float(pixel_index_y + 0.5f) / float(height));
 
 		shading_ray_data_ray[ray_index] = ray;
-		shading_ray_data_received_light[ray_index] = glm::vec3(0.0f);
-		shading_ray_data_throughput[ray_index] = glm::vec3(1.0f);
-		shading_ray_data_ray_depth[ray_index] = 1;
-		shading_ray_data_never_scatter[ray_index] = true;
 		shading_ray_data_camera_ray[ray_index] = true;
-		shading_ray_data_pixel_sample_index[ray_index] = pixel_sample_index;
-		shading_ray_data_sampler[ray_index] = sampler;
 		shading_ray_data_ray_transfer[ray_index] = scene.camera[EDITOR_CAMERA_INDEX].GetRayTransfer();
 	}
 
-	extern "C" void RayGenerationEditorView(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, HaltonEnumerator * halton_enumerator_device, RayCounter * ray_counter_device, uint32_t next_tile_index, uint32_t tile_count_this_batch, uint32_t width, uint32_t height, uint32_t tile_count_x, uint32_t tile_count_y, ShadingRayData & shading_ray_data, cudaStream_t & stream)
+	extern "C" void RayGenerationEditorView(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, RayCounter * ray_counter_device, uint32_t next_tile_index, uint32_t tile_count_this_batch, uint32_t width, uint32_t height, uint32_t tile_count_x, uint32_t tile_count_y, ShadingRayData & shading_ray_data, cudaStream_t & stream)
 	{
-		uint32_t sample_per_pixel = render_setting.ssp;
-		uint32_t ray_count_this_batch = tile_count_this_batch * sample_per_pixel * TILE_PIXEL_COUNT;
+		uint32_t ray_count_this_batch = tile_count_this_batch * TILE_PIXEL_COUNT;
 		if (ray_count_this_batch == 0) {
 			return;
 		}
@@ -1341,11 +1310,9 @@ namespace YumeRT
 
 		void* args[] = { &current_frame_index,
 								 &scene_device,
-								 &halton_enumerator_device,
 								 &ray_counter_device,
 								 &next_tile_index,
 								 &ray_count_this_batch,
-								 &sample_per_pixel,
 								 &width,
 								 &height,
 								 &tile_count_x,
@@ -1420,49 +1387,18 @@ namespace YumeRT
 		const auto& image_tile_cache = *scene.image_tile_cache;
 
 		const Ray ray = shading_ray_data_ray[ray_index];
-		const RayTransfer ray_transfer = shading_ray_data_ray_transfer[ray_index];
-		
-		glm::vec3 ray_throughput = shading_ray_data_throughput[ray_index];
-		glm::vec3 ray_received_light = shading_ray_data_received_light[ray_index];
-
-		RandomSampler ray_sampler = shading_ray_data_sampler[ray_index];
 
 		HitRecord hit_record;
 		int nearby_hit_count = 0;
 		NearbyHit nearby_hits[MAX_BOUNDARY_RECORD + 2];
-		bool hit_something = TraceRay(scene, ray, &hit_record, &nearby_hit_count, nearby_hits);
-		
-		if (render_setting.enable_volume_scattering) {
-			glm::vec3 tr_weight(1.0f);
-			float sampled_distance = 0.0f;
-
-			// current exist volume
-			int volume_indices[MAX_BOUNDARY_RECORD];
-			float volume_weights[MAX_BOUNDARY_RECORD];
-			float gs[MAX_BOUNDARY_RECORD];
-			const int overlapped_volume_count = ray_transfer.GetCurrentVolumeIndices(volume_indices, scene.volume_count);
-			for (int idx = 0; idx < overlapped_volume_count; ++idx) {
-				gs[idx] = scene.volumes[volume_indices[idx]].g;
-			}
-
-			bool hit_volume = SampleVolumeScattering(scene, image_tile_cache, ray, overlapped_volume_count, volume_indices, hit_something ? hit_record.hit_t : TMAX,
-				&tr_weight, &sampled_distance, volume_weights, ray_sampler);
-			hit_something = hit_something || hit_volume;
-
-			ray_throughput *= tr_weight;
-			if (hit_volume) {
-				hit_record.volume_hit = true;
-				hit_record.hit_barycentric = ray.PositionAtT(sampled_distance);
-			}
-		}
+		const bool hit_something = TraceRay(scene, ray, &hit_record, &nearby_hit_count, nearby_hits);
 
 		if (!hit_something) {
-			ray_received_light += render_setting.enable_env_light ? ray_throughput * Background(ray.direction) : glm::vec3(0.0f);
-			const float inv_ssp = 1.0f / glm::max(render_setting.ssp, 1);
-			AtomicAddFloat(&(beauty[pixel_index].x), ray_received_light.x * inv_ssp);
-			AtomicAddFloat(&(beauty[pixel_index].y), ray_received_light.y * inv_ssp);
-			AtomicAddFloat(&(beauty[pixel_index].z), ray_received_light.z * inv_ssp);
-			AtomicExchFloat(&(beauty[pixel_index].w), 1.0f);
+			const glm::vec4 col = glm::vec4((render_setting.enable_env_light ? Background(ray.direction) : glm::vec3(0.0f)), 1.0f);
+			AtomicAddFloat(&(beauty[pixel_index][0]), col[0]);
+			AtomicAddFloat(&(beauty[pixel_index][1]), col[1]);
+			AtomicAddFloat(&(beauty[pixel_index][2]), col[2]);
+			AtomicAddFloat(&(beauty[pixel_index][3]), col[3]);
 			return;
 		}
 
@@ -1482,16 +1418,10 @@ namespace YumeRT
 		}
 
 		hit_data_ray[hit_index] = ray; // note: local ray's t may already get modified.
-		hit_data_received_light[hit_index] = shading_ray_data_received_light[ray_index];
-		hit_data_throughput[hit_index] = ray_throughput;
 		hit_data_pixel_position_x[hit_index] = shading_ray_data_pixel_position_x[ray_index];
 		hit_data_pixel_position_y[hit_index] = shading_ray_data_pixel_position_y[ray_index];
-		hit_data_ray_depth[hit_index] = shading_ray_data_ray_depth[ray_index];
-		hit_data_never_scatter[hit_index] = shading_ray_data_never_scatter[ray_index];
 		hit_data_camera_ray[hit_index] = shading_ray_data_camera_ray[ray_index];
-		hit_data_pixel_sample_index[hit_index] = shading_ray_data_pixel_sample_index[ray_index];
-		hit_data_sampler[hit_index] = ray_sampler;
-		hit_data_ray_transfer[hit_index] = ray_transfer;
+		hit_data_ray_transfer[hit_index] = shading_ray_data_ray_transfer[ray_index];
 	}
 
 	extern "C" void RayTraceEditorView(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, RayCounter * ray_counter_device, RayCounter * ray_counter_host, uint32_t width, uint32_t height, glm::vec4 * beauty, uint32_t * primitive_index, ShadingRayData & shading_ray_data, HitData & hit_data, cudaStream_t & stream)
@@ -1597,15 +1527,7 @@ namespace YumeRT
 
 		Ray ray = hit_data_ray[hit_index];
 		RayTransfer ray_transfer = hit_data_ray_transfer[hit_index];
-		glm::vec3 ray_throughput = hit_data_throughput[hit_index];
-		glm::vec3 ray_received_light = hit_data_received_light[hit_index];
-
-		int ray_depth = hit_data_ray_depth[hit_index];
-		int never_scatter = hit_data_never_scatter[hit_index];
 		int camera_ray = hit_data_camera_ray[hit_index];
-		
-		RandomSampler ray_sampler = hit_data_sampler[hit_index];
-		const int pixel_sample_index = hit_data_pixel_sample_index[hit_index];
 		
 		const HitRecord hit_record = hit_data_hit_record[hit_index];
 		const int nearby_hit_count = hit_data_nearby_hit_count[hit_index];
@@ -1621,21 +1543,16 @@ namespace YumeRT
 			nearby_hit.hit_back = hit_data_nearby_hit_back[actual_index];
 		}
 
-		const float inv_ssp = 1.0f / glm::max(render_setting.ssp, 1);
-		auto write_ray_received_light = [&beauty, &pixel_index, &inv_ssp](const glm::vec3& light) {
-			AtomicAddFloat(&(beauty[pixel_index].x), light.x * inv_ssp);
-			AtomicAddFloat(&(beauty[pixel_index].y), light.y * inv_ssp);
-			AtomicAddFloat(&(beauty[pixel_index].z), light.z * inv_ssp);
-			AtomicExchFloat(&(beauty[pixel_index].w), 1.0f);
+		auto write_color = [&beauty, &pixel_index](const glm::vec4 &col) {
+			AtomicAddFloat(&(beauty[pixel_index][0]), col[0]);
+			AtomicAddFloat(&(beauty[pixel_index][1]), col[1]);
+			AtomicAddFloat(&(beauty[pixel_index][2]), col[2]);
+			AtomicAddFloat(&(beauty[pixel_index][3]), col[3]);
 		};
 
-		const bool hit_something = hit_record.volume_hit || hit_record.hit_instance_idx != EMPTY_UINT32;
-		if (pixel_sample_index == 0 && camera_ray) {
-			AtomicExchInt((int*)(&primitive_index[pixel_index]), hit_record.hit_instance_idx);
-		}
-
-		if (render_setting.enable_volume_scattering && hit_record.volume_hit) {
-			// TODO: handle volume scattering.
+		const bool hit_something = hit_record.hit_instance_idx != EMPTY_UINT32;
+		if (camera_ray) {
+			AtomicExchInt((int*)(&primitive_index[pixel_index]), hit_something? hit_record.hit_instance_idx : EMPTY_UINT32);
 		}
 
 		glm::vec3 hit_position(0.0f), hit_position_error(0.0f), hit_position_object_space(0.0f);
@@ -1651,17 +1568,24 @@ namespace YumeRT
 		const auto &primitive = scene.primitive_instances[hit_record.hit_instance_idx];
 		const auto material_index = scene.primitive_instances[hit_record.hit_instance_idx].material_idx;
 		if (!(material_index < scene.material_count)) {
-			write_ray_received_light(ray_received_light);
+			write_color(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
 			return;
 		}
 
 		const auto &material = scene.materials[material_index];
-		uint32_t material_ior_priority;
-		const float material_ior = material.FetchIOR(&material_ior_priority);
+		if (primitive.treat_as_boundary) {
+			BoundaryTransitionBunch(ray_transfer, scene.primitive_instances, scene.materials, nearby_hits, nearby_hit_count);
+			Ray indirect_ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, ray.direction, hit_geometry_normal), ray.direction);
+			camera_ray = false;
 
-		// TODO: skip hit with lower priority;
-		// 
-		// TODO: skip volume boundary.
+			const uint32_t indirect_ray_index = AtomicAddInt((int*)(&(ray_counter.shading_ray_counter)), 1);
+			shading_ray_data_ray[indirect_ray_index] = indirect_ray;
+			shading_ray_data_pixel_position_x[indirect_ray_index] = pixel_position_x;
+			shading_ray_data_pixel_position_y[indirect_ray_index] = pixel_position_y;
+			shading_ray_data_camera_ray[indirect_ray_index] = camera_ray;
+			shading_ray_data_ray_transfer[indirect_ray_index] = ray_transfer;
+			return;
+		}
 
 		const glm::vec4 tex_coordinates_differentials =
 			scene.camera->TextureCoordinatesDifferential(ray,
@@ -1672,134 +1596,9 @@ namespace YumeRT
 				width, height,
 				0.25f, 0.25f);
 
-		if (material.material_type == LIGHT_MTL) {
-			if (never_scatter) {
-				ray_received_light += ray_throughput * material.light_mtl.light_color * material.light_mtl.intensity;
-			}
-			write_ray_received_light(ray_received_light);
-			return;
-		}
-
-		MaterialBSDF material_bsdf; 
-		{
-			TextureCoordinate texture_coordinate(hit_uv, hit_position, hit_position_object_space, tex_coordinates_differentials);
-
-			// eval normal mapping or bump mapping, the hit_shading_normal, and dpdu and dpdv will get modified here
-			material_bsdf.InitShadingSpace(material,
-				hit_record.hit_back,
-				ray,
-				hit_geometry_normal,
-				hit_shading_normal,
-				hit_dpdu,
-				hit_dpdv,
-				scene.transforms[primitive.transform_idx],
-				scene.i_transforms[primitive.transform_idx],
-				scene.textures,
-				image_tile_cache,
-				texture_coordinate);
-
-			// instance's internal ior is implicitly specified by its material
-			material_bsdf.InitBSDFSettings(material,
-				scene.textures,
-				image_tile_cache,
-				texture_coordinate,
-				ray,
-				hit_record.hit_back,
-				ray_transfer.GetRayIOR(),
-				ray_transfer.GetExIOR(hit_record.hit_instance_idx));
-		}
-
-		if (render_setting.enable_distant_light) {
-			ray_received_light += ray_throughput *
-				EvalDistantLight(render_setting,
-					scene,
-					image_tile_cache,
-					material_bsdf,
-					ray.direction,
-					ray_transfer,
-					nearby_hit_count,
-					nearby_hits,
-					hit_position,
-					hit_position_error,
-					material_bsdf.GetShadingNormal(),
-					hit_geometry_normal,
-					ray_sampler);
-		}
-
-		// TODO: sample table, light BVH...
-		ray_received_light += ray_throughput * 
-			EvalShapeLight(render_setting,
-				scene,
-				image_tile_cache,
-				material_bsdf,
-				ray.direction,
-				ray_transfer,
-				nearby_hit_count,
-				nearby_hits,
-				hit_position,
-				hit_position_error,
-				material_bsdf.GetShadingNormal(),
-				hit_geometry_normal,
-				ray_sampler);
-
-		// note: indirect.
-		glm::vec3 wo = material_bsdf.WorldToShading(-ray.direction), wi(0.0f), bsdf_weight(0.0f);
-		float pdf = 0.0f;
-
-		const bool sample_valid = material_bsdf.SampleWi(wo, &bsdf_weight, &wi, &pdf, ray_sampler.Random1D(), ray_sampler.Random1D(), ray_sampler.Random1D());
-		assert(!glm::isnan(bsdf_weight.x) && !glm::isnan(bsdf_weight.y) && !glm::isnan(bsdf_weight.z));
-		if (!sample_valid) { 
-			write_ray_received_light(ray_received_light);
-			return;
-		}
-
-		ray_throughput *= bsdf_weight;
-		float rr = glm::max(ray_throughput.x, glm::max(ray_throughput.y, ray_throughput.z));
-		if (ray_depth + 1 > render_setting.ray_depth) {
-			if (render_setting.enable_russian_roulette && ray_sampler.Random1D() < rr) {
-				ray_throughput /= glm::max(rr, MIN_COLOR_EPSILON);
-			}
-			else {
-				write_ray_received_light(ray_received_light);
-				return;
-			}
-		}
-
-		glm::vec3 new_direction = material_bsdf.ShadingToWorld(wi);
-		const bool transmit_boundary = glm::dot(-ray.direction, hit_geometry_normal) * glm::dot(new_direction, hit_geometry_normal) < 0.0f;
-		const bool sample_invalid = (!SameHemisphere(wo, wi) && !transmit_boundary) || (SameHemisphere(wo, wi) && transmit_boundary);
-		if (sample_invalid) {
-			write_ray_received_light(ray_received_light);
-			return;
-		}
-		if (transmit_boundary) {
-			BoundaryTransitionBunch(ray_transfer, scene.primitive_instances, scene.materials, nearby_hits, nearby_hit_count);
-		}
-
-		const bool front_side_bounce = glm::dot(hit_geometry_normal, new_direction) >= 0.0f;
-		Ray indirect_ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, new_direction, hit_geometry_normal), new_direction);
-		never_scatter = false;
-		camera_ray = false;
-		ray_depth += 1;
-		
-		if (ray_depth > MAX_RAY_DEPTH) {
-			write_ray_received_light(ray_received_light);
-			return;
-		}
-
-		const uint32_t indirect_ray_index = AtomicAddInt((int*)(&(ray_counter.shading_ray_counter)), 1);
-
-		shading_ray_data_ray[indirect_ray_index] = indirect_ray;
-		shading_ray_data_received_light[indirect_ray_index] = ray_received_light;
-		shading_ray_data_throughput[indirect_ray_index] = ray_throughput;
-		shading_ray_data_pixel_position_x[indirect_ray_index] = pixel_position_x;
-		shading_ray_data_pixel_position_y[indirect_ray_index] = pixel_position_y;
-		shading_ray_data_ray_depth[indirect_ray_index] = ray_depth;
-		shading_ray_data_never_scatter[indirect_ray_index] = never_scatter;
-		shading_ray_data_camera_ray[indirect_ray_index] = camera_ray;
-		shading_ray_data_pixel_sample_index[indirect_ray_index] = pixel_sample_index;
-		shading_ray_data_sampler[indirect_ray_index] = ray_sampler;
-		shading_ray_data_ray_transfer[indirect_ray_index] = ray_transfer;
+		const TextureCoordinate texture_coordinate(hit_uv, hit_position, hit_position_object_space, tex_coordinates_differentials);
+		const glm::vec3 surface_color = MaterialSurfaceCol(material, scene.textures, image_tile_cache, texture_coordinate);
+		write_color(glm::vec4(surface_color, 1.0f));
 	}
 
 	extern "C" void RayShadingEditorView(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, RayCounter * ray_counter_device, RayCounter * ray_counter_host, uint32_t width, uint32_t height, glm::vec4 * beauty, uint32_t * primitive_index, ShadingRayData & shading_ray_data, HitData & hit_data, ShadowRayData & shadow_ray_data, cudaStream_t & stream)

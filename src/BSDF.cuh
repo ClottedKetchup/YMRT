@@ -779,7 +779,21 @@ namespace YumeRT
 		}
 	};
 
-	__device__ __host__ inline glm::vec3 MaterialSurfaceCol() {
-		return glm::vec3(0.0f);
+	__device__ __host__ inline glm::vec3 MaterialSurfaceCol(const Material& mtl,
+		const Texture *textures,
+		const ImageTileCache& Image_tile_cache,
+		const TextureCoordinate& texture_coordinate) 
+	{
+		assert(mtl.material_type != EMPTY_UINT32);
+		if (mtl.material_type == DEFAULT_MTL) {
+			const auto diffuse_tex_index = mtl.default_mtl.diffuse_albedo_tex;
+			return diffuse_tex_index != EMPTY_UINT32 ? TextureEval(textures[diffuse_tex_index], textures, Image_tile_cache, texture_coordinate) : mtl.default_mtl.diffuse_albedo;
+		}
+		else if (mtl.material_type == LIGHT_MTL) {
+			return mtl.light_mtl.light_color * mtl.light_mtl.intensity;
+		}
+		else {
+			return glm::vec3(0.0f);
+		}
 	}
 };
