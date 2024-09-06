@@ -1245,15 +1245,9 @@ namespace YumeRT
 		const uint32_t tile_count_x,
 		const uint32_t tile_count_y,
 		Ray * shading_ray_data_ray,
-		glm::vec3 * shading_ray_data_received_light,
-		glm::vec3 * shading_ray_data_throughput,
 		int * shading_ray_data_pixel_position_x,
 		int * shading_ray_data_pixel_position_y,
-		int * shading_ray_data_ray_depth,
-		int * shading_ray_data_never_scatter,
 		int * shading_ray_data_camera_ray,
-		int * shading_ray_data_pixel_sample_index,
-		RandomSampler * shading_ray_data_sampler,
 		RayTransfer * shading_ray_data_ray_transfer)
 	{
 		const uint32_t thread_index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -1318,15 +1312,9 @@ namespace YumeRT
 								 &tile_count_x,
 								 &tile_count_y,
 								 &shading_ray_data.shading_ray_data_ray,
-								 &shading_ray_data.shading_ray_data_received_light,
-								 &shading_ray_data.shading_ray_data_throughput,
 								 &shading_ray_data.shading_ray_data_pixel_position_x,
 								 &shading_ray_data.shading_ray_data_pixel_position_y,
-								 &shading_ray_data.shading_ray_data_ray_depth,
-								 &shading_ray_data.shading_ray_data_never_scatter,
 								 &shading_ray_data.shading_ray_data_camera_ray,
-								 &shading_ray_data.shading_ray_data_pixel_sample_index,
-								 &shading_ray_data.shading_ray_data_sampler, 
 								 &shading_ray_data.shading_ray_data_ray_transfer };
 
 		CUDA_CHECK(cudaLaunchKernel((void*)Ray_generation_editor_view, grid_dim, block_dim, args, 0, stream));
@@ -1342,15 +1330,9 @@ namespace YumeRT
 		glm::vec4 * beauty,
 		uint32_t * primitive_index,
 		const Ray * shading_ray_data_ray, // note: shading ray data.
-		const glm::vec3 * shading_ray_data_received_light,
-		const glm::vec3 * shading_ray_data_throughput,
 		const int * shading_ray_data_pixel_position_x,
 		const int * shading_ray_data_pixel_position_y,
-		const int * shading_ray_data_ray_depth,
-		const int * shading_ray_data_never_scatter,
 		const int * shading_ray_data_camera_ray,
-		const int * shading_ray_data_pixel_sample_index,
-		const RandomSampler * shading_ray_data_sampler,
 		const RayTransfer * shading_ray_data_ray_transfer,
 		HitRecord * hit_data_hit_record, // note: hit data.
 		int * hit_data_nearby_hit_count,
@@ -1358,15 +1340,9 @@ namespace YumeRT
 		float * hit_data_nearby_t_hit,
 		int * hit_data_nearby_hit_back,
 		Ray * hit_data_ray,
-		glm::vec3 * hit_data_received_light,
-		glm::vec3 * hit_data_throughput,
 		int * hit_data_pixel_position_x,
 		int * hit_data_pixel_position_y,
-		int * hit_data_ray_depth,
-		int * hit_data_never_scatter,
 		int * hit_data_camera_ray,
-		int * hit_data_pixel_sample_index,
-		RandomSampler * hit_data_sampler,
 		RayTransfer * hit_data_ray_transfer)
 	{
 		const uint32_t ray_index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -1443,15 +1419,9 @@ namespace YumeRT
 								 &beauty,
 								 &primitive_index,
 								 &shading_ray_data.shading_ray_data_ray,
-								 &shading_ray_data.shading_ray_data_received_light,
-								 &shading_ray_data.shading_ray_data_throughput,
 								 &shading_ray_data.shading_ray_data_pixel_position_x,
 								 &shading_ray_data.shading_ray_data_pixel_position_y,
-								 &shading_ray_data.shading_ray_data_ray_depth,
-								 &shading_ray_data.shading_ray_data_never_scatter,
 								 &shading_ray_data.shading_ray_data_camera_ray,
-								 &shading_ray_data.shading_ray_data_pixel_sample_index,
-								 &shading_ray_data.shading_ray_data_sampler,
 								 &shading_ray_data.shading_ray_data_ray_transfer,
 								 &hit_data.hit_data_hit_record,
 								 &hit_data.hit_data_nearby_hit_count,
@@ -1459,15 +1429,9 @@ namespace YumeRT
 							 	 &hit_data.hit_data_nearby_t_hit,
 								 &hit_data.hit_data_nearby_hit_back,
 								 &hit_data.hit_data_ray,
-								 &hit_data.hit_data_received_light,
-								 &hit_data.hit_data_throughput,
 								 &hit_data.hit_data_pixel_position_x,
 								 &hit_data.hit_data_pixel_position_y,
-								 &hit_data.hit_data_ray_depth,
-								 &hit_data.hit_data_never_scatter,
 								 &hit_data.hit_data_camera_ray,
-								 &hit_data.hit_data_pixel_sample_index,
-								 &hit_data.hit_data_sampler, 
 								 &hit_data.hit_data_ray_transfer };
 
 		CUDA_CHECK(cudaLaunchKernel((void*)Ray_trace_editor_view, grid_dim, block_dim, args, 0, stream));
@@ -1483,15 +1447,9 @@ namespace YumeRT
 		glm::vec4 * beauty,
 		uint32_t * primitive_index,
 		Ray * shading_ray_data_ray, // note: shading ray data.
-		glm::vec3 * shading_ray_data_received_light,
-		glm::vec3 * shading_ray_data_throughput,
 		int * shading_ray_data_pixel_position_x,
 		int * shading_ray_data_pixel_position_y,
-		int * shading_ray_data_ray_depth,
-		int * shading_ray_data_never_scatter,
 		int * shading_ray_data_camera_ray,
-		int * shading_ray_data_pixel_sample_index,
-		RandomSampler * shading_ray_data_sampler,
 		RayTransfer * shading_ray_data_ray_transfer,
 		const HitRecord * hit_data_hit_record, // note: hit data.
 		const int * hit_data_nearby_hit_count,
@@ -1499,15 +1457,9 @@ namespace YumeRT
 		const float * hit_data_nearby_t_hit,
 		const int * hit_data_nearby_hit_back,
 		const Ray * hit_data_ray,
-		const glm::vec3 * hit_data_received_light,
-		const glm::vec3 * hit_data_throughput,
 		const int * hit_data_pixel_position_x,
 		const int * hit_data_pixel_position_y,
-		const int * hit_data_ray_depth,
-		const int * hit_data_never_scatter,
 		const int * hit_data_camera_ray,
-		const int * hit_data_pixel_sample_index,
-		const RandomSampler * hit_data_sampler,
 		const RayTransfer * hit_data_ray_transfer)
 	{
 		const uint32_t hit_index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -1620,15 +1572,9 @@ namespace YumeRT
 								 &beauty,
 								 &primitive_index,
 								 &shading_ray_data.shading_ray_data_ray,
-								 &shading_ray_data.shading_ray_data_received_light,
-								 &shading_ray_data.shading_ray_data_throughput,
 								 &shading_ray_data.shading_ray_data_pixel_position_x,
 								 &shading_ray_data.shading_ray_data_pixel_position_y,
-								 &shading_ray_data.shading_ray_data_ray_depth,
-								 &shading_ray_data.shading_ray_data_never_scatter,
 								 &shading_ray_data.shading_ray_data_camera_ray,
-								 &shading_ray_data.shading_ray_data_pixel_sample_index,
-								 &shading_ray_data.shading_ray_data_sampler,
 								 &shading_ray_data.shading_ray_data_ray_transfer,
 								 &hit_data.hit_data_hit_record,
 								 &hit_data.hit_data_nearby_hit_count,
@@ -1636,15 +1582,9 @@ namespace YumeRT
 								 &hit_data.hit_data_nearby_t_hit,
 								 &hit_data.hit_data_nearby_hit_back,
 								 &hit_data.hit_data_ray,
-								 &hit_data.hit_data_received_light,
-								 &hit_data.hit_data_throughput,
 								 &hit_data.hit_data_pixel_position_x,
 								 &hit_data.hit_data_pixel_position_y,
-								 &hit_data.hit_data_ray_depth,
-								 &hit_data.hit_data_never_scatter,
 								 &hit_data.hit_data_camera_ray,
-								 &hit_data.hit_data_pixel_sample_index,
-								 &hit_data.hit_data_sampler,
 								 &hit_data.hit_data_ray_transfer };
 
 		CUDA_CHECK(cudaLaunchKernel((void*)Ray_shading_editor_view, grid_dim, block_dim, args, 0, stream));
