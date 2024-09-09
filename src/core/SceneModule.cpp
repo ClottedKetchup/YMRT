@@ -1,9 +1,15 @@
 #include "src/core/SceneModule.h"
 
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+
 namespace YumeRT {
 	SceneModule::SceneModule() :scene_resource{}, camera(),  render_setting{}, scene_change_flag(SCENE_INIT)
 	{
-
+		camera[EDITOR_CAMERA_INDEX].SetFov(glm::radians(45.0f));
+		camera[EDITOR_CAMERA_INDEX].SetPosition(glm::vec3(0.0f, 0.0f, 10.0f));
+		camera[EDITOR_CAMERA_INDEX].SetDir(glm::vec3(0.0f, 0.0f, 10.0f) - glm::vec3(0.0f, 0.0f, 4.0f));
 	}
 
 	SceneModule::~SceneModule()
@@ -110,6 +116,33 @@ namespace YumeRT {
 	
 	}
 
+	uint32_t SceneModule::CreateMesh(const std::string& name,
+		std::vector<Triangle>& mesh_triangles,
+		std::vector<uint32_t>& mesh_position_idxs,
+		std::vector<float>& mesh_positions,
+		std::vector<uint32_t>& mesh_normal_idxs,
+		std::vector<float>& mesh_normals,
+		std::vector<uint32_t>& mesh_texcoord_idxs,
+		std::vector<float>& mesh_texcoords)
+	{
+		geometries.emplace_back(GeometryData().InitCustomMesh(mesh_triangles, 
+			mesh_position_idxs, 
+			mesh_positions, 
+			mesh_normal_idxs, 
+			mesh_normals,
+			mesh_texcoord_idxs,
+			mesh_texcoords));
+		geometry_reference_counters.emplace_back(0);
+		geometry_names.emplace_back(name);
+
+		auto& mesh = geometries.back();
+		mesh.Upload();
+
+		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_GEOMETRY_CREATE);
+
+		const auto mesh_index = (uint32_t)geometries.size() - 1;
+		return mesh_index;
+	}
 	uint32_t SceneModule::CreateCube(const std::string& name)
 	{
 		geometries.emplace_back(GeometryData().InitCube());
@@ -243,38 +276,24 @@ namespace YumeRT {
 	
 	}
 
-	uint32_t SceneModule::CreateImageTexture(const std::string& name,
-		const int width, const int height,
-		const int tile_offset, const int file_offset,
-		const int16_t channel_count,
-		const int16_t *mipmap_tile_offset_list,
-		const int16_t mipmap_count,
-		const int warp_mode ,
-		const float u_scale, const float v_scale,
-		const float u_offset, const float v_offset) 
+	uint32_t SceneModule::CreateImageTexture(const std::string& name, const std::string& texture_file_name)
 	{
-		auto image_texture = Texture().InitImageTexture(width, height,
-			tile_offset, file_offset,
-			channel_count,
-			mipmap_tile_offset_list,
-			mipmap_count,
-			warp_mode,
-			u_scale, v_scale,
-			u_offset, v_offset);
+		auto image_texture = LoadImageTexture(texture_file_name, image_texture_files, image_texture_tiles);
+		if (image_texture.tile_offset == -1 || image_texture.file_offset == -1) {
+			return EMPTY_UINT32;
+		}
 
-		textures.emplace_back(image_texture);
-		texture_names.emplace_back(name);
+		const int tile_x_count = (image_texture.width + TEX_TILE_RES_X - 1) / TEX_TILE_RES_X;
+		const int tile_y_count = (image_texture.height + TEX_TILE_RES_Y - 1) / TEX_TILE_RES_Y;
+		for (int tile_index = 0; tile_index < tile_y_count * tile_x_count; ++tile_index) {
+			auto &tile = image_texture_tiles[image_texture.tile_offset + tile_index];
+			assert(tile.device_data == nullptr);
+			UPLOAD_TO_GPU(tile.device_data, tile.host_data, tile.data_size);
+		}
 
-		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE);
+		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_IMAGE_TILE_CREATE);
 
-		const auto texture_index = (uint32_t)textures.size() - 1;
-		return texture_index;
-	}
-	uint32_t SceneModule::CreateImageTexture(const std::string& name, const ImageTexture& img_tex)
-	{
-		auto image_texture = Texture().InitImageTexture(img_tex);
-
-		textures.emplace_back(image_texture);
+		textures.emplace_back(Texture().InitImageTexture(image_texture));
 		texture_names.emplace_back(name);
 
 		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE);
@@ -672,5 +691,184 @@ namespace YumeRT {
 		scene_host.camera_count = CAMERA_COUNT;
 		scene_host.camera = camera;
 		return scene_host;
+	}
+
+	static bool ReadMeshData(const aiMesh *mesh, 
+		std::vector<Triangle>& mesh_triangles,
+		std::vector<uint32_t>& mesh_position_idxs,
+		std::vector<float>& mesh_positions,
+		std::vector<uint32_t>& mesh_normal_idxs,
+		std::vector<float>& mesh_normals,
+		std::vector<uint32_t>& mesh_texcoord_idxs,
+		std::vector<float>& mesh_texcoords) 
+	{
+		const aiMesh& assimp_mesh = (*mesh);
+		if (assimp_mesh.mNumFaces == 0) {
+			return false;
+		}
+		for (int face_index = 0; face_index < assimp_mesh.mNumFaces; ++face_index) {
+			Triangle triangle;
+			triangle.id0 = (face_index * 3) + 0;
+			triangle.id1 = (face_index * 3) + 1;
+			triangle.id2 = (face_index * 3) + 2;
+			mesh_triangles.push_back(triangle);
+
+			for (int vertex_index = 0; vertex_index < assimp_mesh.mFaces[face_index].mNumIndices; ++vertex_index) {
+				uint32_t idx = assimp_mesh.mFaces[face_index].mIndices[vertex_index];
+				// note: in most of model they use the same indices set.
+				mesh_position_idxs.push_back(idx);
+				mesh_normal_idxs.push_back(idx);
+				mesh_texcoord_idxs.push_back(idx);
+			}
+		}
+
+		if (!assimp_mesh.HasPositions()) {
+			return false;
+		}
+				
+		for (int position_index = 0; position_index < assimp_mesh.mNumVertices; ++position_index) {
+			float p_x, p_y, p_z;
+			p_x = assimp_mesh.mVertices[position_index].x;
+			p_y = assimp_mesh.mVertices[position_index].y;
+			p_z = assimp_mesh.mVertices[position_index].z;
+			mesh_positions.push_back(p_x);
+			mesh_positions.push_back(p_y);
+			mesh_positions.push_back(p_z);
+		}
+
+		// TODO: generate smooth normal by yourself.
+		if (!assimp_mesh.HasNormals()) {
+			return false;
+		}
+
+		for (int normal_index = 0; normal_index < assimp_mesh.mNumVertices; ++normal_index) {
+			float n_x, n_y, n_z;
+			n_x = assimp_mesh.mNormals[normal_index].x;
+			n_y = assimp_mesh.mNormals[normal_index].y;
+			n_z = assimp_mesh.mNormals[normal_index].z;
+			mesh_normals.push_back(n_x);
+			mesh_normals.push_back(n_y);
+			mesh_normals.push_back(n_z);
+		}
+
+		if (assimp_mesh.HasTextureCoords(0)) {
+			for (int uv_index = 0; uv_index < assimp_mesh.mNumVertices; ++uv_index)
+			{
+				float s, t;
+				s = assimp_mesh.mTextureCoords[0][uv_index].x;
+				t = assimp_mesh.mTextureCoords[0][uv_index].y;
+				mesh_texcoords.push_back(s);
+				mesh_texcoords.push_back(t);
+			}
+		}
+		return true;
+	}
+
+	static void ReadNodeData(const std::string &file_root_path, const aiNode *node, const aiScene *scene, SceneModule *scene_module,
+		const glm::vec3& common_translate, const glm::vec3& common_scale, const glm::vec3& common_rotate, const int common_inner_volume_index, const bool common_treat_as_boundary)
+	{
+		if (node == nullptr) {
+			return;
+		}
+		auto& scene_manager = *scene_module;
+		for (int node_mesh_index = 0; node_mesh_index < node->mNumMeshes; ++node_mesh_index) {
+			const aiMesh *mesh = scene->mMeshes[node->mMeshes[node_mesh_index]];
+			const std::string mesh_name = std::string(mesh->mName.C_Str());
+			const std::string transform_name = mesh_name + std::string("_transform");
+			const std::string material_name = mesh_name + std::string("_material");
+
+			std::vector<Triangle> mesh_triangles;
+			std::vector<uint32_t> mesh_position_idxs;
+			std::vector<float> mesh_positions;
+			std::vector<uint32_t> mesh_normal_idxs;
+			std::vector<float> mesh_normals;
+			std::vector<uint32_t> mesh_texcoord_idxs;
+			std::vector<float> mesh_texcoords;
+
+			ReadMeshData(mesh, mesh_triangles, mesh_position_idxs, mesh_positions, mesh_normal_idxs, mesh_normals, mesh_texcoord_idxs, mesh_texcoords);
+
+			auto ai_material = scene->mMaterials[mesh->mMaterialIndex];
+
+			glm::vec3 diffuse_albedo = glm::vec3(0.5f);
+			glm::vec3 specular_albedo = glm::vec3(1.0f);
+			float roughness_x = 0.2f;
+			float roughness_y = 0.2f;
+			float ior_n = 1.3f;
+			float metalness = 0.0f;
+			float specular_weight = 1.0f;
+			float transmission_weight = 0.0f;
+			uint32_t ior_priority = 0;
+
+			uint32_t diffuse_albedo_tex = EMPTY_UINT32;
+			uint32_t alpha_x_tex = EMPTY_UINT32;
+			uint32_t specular_albedo_tex = EMPTY_UINT32;
+			uint32_t alpha_y_tex = EMPTY_UINT32;
+			uint32_t specular_weight_tex = EMPTY_UINT32;
+			uint32_t metalness_tex = EMPTY_UINT32;
+			uint32_t transmission_weight_tex = EMPTY_UINT32;
+			uint32_t normal_mapping_tex = EMPTY_UINT32;
+			uint32_t bump_mapping_tex = EMPTY_UINT32;
+			
+			aiColor4D ai_col_diffuse;
+			if (AI_SUCCESS == aiGetMaterialColor(ai_material, AI_MATKEY_COLOR_DIFFUSE, &ai_col_diffuse)) {
+				diffuse_albedo.x = ai_col_diffuse.r, diffuse_albedo.y = ai_col_diffuse.g, diffuse_albedo.z = ai_col_diffuse.b;
+			}
+	
+			if (ai_material->GetTextureCount(aiTextureType_DIFFUSE) > 0) {
+				aiString file;
+				if (AI_SUCCESS == ai_material->GetTexture(aiTextureType_DIFFUSE, 0, &file)) {
+					const std::string tex_file_path = file_root_path + std::string(file.C_Str());
+					diffuse_albedo_tex = scene_manager.CreateImageTexture(material_name + std::string("_diffuse_texture"), tex_file_path);
+				}
+			}
+
+			aiColor4D ai_col_specular;
+			if (AI_SUCCESS == aiGetMaterialColor(ai_material, AI_MATKEY_COLOR_SPECULAR, &ai_col_specular)) {
+				specular_albedo.x = ai_col_specular.r, specular_albedo.y = ai_col_specular.g, specular_albedo.z = ai_col_specular.b;
+			}
+
+			if (ai_material->GetTextureCount(aiTextureType_SPECULAR) > 0) {
+				aiString file;
+				if (AI_SUCCESS == ai_material->GetTexture(aiTextureType_SPECULAR, 0, &file)) {
+					const std::string tex_file_path = file_root_path + std::string(file.C_Str());
+					specular_albedo_tex = scene_manager.CreateImageTexture(material_name + std::string("_specular_texture"), tex_file_path);
+				}
+			}
+
+			if (ai_material->GetTextureCount(aiTextureType_NORMALS) > 0) {
+				aiString file;
+				if (AI_SUCCESS == ai_material->GetTexture(aiTextureType_NORMALS, 0, &file)) {
+					const std::string tex_file_path = file_root_path + std::string(file.C_Str());
+					normal_mapping_tex = scene_manager.CreateImageTexture(material_name + std::string("_normal_texture"), tex_file_path);
+				}
+			}
+
+			auto mesh_ID = scene_manager.CreateMesh(mesh_name, mesh_triangles, mesh_position_idxs, mesh_positions, mesh_normal_idxs, mesh_normals, mesh_texcoord_idxs, mesh_texcoords);
+			auto transform_ID = scene_manager.CreateTransform(transform_name, common_translate, common_scale, common_rotate);
+			auto material_ID = scene_manager.CreateDefaultMaterial(material_name, diffuse_albedo, specular_albedo, roughness_x, roughness_y, ior_n, metalness, specular_weight, transmission_weight, ior_priority,
+				 diffuse_albedo_tex, alpha_x_tex, specular_albedo_tex, alpha_y_tex, specular_weight_tex, metalness_tex, transmission_weight_tex, normal_mapping_tex, bump_mapping_tex);
+			
+			scene_manager.CreatePrimitiveInstance(mesh_ID, transform_ID, material_ID, common_inner_volume_index, common_treat_as_boundary);
+		}
+
+		for (int child_index = 0; child_index < node->mNumChildren; ++child_index) {
+			ReadNodeData(file_root_path, node->mChildren[child_index], scene, scene_module,
+				common_translate, common_scale, common_rotate, common_inner_volume_index, common_treat_as_boundary);
+		}
+	}
+
+	void SceneModule::LoadModelFromFile(const std::string& file_name, const glm::vec3& common_translate, const glm::vec3& common_scale, const glm::vec3& common_rotate, const int common_inner_volume_index, const bool common_treat_as_boundary)
+	{
+		Assimp::Importer importer;
+		const aiScene* scene = importer.ReadFile(file_name, aiProcess_GenSmoothNormals | aiProcess_Triangulate);
+		if (scene == nullptr || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) || scene->mRootNode == nullptr) {
+			printf("Fail to load model from path:\t %s.\n", file_name.c_str());
+			importer.FreeScene();
+			return;
+		}
+
+		ReadNodeData(file_name.substr(0, file_name.rfind("\\") + 1), scene->mRootNode, scene, this,
+			common_translate, common_scale, common_rotate, common_inner_volume_index, common_treat_as_boundary);
+		importer.FreeScene();
 	}
 };

@@ -246,6 +246,10 @@ namespace YumeRT
 
 	 
 
+	 __device__ __host__ inline float ShinnessToRoughness(float s) {
+		return glm::sqrt(glm::sqrt(glm::max(2.0f / (s + 2.0f), 0.0f)));
+	 }
+
 	 // method is got by learning pbrt
 	 __device__ __host__ inline float NextFloatUp(float f)
 	 {

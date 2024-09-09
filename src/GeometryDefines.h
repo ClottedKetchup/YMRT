@@ -183,6 +183,69 @@ namespace YumeRT
 		{
 			
 		}
+		__host__ inline GeometryData& InitCustomMesh(std::vector<Triangle>& mesh_triangles, 
+			std::vector<uint32_t>& mesh_position_idxs,
+			std::vector<float>& mesh_positions,
+			std::vector<uint32_t> & mesh_normal_idxs,
+			std::vector<float>& mesh_normals,
+			std::vector<uint32_t>& mesh_texcoord_idxs,
+			std::vector<float>& mesh_texcoords)
+		{
+			assert(!mesh_triangles.empty());
+			geometry_type = GEOMETRY_TYPE::TRIANGLE_MESH;
+
+			triangle_mesh.device_data_ptr = nullptr;
+			triangle_mesh.host_data_ptr = nullptr;
+			triangle_mesh.data_size = 0;
+			triangle_mesh.triangle_count = -1;
+			triangle_mesh.triangle_offset = -1;
+			triangle_mesh.position_idx_offset = -1;
+			triangle_mesh.position_offset = -1;
+			triangle_mesh.normal_idx_offset = -1;
+			triangle_mesh.normal_offset = -1;
+			triangle_mesh.texcoord_idx_offset = -1;
+			triangle_mesh.texcoord_offset = -1;
+			triangle_mesh.node_offset = -1;
+			triangle_mesh.boundingbox_offset = -1;
+
+			std::vector<uint8_t> geometry_data_buffer;
+			auto append_to_buffer = [&](const void* data, size_t data_size)->size_t {
+				if (data_size == 0) {
+					return -1;
+				}
+				// align in 16 bytes
+				size_t aligned_data_size = AlignedMemorySize(data_size, 16);
+				size_t data_offset = geometry_data_buffer.size();
+				geometry_data_buffer.resize(geometry_data_buffer.size() + aligned_data_size);
+				memcpy(&geometry_data_buffer[data_offset], data, data_size);
+				return data_offset;
+			};
+
+			triangle_mesh.triangle_count = mesh_triangles.size();
+			triangle_mesh.triangle_offset = append_to_buffer(mesh_triangles.data(), sizeof(Triangle) * mesh_triangles.size());
+			triangle_mesh.position_idx_offset = append_to_buffer(mesh_position_idxs.data(), sizeof(uint32_t) * mesh_position_idxs.size());
+			triangle_mesh.position_offset = append_to_buffer(mesh_positions.data(), sizeof(float) * mesh_positions.size());
+			triangle_mesh.normal_idx_offset = append_to_buffer(mesh_normal_idxs.data(), sizeof(uint32_t) * mesh_normal_idxs.size());
+			triangle_mesh.normal_offset = append_to_buffer(mesh_normals.data(), sizeof(float) * mesh_normals.size());
+			triangle_mesh.texcoord_idx_offset = append_to_buffer(mesh_texcoord_idxs.data(), sizeof(uint32_t) * mesh_texcoord_idxs.size());
+			triangle_mesh.texcoord_offset = append_to_buffer(mesh_texcoords.data(), sizeof(float) * mesh_texcoords.size());
+
+			BottomBVHBuilder MeshBuilder((Triangle*)(geometry_data_buffer.data() + triangle_mesh.triangle_offset),
+																triangle_mesh.triangle_count,
+																(glm::vec3*)(geometry_data_buffer.data() + triangle_mesh.position_offset),
+																(uint32_t*)(geometry_data_buffer.data() + triangle_mesh.position_idx_offset));
+			std::vector<BottomNode> bottom_nodes = MeshBuilder.BuildMeshBVH();
+			triangle_mesh.node_offset = append_to_buffer(bottom_nodes.data(), sizeof(BottomNode) * bottom_nodes.size());
+
+			const BBox3 bounding_box = bottom_nodes.empty()? BBox3(): bottom_nodes.front().bbox;
+			triangle_mesh.boundingbox_offset = append_to_buffer(&bounding_box, sizeof(BBox3));
+
+			triangle_mesh.host_data_ptr = (uint8_t*)(_aligned_malloc(sizeof(uint8_t) * geometry_data_buffer.size(), 16));
+			memcpy(triangle_mesh.host_data_ptr, geometry_data_buffer.data(), sizeof(uint8_t) * geometry_data_buffer.size());
+
+			triangle_mesh.data_size = sizeof(uint8_t) * geometry_data_buffer.size();
+			return *this;
+		}
 		__host__ inline GeometryData& InitCube()
 		{
 			geometry_type = GEOMETRY_TYPE::TRIANGLE_MESH;
@@ -202,8 +265,10 @@ namespace YumeRT
 			triangle_mesh.boundingbox_offset = -1;
 
 			std::vector<uint8_t> geometry_data_buffer;
-			auto append_to_buffer = [&](const void *data, size_t data_size)->size_t 
-			{
+			auto append_to_buffer = [&](const void *data, size_t data_size)->size_t {
+				if (data_size == 0) {
+					return -1;
+				}
 				// align in 16 bytes
 				size_t aligned_data_size = AlignedMemorySize(data_size, 16);
 				size_t data_offset = geometry_data_buffer.size();

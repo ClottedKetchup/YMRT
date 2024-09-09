@@ -25,6 +25,7 @@
 
 #include "src/LowDiscrepancy.h"
 #include "src/TextureManager.h"
+#include "src/FileIO.h"
 
 namespace YumeRT{
 	class SceneModule {
@@ -84,8 +85,8 @@ namespace YumeRT{
 
 		friend class GuiModule;
 
-		inline Camera& GetCamera(int index) {
-			return camera[index];
+		inline Camera& GetSceneCamera() {
+			return camera[EDITOR_CAMERA_INDEX];
 		}
 		inline bool SceneChanged() const {
 			return scene_change_flag != SCENE_NONE_CHANGE;
@@ -98,12 +99,22 @@ namespace YumeRT{
 		}
 		inline bool CheckSceneFlag(SCENE_CHANGE_FLAG flag) const {
 			return (scene_change_flag & ((uint32_t)flag));
-		}
+		} 
+
+		void LoadModelFromFile(const std::string& file_name, const glm::vec3& common_translate = glm::vec3(0.0f), const glm::vec3& common_scale = glm::vec3(1.0f), const glm::vec3& common_rotate = glm::vec3(0.0f), const int common_inner_volume_index = -1, const bool common_treat_as_boundary = false);
 
 		uint32_t CreateTransform(const std::string& name, const glm::vec3& translate = glm::vec3(0.0f), const glm::vec3& scale = glm::vec3(1.0f), const glm::vec3& rotate = glm::vec3(0.0f), const glm::vec3& pivot = glm::vec3(0.0f));
 		void DeleteTransform(const uint32_t index);
 		void UpdateTransform(const uint32_t index);
 
+		uint32_t CreateMesh(const std::string& name, 
+			std::vector<Triangle>& mesh_triangles,
+			std::vector<uint32_t>& mesh_position_idxs,
+			std::vector<float>& mesh_positions,
+			std::vector<uint32_t>& mesh_normal_idxs,
+			std::vector<float>& mesh_normals,
+			std::vector<uint32_t>& mesh_texcoord_idxs,
+			std::vector<float>& mesh_texcoords);
 		uint32_t CreateCube(const std::string& name);
 		uint32_t CreateSphere(const std::string& name, const float radius);
 		void DeleteGeometry(const uint32_t index);
@@ -134,16 +145,7 @@ namespace YumeRT{
 		void DeleteMaterial(const uint32_t index);
 		void UpdateMaterial(const uint32_t index);
 
-		uint32_t CreateImageTexture(const std::string& name,
-			const int width, const int height,
-			const int tile_offset, const int file_offset,
-			const int16_t channel_count,
-			const int16_t *mipmap_tile_offset_list = nullptr, 
-			const int16_t mipmap_count = 1,
-			const int warp_mode = WARP_MODE_REPEAT,
-			const float u_scale = 1.0f, const float v_scale = 1.0f,
-			const float u_offset = 0.f, const float v_offset = 0.f);
-		uint32_t CreateImageTexture(const std::string& name, const ImageTexture& img_tex);
+		uint32_t CreateImageTexture(const std::string& name, const std::string& texture_file_name);
 		uint32_t CreateConstantTexture(const std::string& name, const float value);
 		uint32_t CreateConstantTexture(const std::string& name, const glm::vec3& color);
 		uint32_t CreateCheckerBoardTexture(const std::string& name, 
@@ -246,6 +248,10 @@ namespace YumeRT{
 		ImageTileCache image_tile_cache;
 		std::vector<ImageFile> image_texture_files;
 		std::vector<ImageTile> image_texture_tiles; // current implementation: tile rgb data will in both host and device when they are loaded. 
+
+		inline Camera& GetCamera(int index) {
+			return camera[index];
+		}
 
 		void InitHaltonPermuteTable();
 		Scene GetHostSceneDataPointer();

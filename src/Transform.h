@@ -3,6 +3,7 @@
 namespace YumeRT {
 	struct TransformState
 	{
+		// TODO: scene hierarchy.
 		glm::vec3 translate_xyz;
 		glm::vec3 scale_xyz;
 		glm::vec3 rotate_xyz; // should turn into radians
