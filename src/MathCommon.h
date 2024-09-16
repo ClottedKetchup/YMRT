@@ -37,6 +37,7 @@ namespace YumeRT
 #define Round_Block_Count(Total_Thread_Count, Block_Thread_Count) (((Block_Thread_Count) + (Total_Thread_Count) - 1) / (Block_Thread_Count))
 
 #define PRINT_FLOAT(f) printf("%s: %.4f\n", #f, f)
+#define PRINT_INT(d) printf("%s: %d\n", #d, d)
 #define PRINT_FLOAT3(v) printf("%s: [%.7f, %.7f, %.7f]\n", #v, v.x, v.y, v.z)
 
 	template<typename T>

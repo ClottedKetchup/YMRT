@@ -24,7 +24,7 @@ void TestScene_CornellBox(const std::string& exec_path, std::shared_ptr<YumeRT::
 	camera.SetDir(camera_from - camera_look);
 
 	const uint32_t default_material = scene_manager.CreateDefaultMaterial("default material", glm::vec3(0.25f), glm::vec3(1.0f), 0.2f, 0.2f, 1.0f, 0.0f, 0.0f, 0.0f, 0);
-	const uint32_t world_volume_index = scene_manager.CreateVolume("world_vol", scene_manager.CreateTransform("world_volume_index_transform"), glm::vec3(0.035f), glm::vec3(1.0f));
+	const uint32_t world_volume_index = scene_manager.CreateVolume("world_vol", scene_manager.CreateTransform("world_volume_index_transform"), glm::vec3(0.235f), glm::vec3(1.0f));
 	const uint32_t bunny_inner_volume_index_0 = scene_manager.CreateVolume("bunny_inner_vol_0", scene_manager.CreateTransform("bunny_inner_volume_index_0_transform"), glm::vec3(0.085f), glm::vec3(1.0f));
 	const uint32_t bunny_inner_volume_index_1 = scene_manager.CreateVolume("bunny_inner_vol_1", scene_manager.CreateTransform("bunny_inner_volume_index_1_transform"), glm::vec3(0.085f), glm::vec3(1.0f));
 

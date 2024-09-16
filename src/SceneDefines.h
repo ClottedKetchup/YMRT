@@ -29,7 +29,7 @@ namespace YumeRT
 		bool enable_russian_roulette;
 
 		__device__ __host__ inline RenderSetting() : ssp(1), ray_depth(3), gamma(2.2f), exposure(1.0f), sampler_type(0), 
-			max_frame_count(-1), enable_distant_light(false), enable_env_light(true), enable_russian_roulette(false), enable_volume_scattering(false), enable_shape_light(true) {}
+			max_frame_count(-1), enable_distant_light(false), enable_env_light(false), enable_russian_roulette(false), enable_volume_scattering(false), enable_shape_light(false) {}
 		__device__ __host__ inline RenderSetting(const RenderSetting&) = default;
 		__device__ __host__ inline RenderSetting& operator=(const RenderSetting&) = default;
 	};
@@ -140,6 +140,8 @@ namespace YumeRT
 		uint32_t * hit_data_nearby_hit_primitive_index;
 		float * hit_data_nearby_t_hit;
 		int * hit_data_nearby_hit_back;
+
+		float * hit_data_volume_weights;
 
 		Ray * hit_data_ray;
 		glm::vec3 * hit_data_received_light;

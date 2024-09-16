@@ -20,10 +20,10 @@ namespace YumeRT
 
 		image_texture.warp_mode = WARP_MODE_REPEAT;
 
-		image_texture.u_scale = 1.0f;
-		image_texture.v_scale = 1.0f;
-		image_texture.u_offset = 0.0f;
-		image_texture.v_offset = 0.0f;
+		image_texture.scale_u = 1.0f;
+		image_texture.scale_v = 1.0f;
+		image_texture.offset_u = 0.0f;
+		image_texture.offset_v = 0.0f;
 
 		std::vector<float> image_buffer;
 		

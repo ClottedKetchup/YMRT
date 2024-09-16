@@ -300,7 +300,7 @@ namespace YumeRT{
 
 			path_tracing_image_fetch_over_time = true;
 			if (!path_tracing_result_queue_beauty.empty()) {
-				assert(!path_tracing_result_queue_frame_index.empty() && !path_tracing_result_queue_extra.empty());
+				assert(!path_tracing_result_queue_extra.empty() && !path_tracing_result_queue_extra.empty());
 				path_tracing_image_fetch_over_time = false;
 
 				// note: this memory should release after copy complete.
@@ -506,7 +506,7 @@ namespace YumeRT{
 			HaltonEnumerator halton_enumerator(task_param.width, task_param.height);
 
 			CUDA_CHECK(cudaMallocAsync(&halton_enumerator_device, sizeof(HaltonEnumerator), stream_path_tracing));
-			CUDA_CHECK(cudaMemcpyAsync(halton_enumerator_device, &halton_enumerator_device, sizeof(HaltonEnumerator), cudaMemcpyHostToDevice, stream_path_tracing));
+			CUDA_CHECK(cudaMemcpyAsync(halton_enumerator_device, &halton_enumerator, sizeof(HaltonEnumerator), cudaMemcpyHostToDevice, stream_path_tracing));
 
 			CUDA_CHECK(cudaStreamSynchronize(stream_path_tracing)); // note: have to make sure the gpu done the memory copy before unlock.
 		}

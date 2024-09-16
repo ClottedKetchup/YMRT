@@ -164,12 +164,12 @@ namespace YumeRT
 		const ImageTexture &image_texture = texture.image_texture;
 		if (image_texture.tile_offset == -1 || image_texture.file_offset == -1) { return glm::vec3(0.0f); }
 
-		const float tex_u = texture_coordinate.st.x * image_texture.u_scale + image_texture.u_offset;
-		const float tex_v = texture_coordinate.st.y * image_texture.v_scale + image_texture.v_offset;
-		const float tex_dudx = texture_coordinate.dudx * image_texture.u_scale;
-		const float tex_dudy = texture_coordinate.dudy * image_texture.u_scale;
-		const float tex_dvdx = texture_coordinate.dvdx * image_texture.v_scale;
-		const float tex_dvdy = texture_coordinate.dvdy * image_texture.v_scale;
+		const float tex_u = texture_coordinate.st.x * image_texture.scale_u + image_texture.offset_u;
+		const float tex_v = texture_coordinate.st.y * image_texture.scale_v + image_texture.offset_v;
+		const float tex_dudx = texture_coordinate.dudx * image_texture.scale_u;
+		const float tex_dudy = texture_coordinate.dudy * image_texture.scale_u;
+		const float tex_dvdx = texture_coordinate.dvdx * image_texture.scale_v;
+		const float tex_dvdy = texture_coordinate.dvdy * image_texture.scale_v;
 		
 		const float pixel_x = tex_u * image_texture.width;
 		const float pixel_y = tex_v * image_texture.height;
@@ -405,7 +405,7 @@ namespace YumeRT
 																	const ImageTileCache& image_tile_cache,
 																	const TextureCoordinate& texture_coordinate)
 	{
-		constexpr int texture_stack_size = 10;
+		constexpr int texture_stack_size = 8;
 		Texture texture_stack[texture_stack_size];
 		int16_t top = -1;
 

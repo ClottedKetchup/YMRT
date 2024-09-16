@@ -99,7 +99,12 @@ namespace YumeRT {
 		}
 
 	private:
+		bool draw_selected_effect;
+		bool show_primitive_list;
 		int m_width, m_height;
+		float primitive_scale_upper;
+		float primitive_scale_lower;
+		float primitive_move_speed;
 		uint32_t clicked_pixel_primitive_index;
 
 		DuskTrackball trackball;
@@ -113,6 +118,8 @@ namespace YumeRT {
 
 		void InitGUI();
 		void RenderImages();
+		void RenderMainMenu();
+		void RenderObjectList();
 		void ExitGUI();
 
 		enum TASK_QUEUE_CLEAR_FLAG

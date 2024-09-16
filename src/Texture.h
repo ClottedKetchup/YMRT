@@ -81,10 +81,10 @@ namespace YumeRT
 		int tile_offset;
 		int file_offset;
 
-		float u_scale;
-		float v_scale;
-		float u_offset;
-		float v_offset;
+		float scale_u;
+		float scale_v;
+		float offset_u;
+		float offset_v;
 
 		int warp_mode;
 
@@ -98,14 +98,14 @@ namespace YumeRT
 		int16_t ith_child;
 
 		__device__ __host__ inline ImageTexture() :parent_index(-1), ith_child(-1), mipmap_tile_offsets{0}, mipmap_count(1), tile_offset(-1), file_offset(-1), warp_mode(WARP_MODE_REPEAT),
-			u_scale(1.0f), v_scale(1.0f), u_offset(0.0f), v_offset(0.0f){}
+			scale_u(1.0f), scale_v(1.0f), offset_u(0.0f), offset_v(0.0f){}
 		__device__ __host__ inline ImageTexture(int width, int height, int tile_offset, int file_offset, int16_t channel_count,
 			const int16_t *mipmap_tile_offset_list, int16_t mipmap_count, int warp_mode,
 			float u_scale, float v_scale, float u_offset, float v_offset)
 			: width(width), height(height), tile_offset(tile_offset), file_offset(file_offset), channel_count(channel_count), 
 			mipmap_count(mipmap_count), warp_mode(warp_mode),
 			parent_index(-1), ith_child(-1),
-			u_scale(u_scale), v_scale(v_scale), u_offset(u_offset), v_offset(v_offset)
+			scale_u(u_scale), scale_v(v_scale), offset_u(u_offset), offset_v(v_offset)
 		{
 			mipmap_tile_offsets[0] = 0;
 			if (mipmap_tile_offset_list != nullptr) { 
@@ -123,10 +123,10 @@ namespace YumeRT
 
 			warp_mode = other.warp_mode;
 
-			u_scale = other.u_scale;
-			v_scale = other.v_scale;
-			u_offset = other.u_offset;
-			v_offset = other.v_offset;
+			scale_u = other.scale_u;
+			scale_v = other.scale_v;
+			offset_u = other.offset_u;
+			offset_v = other.offset_v;
 
 			channel_count = other.channel_count;
 			

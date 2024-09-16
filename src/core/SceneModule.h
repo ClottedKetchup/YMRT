@@ -83,6 +83,7 @@ namespace YumeRT{
 		SceneModule(const SceneModule&&) = delete;
 		SceneModule& operator=(const SceneModule&) = delete;
 
+		// note: for all the update function, their flag should handle by the gui interface.
 		friend class GuiModule;
 
 		inline Camera& GetSceneCamera() {

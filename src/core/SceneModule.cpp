@@ -113,7 +113,17 @@ namespace YumeRT {
 	}
 	void SceneModule::UpdateTransform(const uint32_t index)
 	{
-	
+		if (transform_states.empty() || !(index < transform_states.size())) {
+			return;
+		}
+
+		auto& scene_device_data = scene_resource.scene;
+		transforms[index] = transform_states[index].GetTransformMatrix();
+		i_transforms[index] = glm::inverse(transforms[index]);
+
+		assert(scene_device_data.transforms != nullptr && scene_device_data.i_transforms != nullptr);
+		TRANSFER_TO_GPU(scene_device_data.transforms + index, &transforms[index], sizeof(glm::mat4));
+		TRANSFER_TO_GPU(scene_device_data.i_transforms + index, &i_transforms[index], sizeof(glm::mat4));
 	}
 
 	uint32_t SceneModule::CreateMesh(const std::string& name,
@@ -204,7 +214,13 @@ namespace YumeRT {
 	}
 	void SceneModule::UpdatePrimitiveInstance(const uint32_t index)
 	{
-	
+		if (primitive_instances.empty() || !(index < primitive_instances.size())) {
+			return;
+		}
+
+		auto& scene_device_data = scene_resource.scene;
+		assert(scene_device_data.primitive_instances != nullptr);
+		TRANSFER_TO_GPU(scene_device_data.primitive_instances + index, &primitive_instances[index], sizeof(PrimitiveInstance));
 	}
 
 	uint32_t SceneModule::CreateDefaultMaterial(const std::string& name,

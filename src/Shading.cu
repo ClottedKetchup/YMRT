@@ -1084,6 +1084,8 @@ namespace YumeRT
 		CUDA_CHECK(cudaMalloc(&(hit_data.hit_data_nearby_t_hit), sizeof(float) * max_nearby_hit_count * MAX_RAY_COUNT));
 		CUDA_CHECK(cudaMalloc(&(hit_data.hit_data_nearby_hit_back), sizeof(int) * max_nearby_hit_count * MAX_RAY_COUNT));
 
+		CUDA_CHECK(cudaMalloc(&(hit_data.hit_data_volume_weights), sizeof(float) * MAX_BOUNDARY_RECORD * MAX_RAY_COUNT));
+
 		CUDA_CHECK(cudaMalloc(&(hit_data.hit_data_ray), sizeof(Ray) * MAX_RAY_COUNT));
 		CUDA_CHECK(cudaMalloc(&(hit_data.hit_data_received_light), sizeof(glm::vec3) * MAX_RAY_COUNT));
 		CUDA_CHECK(cudaMalloc(&(hit_data.hit_data_throughput), sizeof(glm::vec3) * MAX_RAY_COUNT));
@@ -1104,6 +1106,8 @@ namespace YumeRT
 		FREE_GPU_RESOURCE(hit_data.hit_data_nearby_hit_primitive_index);
 		FREE_GPU_RESOURCE(hit_data.hit_data_nearby_t_hit);
 		FREE_GPU_RESOURCE(hit_data.hit_data_nearby_hit_back);
+
+		FREE_GPU_RESOURCE(hit_data.hit_data_volume_weights);
 
 		FREE_GPU_RESOURCE(hit_data.hit_data_ray);
 		FREE_GPU_RESOURCE(hit_data.hit_data_received_light);
@@ -1681,7 +1685,7 @@ namespace YumeRT
 		shading_ray_data_camera_ray[ray_index] = true;
 		shading_ray_data_pixel_sample_index[ray_index] = pixel_sample_index;
 		shading_ray_data_sampler[ray_index] = sampler;
-		shading_ray_data_ray_transfer[ray_index] = scene.camera[EDITOR_CAMERA_INDEX].GetRayTransfer();
+		shading_ray_data_ray_transfer[ray_index] = scene.camera[RENDERING_CAMERA_INDEX].GetRayTransfer();
 	}
 
 	extern "C" void RayGenerationPathTracing(int current_frame_index, const RenderSetting & render_setting, Scene * scene_device, HaltonEnumerator * halton_enumerator_device, RayCounter * ray_counter_device, uint32_t next_tile_index, uint32_t tile_count_this_batch, uint32_t width, uint32_t height, uint32_t tile_count_x, uint32_t tile_count_y, ShadingRayData & shading_ray_data, cudaStream_t & stream)
@@ -1745,6 +1749,7 @@ namespace YumeRT
 		uint32_t * hit_data_nearby_hit_primitive_index,
 		float * hit_data_nearby_t_hit,
 		int * hit_data_nearby_hit_back,
+		float * hit_data_volume_weights,
 		Ray * hit_data_ray,
 		glm::vec3 * hit_data_received_light,
 		glm::vec3 * hit_data_throughput,
@@ -1787,13 +1792,14 @@ namespace YumeRT
 		NearbyHit nearby_hits[MAX_BOUNDARY_RECORD + 2];
 		bool hit_something = TraceRay(scene, ray, &hit_record, &nearby_hit_count, nearby_hits);
 
+		// note: volume weights have to transfer to next stage so should put it out.
+		float volume_weights[MAX_BOUNDARY_RECORD];
 		if (render_setting.enable_volume_scattering) {
 			glm::vec3 tr_weight(1.0f);
 			float sampled_distance = 0.0f;
 
-			// current exist volume
+			// note: current existing volume.
 			int volume_indices[MAX_BOUNDARY_RECORD];
-			float volume_weights[MAX_BOUNDARY_RECORD];
 			float gs[MAX_BOUNDARY_RECORD];
 			const int overlapped_volume_count = ray_transfer.GetCurrentVolumeIndices(volume_indices, scene.volume_count);
 			for (int idx = 0; idx < overlapped_volume_count; ++idx) {
@@ -1834,6 +1840,14 @@ namespace YumeRT
 			hit_data_nearby_hit_primitive_index[actual_index] = nearby_hits[nearby_hit_index].hit_prim_idx;
 			hit_data_nearby_t_hit[actual_index] = nearby_hits[nearby_hit_index].t_hit;
 			hit_data_nearby_hit_back[actual_index] = nearby_hits[nearby_hit_index].hit_back;
+		}
+
+		if (hit_record.volume_hit) {
+			const uint32_t volume_weights_start_index = MAX_BOUNDARY_RECORD * hit_index;
+#pragma unroll MAX_BOUNDARY_RECORD
+			for (uint32_t volume_weight_index = 0; volume_weight_index < MAX_BOUNDARY_RECORD; ++volume_weight_index) {
+				hit_data_volume_weights[volume_weights_start_index + volume_weight_index] = volume_weights[volume_weight_index];
+			}
 		}
 
 		hit_data_ray[hit_index] = ray; // note: local ray's t may already get modified.
@@ -1882,6 +1896,7 @@ namespace YumeRT
 								 &hit_data.hit_data_nearby_hit_primitive_index,
 								 &hit_data.hit_data_nearby_t_hit,
 								 &hit_data.hit_data_nearby_hit_back,
+								 &hit_data.hit_data_volume_weights,
 								 &hit_data.hit_data_ray,
 								 &hit_data.hit_data_received_light,
 								 &hit_data.hit_data_throughput,
@@ -1921,6 +1936,7 @@ namespace YumeRT
 		const uint32_t * hit_data_nearby_hit_primitive_index,
 		const float * hit_data_nearby_t_hit,
 		const int * hit_data_nearby_hit_back,
+		const float * hit_data_volume_weights,
 		const Ray * hit_data_ray,
 		const glm::vec3 * hit_data_received_light,
 		const glm::vec3 * hit_data_throughput,
@@ -2010,8 +2026,15 @@ namespace YumeRT
 		const bool hit_something = hit_record.volume_hit || hit_record.hit_instance_idx != EMPTY_UINT32;
 	
 		if (render_setting.enable_volume_scattering && hit_record.volume_hit) {
-			int volume_indices[MAX_BOUNDARY_RECORD];
 			float volume_weights[MAX_BOUNDARY_RECORD];
+
+			const uint32_t volume_weights_start_index = MAX_BOUNDARY_RECORD * hit_index;
+#pragma unroll MAX_BOUNDARY_RECORD
+			for (uint32_t volume_weight_index = 0; volume_weight_index < MAX_BOUNDARY_RECORD; ++volume_weight_index) {
+				volume_weights[volume_weight_index] = hit_data_volume_weights[volume_weights_start_index + volume_weight_index];
+			}
+			
+			int volume_indices[MAX_BOUNDARY_RECORD];
 			float gs[MAX_BOUNDARY_RECORD];
 			const int overlapped_volume_count = ray_transfer.GetCurrentVolumeIndices(volume_indices, scene.volume_count);
 			for (int idx = 0; idx < overlapped_volume_count; ++idx) {
@@ -2264,6 +2287,7 @@ namespace YumeRT
 								 &hit_data.hit_data_nearby_hit_primitive_index,
 								 &hit_data.hit_data_nearby_t_hit,
 								 &hit_data.hit_data_nearby_hit_back,
+								 &hit_data.hit_data_volume_weights,
 								 &hit_data.hit_data_ray,
 								 &hit_data.hit_data_received_light,
 								 &hit_data.hit_data_throughput,
