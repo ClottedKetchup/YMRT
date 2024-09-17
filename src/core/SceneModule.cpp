@@ -289,7 +289,13 @@ namespace YumeRT {
 	}
 	void SceneModule::UpdateMaterial(const uint32_t index)
 	{
-	
+		if (materials.empty() || !(index < materials.size())) {
+			return;
+		}
+
+		auto& scene_device_data = scene_resource.scene;
+		assert(scene_device_data.materials != nullptr);
+		TRANSFER_TO_GPU(scene_device_data.materials + index, &materials[index], sizeof(Material));
 	}
 
 	uint32_t SceneModule::CreateImageTexture(const std::string& name, const std::string& texture_file_name)

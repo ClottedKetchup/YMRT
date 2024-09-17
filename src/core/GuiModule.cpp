@@ -505,7 +505,7 @@ namespace YumeRT {
 
 		// Right
 		ImGui::BeginGroup();
-		ImGui::BeginChild("Attribute editor", ImVec2(0, ImGui::GetFrameHeight() / 2), ImGuiChildFlags_Border | ImGuiChildFlags_ResizeY); // Leave room for 1 line below us
+		ImGui::BeginChild("Attribute editor", ImVec2(0, -ImGui::GetFrameHeight()), ImGuiChildFlags_Border); // Leave room for 1 line below us
 
 		const bool selected_primitive_index_valid = selected_primitive_instance_index < m_scene.primitive_instances.size();
 		ImGui::Text("Selected primitive index: %d", selected_primitive_instance_index);
@@ -540,7 +540,7 @@ namespace YumeRT {
 			}
 
 			if (ImGui::InputInt("Inner volume index", (int*)(&selected_primitive_instance.inner_volume_idx))) {
-				selected_primitive_instance.inner_volume_idx = glm::clamp(selected_primitive_instance.inner_volume_idx, 0, (int)m_scene.volumes.size() - 1);
+				selected_primitive_instance.inner_volume_idx = glm::clamp(selected_primitive_instance.inner_volume_idx, -1, (int)m_scene.volumes.size() - 1);
 				UpdateDeviceData([&]() {
 					m_scene.UpdatePrimitiveInstance(selected_primitive_instance_index);
 				});
@@ -562,11 +562,13 @@ namespace YumeRT {
 			if (ImGui::BeginTabItem("Geometry")) {
 				ImGui::Text("Geometry name: %s", selected_primitive_index_valid ? m_scene.geometry_names[m_scene.primitive_instances.at(selected_primitive_instance_index).geometry_idx].c_str() : "");
 				ImGui::Text("Geometry index: %d", selected_primitive_index_valid ? m_scene.primitive_instances.at(selected_primitive_instance_index).geometry_idx : EMPTY_UINT32);
+				ImGui::Separator();
 				ImGui::EndTabItem();
 			}
 			if (ImGui::BeginTabItem("Transform")) {
 				ImGui::Text("Transform name: %s", selected_primitive_index_valid ? m_scene.transform_names[m_scene.primitive_instances.at(selected_primitive_instance_index).transform_idx].c_str() : "");
 				ImGui::Text("Transform index: %d", selected_primitive_index_valid ? m_scene.primitive_instances.at(selected_primitive_instance_index).transform_idx : EMPTY_UINT32);
+				ImGui::Separator();
 				if (ImGui::InputFloat("Max Scale", &primitive_scale_upper)) {
 					primitive_scale_upper = glm::clamp(primitive_scale_upper, 2.0f * primitive_scale_lower, 1000.0f);
 				}
@@ -672,18 +674,223 @@ namespace YumeRT {
 						}
 						ImGui::TreePop();
 					}
+					ImGui::Separator();
+					// TODO: transform hierarchy.
+					ImGui::Text("Here shows the reference relationship of transforms, you can right click the tree node to see its detailed information :)");
+					if (ImGui::TreeNode("Hierarchy")) {
+						if (ImGui::BeginPopupContextItem()) {
+							ImGui::Text("Reference relationship");
+							ImGui::EndPopup();
+						}
+						ImGui::TreePop();
+					}
 				}
 				ImGui::EndTabItem();
 			}
 			if (ImGui::BeginTabItem("Material")) {
 				ImGui::Text("Material name: %s", selected_primitive_index_valid ? m_scene.material_names[m_scene.primitive_instances.at(selected_primitive_instance_index).material_idx].c_str() : "");
 				ImGui::Text("Material index: %d", selected_primitive_index_valid ? m_scene.primitive_instances.at(selected_primitive_instance_index).material_idx : EMPTY_UINT32);
+				ImGui::Separator();
+				if (selected_primitive_index_valid) {
+					const auto material_index = m_scene.primitive_instances.at(selected_primitive_instance_index).material_idx;
+					auto& selected_material = m_scene.materials.at(material_index);
+					static const char* material_type_names[] = { "Default material", "Light material" };
+
+					const auto original_material_type = selected_material.material_type;
+					if (ImGui::BeginCombo("Material type", material_type_names[selected_material.material_type])) {
+						if (ImGui::Selectable(material_type_names[0]) && original_material_type != DEFAULT_MTL) {
+							selected_material.InitDefaultMtl();
+							UpdateDeviceData([&]() {
+								m_scene.UpdateMaterial(material_index);
+							});
+							m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_MATERIAL_CHANGE);
+							m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE);
+						}
+						if (ImGui::Selectable(material_type_names[1]) && original_material_type != LIGHT_MTL) {
+							selected_material.InitLightMtl();
+							UpdateDeviceData([&]() {
+								m_scene.UpdateMaterial(material_index);
+							});
+							m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_MATERIAL_CHANGE);
+							m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE);
+						}
+						ImGui::EndCombo();
+					}
+
+					auto draw_texture_selector = [&](const char * selector_name, uint32_t * material_texture_index) {
+						assert(material_texture_index != nullptr);
+						auto& textures = m_scene.textures;
+						auto& texture_names = m_scene.texture_names;
+						auto& selected_texture_index = *material_texture_index;
+						if (ImGui::BeginCombo(selector_name, selected_texture_index == EMPTY_UINT32 ? "NULL" : texture_names[selected_texture_index].c_str())) {
+							if (ImGui::Selectable("Null")) {
+								if (selected_texture_index != EMPTY_UINT32) {
+									selected_texture_index = EMPTY_UINT32;
+									UpdateDeviceData([&]() {
+										m_scene.UpdateMaterial(material_index);
+									});
+									m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_MATERIAL_CHANGE);
+								}
+							}
+							for (int texture_index = 0; texture_index < (int)textures.size(); ++texture_index) {
+								if (ImGui::Selectable(texture_names[texture_index].c_str())) {
+									if (texture_index == selected_texture_index) {
+										continue;
+									}
+									selected_texture_index = texture_index;
+									UpdateDeviceData([&]() {
+										m_scene.UpdateMaterial(material_index);
+										});
+									m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_MATERIAL_CHANGE);
+								}
+							}
+							ImGui::EndCombo();
+						}
+					};
+
+					ImGui::Separator();
+					if (selected_material.material_type == DEFAULT_MTL) {
+						auto& selected_default_mtl = selected_material.default_mtl;
+						if (ImGui::ColorEdit3("Diffuse albedo", (float*)(&selected_default_mtl.diffuse_albedo), ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR)) {
+							UpdateDeviceData([&]() {
+								m_scene.UpdateMaterial(material_index);
+							});
+							m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_MATERIAL_CHANGE);
+						}
+						ImGui::SameLine(); 
+						if(ImGui::Button("Diffuse albedo texture")) {
+							ImGui::OpenPopup("Diffuse_albedo_popup");
+						}
+						if (ImGui::BeginPopup("Diffuse_albedo_popup")) {
+							draw_texture_selector("Diffuse albedo texture selector", &selected_default_mtl.diffuse_albedo_tex);
+							ImGui::EndPopup();
+						}
+
+
+						if (ImGui::SliderFloat("Metalness", &selected_default_mtl.metalness, 0.0f, 1.0f)) {
+							UpdateDeviceData([&]() {
+								m_scene.UpdateMaterial(material_index);
+							});
+							m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_MATERIAL_CHANGE);
+						}
+						ImGui::SameLine();
+						if (ImGui::Button("Metalness texture")) {
+							ImGui::OpenPopup("Metalness_popup");
+						}
+						if (ImGui::BeginPopup("Metalness_popup")) {
+							draw_texture_selector("Metalness texture selector", &selected_default_mtl.metalness_tex);
+							ImGui::EndPopup();
+						}
+
+						ImGui::Separator();
+						if (ImGui::SliderFloat("Specular weight", &selected_default_mtl.specular_weight, 0.0f, 1.0f)) {
+							UpdateDeviceData([&]() {
+								m_scene.UpdateMaterial(material_index);
+							});
+							m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_MATERIAL_CHANGE);
+						}
+						ImGui::SameLine();
+						if (ImGui::Button("Specular weight texture")) {
+							ImGui::OpenPopup("Specular_weight_popup");
+						}
+						if (ImGui::BeginPopup("Specular_weight_popup")) {
+							draw_texture_selector("Specular weight texture selector", &selected_default_mtl.specular_weight_tex);
+							ImGui::EndPopup();
+						}
+
+						if (ImGui::ColorEdit3("Specular albedo", (float*)(&selected_default_mtl.specular_albedo), ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR)) {
+							UpdateDeviceData([&]() {
+								m_scene.UpdateMaterial(material_index);
+							});
+							m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_MATERIAL_CHANGE);
+						}
+						ImGui::SameLine();
+						if (ImGui::Button("Specular albedo texture")) {
+							ImGui::OpenPopup("Specular_albedo_popup");
+						}
+						if (ImGui::BeginPopup("Specular_albedo_popup")) {
+							draw_texture_selector("Specular albedo texture selector", &selected_default_mtl.specular_albedo_tex);
+							ImGui::EndPopup();
+						}
+
+						ImGui::Separator();
+						if (ImGui::InputFloat("IOR", &selected_default_mtl.ior_n)) {
+							selected_default_mtl.ior_n = glm::max(0.0f, selected_default_mtl.ior_n);
+							UpdateDeviceData([&]() {
+								m_scene.UpdateMaterial(material_index);
+							});
+							m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_MATERIAL_CHANGE);
+						}
+						if (ImGui::InputInt("IOR priority", (int*)&selected_default_mtl.ior_priority)) {
+							selected_default_mtl.ior_priority = glm::max(selected_default_mtl.ior_priority, 0u);
+							UpdateDeviceData([&]() {
+								m_scene.UpdateMaterial(material_index);
+							});
+							m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_MATERIAL_CHANGE);
+						}
+
+						ImGui::Separator();
+						if (ImGui::SliderFloat("Roughness x", &selected_default_mtl.alpha_x, 0.0f, 1.0f)) {
+							UpdateDeviceData([&]() {
+								m_scene.UpdateMaterial(material_index);
+							});
+							m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_MATERIAL_CHANGE);
+						}
+						ImGui::SameLine();
+						if (ImGui::Button("Roughness x texture")) {
+							ImGui::OpenPopup("Roughness_x_popup");
+						}
+						if (ImGui::BeginPopup("Roughness_x_popup")) {
+							draw_texture_selector("Roughness x texture selector", &selected_default_mtl.alpha_x_tex);
+							ImGui::EndPopup();
+						}
+
+						if (ImGui::SliderFloat("Roughness y", &selected_default_mtl.alpha_y, 0.0f, 1.0f)) {
+							UpdateDeviceData([&]() {
+								m_scene.UpdateMaterial(material_index);
+							});
+							m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_MATERIAL_CHANGE);
+						}
+						ImGui::SameLine();
+						if (ImGui::Button("Roughness y texture")) {
+							ImGui::OpenPopup("Roughness_y_popup");
+						}
+						if (ImGui::BeginPopup("Roughness_y_popup")) {
+							draw_texture_selector("Roughness y texture selector", &selected_default_mtl.alpha_y_tex);
+							ImGui::EndPopup();
+						}
+
+						ImGui::Separator();
+						if (ImGui::SliderFloat("Transmission weight", &selected_default_mtl.transmission_weight, 0.0f, 1.0f)) {
+							UpdateDeviceData([&]() {
+								m_scene.UpdateMaterial(material_index);
+							});
+							m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_MATERIAL_CHANGE);
+						}
+						ImGui::SameLine();
+						if (ImGui::Button("Transmission weight texture")) {
+							ImGui::OpenPopup("Transmission_weight_popup");
+						}
+						if (ImGui::BeginPopup("Transmission_weight_popup")) {
+							draw_texture_selector("Transmission weight texture selector", &selected_default_mtl.transmission_weight_tex);
+							ImGui::EndPopup();
+						}
+
+						ImGui::Separator();
+						draw_texture_selector("Normal texture selector", &selected_default_mtl.normal_mapping_tex);
+						draw_texture_selector("Bump texture selector", &selected_default_mtl.bump_mapping_tex);
+					}
+					else if (selected_material.material_type == LIGHT_MTL) {
+					
+					}
+					else {
+					
+					}
+				}
 				ImGui::EndTabItem();
 			}
 			ImGui::EndTabBar();
 		}
-		ImGui::EndChild();
-		ImGui::BeginChild("last window", ImVec2(0, 0), ImGuiChildFlags_Border);
 		ImGui::EndChild();
 		ImGui::EndGroup();
 		
