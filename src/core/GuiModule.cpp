@@ -60,7 +60,7 @@ namespace YumeRT {
 
 			ACBVHBuilder SceneBuilder(m_scene.primitive_instances.data(), (uint32_t)m_scene.primitive_instances.size(), m_scene.transforms.data(), m_scene.geometries.data());
 			m_scene.top_nodes.clear();
-			SceneBuilder.BuildSceneBVH(m_scene.top_nodes, nullptr, &clicked_pixel_primitive_index, &dst_indices_map);
+			SceneBuilder.BuildSceneBVH(m_scene.top_nodes, nullptr, nullptr, &dst_indices_map);
 
 			for (auto& item: m_scene.primitive_index_to_index_map) {
 				item.second = dst_indices_map[item.second];
@@ -470,14 +470,15 @@ namespace YumeRT {
 
 		auto& m_scene = *m_module_scene;
 		enum ObjectType {
-			Directional_Light = 0, Primitive_Instance = 1, Volume = 2
+			Type_Directional_Light = 0, Type_Primitive_Instance = 1, Type_Volume = 2
 		};
-		ObjectType object_type_to_render = Primitive_Instance;
+		ObjectType object_type_to_render = Type_Primitive_Instance;
+
 		static int selected_directional_index = EMPTY_UINT32;
-		static int selected_primitive_instance_index = EMPTY_UINT32;
+		static uint32_t selected_primitive_unique_index = EMPTY_UINT32;
 		static int selected_volume_index = EMPTY_UINT32;
 
-		selected_primitive_instance_index = clicked_pixel_primitive_index;
+		selected_primitive_unique_index = clicked_pixel_primitive_index;
 
 		ImGui::Begin("Object List");
 		const float window_x_size = ImGui::GetWindowContentRegionMax().x - ImGui::GetWindowContentRegionMin().x;
@@ -485,24 +486,25 @@ namespace YumeRT {
 		for (int directional_light_index = 0; directional_light_index < m_scene.distant_lights.size(); ++directional_light_index) {
 			if (ImGui::Selectable(m_scene.distant_light_names[directional_light_index].c_str(), directional_light_index == selected_directional_index)) {
 				selected_directional_index = directional_light_index;
-				object_type_to_render = Directional_Light;
+				object_type_to_render = Type_Directional_Light;
 			}
 		}
 
-		for (int primitive_index = 0; primitive_index < m_scene.primitive_instances.size(); primitive_index++) {
-			const std::string primitive_name = std::string("primitive_") + std::to_string(primitive_index);
-			if (ImGui::Selectable(primitive_name.c_str(), primitive_index == selected_primitive_instance_index)) {
-				selected_primitive_instance_index = primitive_index;
-				object_type_to_render = Primitive_Instance;
+		for (auto& item: m_scene.primitive_index_to_index_map) {
+			const auto unique_index = item.first;
+			const std::string primitive_name = std::string("primitive_") + std::to_string(unique_index);
+			if (ImGui::Selectable(primitive_name.c_str(), unique_index == selected_primitive_unique_index)) {
+				selected_primitive_unique_index = unique_index;
+				object_type_to_render = Type_Primitive_Instance;
 
-				clicked_pixel_primitive_index = primitive_index;
+				clicked_pixel_primitive_index = unique_index;
 			}
 		}
 
 		for (int volume_index = 0; volume_index < m_scene.volumes.size(); volume_index++) {
 			if (ImGui::Selectable(m_scene.volume_names[volume_index].c_str(), volume_index == selected_volume_index)) {
 				selected_volume_index = volume_index;
-				object_type_to_render = Volume;
+				object_type_to_render = Type_Volume;
 			}
 		}
 
@@ -514,22 +516,24 @@ namespace YumeRT {
 		ImGui::BeginGroup();
 		ImGui::BeginChild("Attribute editor", ImVec2(0, -ImGui::GetFrameHeight()), ImGuiChildFlags_Border); // Leave room for 1 line below us
 
-		const bool selected_primitive_index_valid = selected_primitive_instance_index < m_scene.primitive_instances.size();
-		ImGui::Text("Selected primitive index: %d", selected_primitive_instance_index);
-		if (selected_primitive_index_valid) {
+		const auto selected_primitive_array_index = m_scene.primitive_index_to_index_map.find(selected_primitive_unique_index) != m_scene.primitive_index_to_index_map.end() ?
+			m_scene.primitive_index_to_index_map[selected_primitive_unique_index] : EMPTY_UINT32;
+		const bool selected_primitive_array_index_valid = selected_primitive_array_index < m_scene.primitive_instances.size();
+		ImGui::Text("Selected primitive unique index: %d", selected_primitive_array_index);
+		if (selected_primitive_array_index_valid) {
 			// TODO: use selectable list.
-			auto& selected_primitive_instance = m_scene.primitive_instances.at(selected_primitive_instance_index);
+			auto& selected_primitive_instance = m_scene.primitive_instances.at(selected_primitive_array_index);
 			if (ImGui::InputInt("Geometry index", (int*)(&selected_primitive_instance.geometry_idx))) {
 				selected_primitive_instance.geometry_idx = glm::clamp(selected_primitive_instance.geometry_idx, 0u, (uint32_t)m_scene.geometries.size() - 1);
 				UpdateDeviceData([&]() {
-					m_scene.UpdatePrimitiveInstance(selected_primitive_instance_index);
+					m_scene.UpdatePrimitiveInstance(selected_primitive_array_index);
 				});
 				m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_GEOMETRY_CHANGE);
 			}
 			if (ImGui::InputInt("Transform index", (int*)(&selected_primitive_instance.transform_idx))) {
 				selected_primitive_instance.transform_idx = glm::clamp(selected_primitive_instance.transform_idx, 0u, (uint32_t)m_scene.transform_states.size() - 1);
 				UpdateDeviceData([&]() {
-					m_scene.UpdatePrimitiveInstance(selected_primitive_instance_index);
+					m_scene.UpdatePrimitiveInstance(selected_primitive_array_index);
 				});
 				m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_TRANSFORM_CHANGE);
 			}
@@ -538,7 +542,7 @@ namespace YumeRT {
 			if (ImGui::InputInt("Material index", (int*)(&selected_primitive_instance.material_idx))) {
 				selected_primitive_instance.material_idx = glm::clamp(selected_primitive_instance.material_idx, 0u, (uint32_t)m_scene.materials.size() - 1);
 				UpdateDeviceData([&]() {
-					m_scene.UpdatePrimitiveInstance(selected_primitive_instance_index);
+					m_scene.UpdatePrimitiveInstance(selected_primitive_array_index);
 				});
 				m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_MATERIAL_CHANGE);
 				if (m_scene.materials[selected_primitive_instance.material_idx].material_type == LIGHT_MTL || m_scene.materials[original_material_index].material_type == LIGHT_MTL) {
@@ -549,14 +553,14 @@ namespace YumeRT {
 			if (ImGui::InputInt("Inner volume index", (int*)(&selected_primitive_instance.inner_volume_idx))) {
 				selected_primitive_instance.inner_volume_idx = glm::clamp(selected_primitive_instance.inner_volume_idx, -1, (int)m_scene.volumes.size() - 1);
 				UpdateDeviceData([&]() {
-					m_scene.UpdatePrimitiveInstance(selected_primitive_instance_index);
+					m_scene.UpdatePrimitiveInstance(selected_primitive_array_index);
 				});
 				m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_VOLUME_CHANGE);
 			}
 
 			if (ImGui::Checkbox("Treat as volume boundary", (bool*)(&selected_primitive_instance.treat_as_boundary))) {
 				UpdateDeviceData([&]() {
-					m_scene.UpdatePrimitiveInstance(selected_primitive_instance_index);
+					m_scene.UpdatePrimitiveInstance(selected_primitive_array_index);
 				});
 				m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_VOLUME_CHANGE);
 			}
@@ -567,14 +571,14 @@ namespace YumeRT {
 		if (ImGui::BeginTabBar("##Tabs", ImGuiTabBarFlags_None))
 		{
 			if (ImGui::BeginTabItem("Geometry")) {
-				ImGui::Text("Geometry name: %s", selected_primitive_index_valid ? m_scene.geometry_names[m_scene.primitive_instances.at(selected_primitive_instance_index).geometry_idx].c_str() : "");
-				ImGui::Text("Geometry index: %d", selected_primitive_index_valid ? m_scene.primitive_instances.at(selected_primitive_instance_index).geometry_idx : EMPTY_UINT32);
+				ImGui::Text("Geometry name: %s", selected_primitive_array_index_valid ? m_scene.geometry_names[m_scene.primitive_instances.at(selected_primitive_array_index).geometry_idx].c_str() : "");
+				ImGui::Text("Geometry index: %d", selected_primitive_array_index_valid ? m_scene.primitive_instances.at(selected_primitive_array_index).geometry_idx : EMPTY_UINT32);
 				ImGui::Separator();
 				ImGui::EndTabItem();
 			}
 			if (ImGui::BeginTabItem("Transform")) {
-				ImGui::Text("Transform name: %s", selected_primitive_index_valid ? m_scene.transform_names[m_scene.primitive_instances.at(selected_primitive_instance_index).transform_idx].c_str() : "");
-				ImGui::Text("Transform index: %d", selected_primitive_index_valid ? m_scene.primitive_instances.at(selected_primitive_instance_index).transform_idx : EMPTY_UINT32);
+				ImGui::Text("Transform name: %s", selected_primitive_array_index_valid ? m_scene.transform_names[m_scene.primitive_instances.at(selected_primitive_array_index).transform_idx].c_str() : "");
+				ImGui::Text("Transform index: %d", selected_primitive_array_index_valid ? m_scene.primitive_instances.at(selected_primitive_array_index).transform_idx : EMPTY_UINT32);
 				ImGui::Separator();
 				if (ImGui::InputFloat("Max Scale", &primitive_scale_upper)) {
 					primitive_scale_upper = glm::clamp(primitive_scale_upper, 2.0f * primitive_scale_lower, 1000.0f);
@@ -643,10 +647,10 @@ namespace YumeRT {
 					}
 				};
 
-				if (selected_primitive_index_valid)
+				if (selected_primitive_array_index_valid)
 				{
-					const auto transform_index = m_scene.primitive_instances.at(selected_primitive_instance_index).transform_idx;
-					const auto material_index = m_scene.primitive_instances.at(selected_primitive_instance_index).material_idx;
+					const auto transform_index = m_scene.primitive_instances.at(selected_primitive_array_index).transform_idx;
+					const auto material_index = m_scene.primitive_instances.at(selected_primitive_array_index).material_idx;
 					const bool primitive_is_light = m_scene.materials[material_index].material_type == LIGHT_MTL;
 					
 					auto& transform_state = m_scene.transform_states[transform_index];
@@ -759,11 +763,11 @@ namespace YumeRT {
 				ImGui::EndTabItem();
 			}
 			if (ImGui::BeginTabItem("Material")) {
-				ImGui::Text("Material name: %s", selected_primitive_index_valid ? m_scene.material_names[m_scene.primitive_instances.at(selected_primitive_instance_index).material_idx].c_str() : "");
-				ImGui::Text("Material index: %d", selected_primitive_index_valid ? m_scene.primitive_instances.at(selected_primitive_instance_index).material_idx : EMPTY_UINT32);
+				ImGui::Text("Material name: %s", selected_primitive_array_index_valid ? m_scene.material_names[m_scene.primitive_instances.at(selected_primitive_array_index).material_idx].c_str() : "");
+				ImGui::Text("Material index: %d", selected_primitive_array_index_valid ? m_scene.primitive_instances.at(selected_primitive_array_index).material_idx : EMPTY_UINT32);
 				ImGui::Separator();
-				if (selected_primitive_index_valid) {
-					const auto material_index = m_scene.primitive_instances.at(selected_primitive_instance_index).material_idx;
+				if (selected_primitive_array_index_valid) {
+					const auto material_index = m_scene.primitive_instances.at(selected_primitive_array_index).material_idx;
 					auto& selected_material = m_scene.materials.at(material_index);
 					static const char* material_type_names[] = { "Default material", "Light material" };
 

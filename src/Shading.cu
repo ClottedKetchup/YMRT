@@ -1508,7 +1508,7 @@ namespace YumeRT
 
 		const bool hit_something = hit_record.hit_instance_idx != EMPTY_UINT32;
 		if (camera_ray) {
-			AtomicExchInt((int*)(&primitive_index[pixel_index]), hit_something? hit_record.hit_instance_idx : EMPTY_UINT32);
+			AtomicExchInt((int*)(&primitive_index[pixel_index]), hit_something? scene.primitive_instances[hit_record.hit_instance_idx].unique_index : EMPTY_UINT32);
 		}
 
 		glm::vec3 hit_position(0.0f), hit_position_error(0.0f), hit_position_object_space(0.0f);
