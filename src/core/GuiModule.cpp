@@ -29,7 +29,7 @@ namespace YumeRT {
 		show_primitive_list(true),
 		primitive_scale_upper(20.0f),
 		primitive_scale_lower(0.05f),
-		primitive_move_speed(0.25f)
+		primitive_move_speed(0.1f)
 	{
 		glfwSetWindowUserPointer(m_window, this);
 		glfwSetFramebufferSizeCallback(m_window, FramebufferSizeCallback);
@@ -575,113 +575,177 @@ namespace YumeRT {
 				if (ImGui::InputFloat("Move Speed", &primitive_move_speed)) {
 					primitive_move_speed = glm::max(+0.0f, primitive_move_speed);
 				}
-				if (selected_primitive_index_valid) {
+
+				auto set_instance_transform_flag = [&m_scene](const bool primitive_is_light) {
+					m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_TRANSFORM_CHANGE);
+					m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_TRANSFORM_CHANGE);
+					if (primitive_is_light) {
+						m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE);
+					}
+				};
+				auto draw_arrow_buttons = [&](const char* title,
+					const char* arrow_sub,
+					const char* arrow_add,
+					glm::vec3 &primitive_translate,
+					const uint32_t transform_index,
+					const uint32_t i, 
+					const bool primitive_is_light)->void
+				{
+					ImGui::Text(title);
+					ImGui::SameLine();
+					ImGui::PushButtonRepeat(true);
+					if (ImGui::ArrowButton(arrow_sub, ImGuiDir_Left)) {
+						primitive_translate[i] -= primitive_move_speed;
+						UpdateDeviceData([&]() {
+							m_scene.UpdateTransform(transform_index);
+						});
+						set_instance_transform_flag(primitive_is_light);
+					}
+					ImGui::SameLine();
+					if (ImGui::ArrowButton(arrow_add, ImGuiDir_Right)) {
+						primitive_translate[i] += primitive_move_speed;
+						UpdateDeviceData([&]() {
+							m_scene.UpdateTransform(transform_index);
+							});
+						set_instance_transform_flag(primitive_is_light);
+					}
+					ImGui::PopButtonRepeat();
+				};
+				auto draw_scale_slider = [&](const char* title, 
+					glm::vec3& primitive_scale, 
+					const uint32_t transform_index, 
+					const uint32_t i, 
+					const bool primitive_is_light) {
+					if (ImGui::SliderFloat(title, &primitive_scale[i], primitive_scale_lower, primitive_scale_upper)) {
+						UpdateDeviceData([&]() {
+							m_scene.UpdateTransform(transform_index);
+						});
+						set_instance_transform_flag(primitive_is_light);
+					}
+				};
+				auto draw_rotate_slider = [&](const char* title, 
+					glm::vec3& primitive_rotate,
+					const uint32_t transform_index,
+					const uint32_t i,
+					const bool primitive_is_light) {
+					if (ImGui::SliderFloat(title, &primitive_rotate[i], 0.0f, 360.0f)) {
+						UpdateDeviceData([&]() {
+							m_scene.UpdateTransform(transform_index);
+						});
+						set_instance_transform_flag(primitive_is_light);
+					}
+				};
+
+				if (selected_primitive_index_valid)
+				{
 					const auto transform_index = m_scene.primitive_instances.at(selected_primitive_instance_index).transform_idx;
 					const auto material_index = m_scene.primitive_instances.at(selected_primitive_instance_index).material_idx;
 					const bool primitive_is_light = m_scene.materials[material_index].material_type == LIGHT_MTL;
-					auto set_instance_transform_flag = [&m_scene, primitive_is_light]() {
-						m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_TRANSFORM_CHANGE);
-						m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_TRANSFORM_CHANGE);
-						if (primitive_is_light) {
-							m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE);
-						}
-					};
-
+					
 					auto& transform_state = m_scene.transform_states[transform_index];
 					if (ImGui::TreeNode("Translate"))
 					{
 						glm::vec3& prim_translate = transform_state.translate_xyz;
-						auto draw_arrow_buttons = [&](const char* title,
-							const char* arrow_sub,
-							const char* arrow_add,
-							uint32_t i)->void
-						{
-							ImGui::Text(title);
-							ImGui::SameLine();
-							if (ImGui::ArrowButton(arrow_sub, ImGuiDir_Left)) {
-								prim_translate[i] -= primitive_move_speed;
-								UpdateDeviceData([&]() {
-									m_scene.UpdateTransform(transform_index);
-								});
-								set_instance_transform_flag();
-							}
-							ImGui::SameLine();
-							if (ImGui::ArrowButton(arrow_add, ImGuiDir_Right)) {
-								prim_translate[i] += primitive_move_speed;
-								UpdateDeviceData([&]() {
-									m_scene.UpdateTransform(transform_index);
-								});
-								set_instance_transform_flag();
-							}
-						};
-
-						draw_arrow_buttons("Translate X", "X-", "X+", 0);
-						draw_arrow_buttons("Translate Y", "Y-", "Y+", 1);
-						draw_arrow_buttons("Translate Z", "Z-", "Z+", 2);
+						draw_arrow_buttons("Translate X", "X-", "X+", prim_translate, transform_index, 0, primitive_is_light);
+						draw_arrow_buttons("Translate Y", "Y-", "Y+", prim_translate, transform_index, 1, primitive_is_light);
+						draw_arrow_buttons("Translate Z", "Z-", "Z+", prim_translate, transform_index, 2, primitive_is_light);
 						if (ImGui::InputFloat3("Translate", (float*)(&prim_translate))) {
 							UpdateDeviceData([&]() {
 								m_scene.UpdateTransform(transform_index);
 							});
-							set_instance_transform_flag();
+							set_instance_transform_flag(primitive_is_light);
 						}
 						ImGui::TreePop();
 					}
 					if (ImGui::TreeNode("Scale"))
 					{
 						glm::vec3& prim_scale = transform_state.scale_xyz;
-						auto draw_scale_slider = [&](const char* title, uint32_t i) {
-							if (ImGui::SliderFloat(title, &prim_scale[i], primitive_scale_lower, primitive_scale_upper)) {
-								UpdateDeviceData([&]() {
-									m_scene.UpdateTransform(transform_index);
-								});
-								set_instance_transform_flag();
-							}
-						};
-
-						draw_scale_slider("X scale", 0);
-						draw_scale_slider("Y scale", 1);
-						draw_scale_slider("Z scale", 2);
+						draw_scale_slider("X scale", prim_scale, transform_index, 0, primitive_is_light);
+						draw_scale_slider("Y scale", prim_scale, transform_index, 1, primitive_is_light);
+						draw_scale_slider("Z scale", prim_scale, transform_index, 2, primitive_is_light);
 						if (ImGui::InputFloat3("Scale", (float*)(&prim_scale))) {
 							prim_scale = glm::clamp(prim_scale, glm::vec3(primitive_scale_lower), glm::vec3(primitive_scale_upper));
 							UpdateDeviceData([&]() {
 								m_scene.UpdateTransform(transform_index);
 							});
-							set_instance_transform_flag();
+							set_instance_transform_flag(primitive_is_light);
 						}
 						ImGui::TreePop();
 					}
 					if (ImGui::TreeNode("Rotate"))
 					{
 						glm::vec3& prim_rotate = transform_state.rotate_xyz;
-						auto draw_rotate_slider = [&](const char* title, uint32_t i) {
-							if (ImGui::SliderFloat(title, &prim_rotate[i], 0.0f, 360.0f)) {
-								UpdateDeviceData([&]() {
-									m_scene.UpdateTransform(transform_index);
-								});
-								set_instance_transform_flag();
-							}
-						};
-
-						draw_rotate_slider("X Rotate", 0);
-						draw_rotate_slider("Y Rotate", 1);
-						draw_rotate_slider("Z Rotate", 2);
+						draw_rotate_slider("X Rotate", prim_rotate, transform_index, 0, primitive_is_light);
+						draw_rotate_slider("Y Rotate", prim_rotate, transform_index, 1, primitive_is_light);
+						draw_rotate_slider("Z Rotate", prim_rotate, transform_index, 2, primitive_is_light);
 						if (ImGui::InputFloat3("Rotate", (float*)(&prim_rotate))) {
 							prim_rotate = glm::clamp(prim_rotate, glm::vec3(0.0f), glm::vec3(360.0f));
 							UpdateDeviceData([&]() {
 								m_scene.UpdateTransform(transform_index);
 							});
-							set_instance_transform_flag();
+							set_instance_transform_flag(primitive_is_light);
 						}
 						ImGui::TreePop();
 					}
 					ImGui::Separator();
-					// TODO: transform hierarchy.
-					ImGui::Text("Here shows the reference relationship of transforms, you can right click the tree node to see its detailed information :)");
-					if (ImGui::TreeNode("Hierarchy")) {
+					
+					auto draw_transform_edit_board = [&](const uint32_t transform_index) {
 						if (ImGui::BeginPopupContextItem()) {
-							ImGui::Text("Reference relationship");
+							auto& primitive_transform_state = m_scene.transform_states.at(transform_index);
+
+							auto& translate = primitive_transform_state.translate_xyz;
+							draw_arrow_buttons("Translate X", "X-", "X+", translate, transform_index, 0, primitive_is_light);
+							draw_arrow_buttons("Translate Y", "Y-", "Y+", translate, transform_index, 1, primitive_is_light);
+							draw_arrow_buttons("Translate Z", "Z-", "Z+", translate, transform_index, 2, primitive_is_light);
+							if (ImGui::InputFloat3("Translate", (float*)(&translate))) {
+								UpdateDeviceData([&]() {
+									m_scene.UpdateTransform(transform_index);
+								});
+								set_instance_transform_flag(primitive_is_light);
+							}
+
+							auto& scale = primitive_transform_state.scale_xyz;
+							draw_scale_slider("X scale", scale, transform_index, 0, primitive_is_light);
+							draw_scale_slider("Y scale", scale, transform_index, 1, primitive_is_light);
+							draw_scale_slider("Z scale", scale, transform_index, 2, primitive_is_light);
+							if (ImGui::InputFloat3("Scale", (float*)(&scale))) {
+								scale = glm::clamp(scale, glm::vec3(primitive_scale_lower), glm::vec3(primitive_scale_upper));
+								UpdateDeviceData([&]() {
+									m_scene.UpdateTransform(transform_index);
+								});
+								set_instance_transform_flag(primitive_is_light);
+							}
+
+							auto &rotate = primitive_transform_state.rotate_xyz;
+							draw_rotate_slider("X Rotate", rotate, transform_index, 0, primitive_is_light);
+							draw_rotate_slider("Y Rotate", rotate, transform_index, 1, primitive_is_light);
+							draw_rotate_slider("Z Rotate", rotate, transform_index, 2, primitive_is_light);
+							if (ImGui::InputFloat3("Rotate", (float*)(&rotate))) {
+								rotate = glm::clamp(rotate, glm::vec3(0.0f), glm::vec3(360.0f));
+								UpdateDeviceData([&]() {
+									m_scene.UpdateTransform(transform_index);
+								});
+								set_instance_transform_flag(primitive_is_light);
+							}
 							ImGui::EndPopup();
 						}
+					};
+					std::function<void(const uint32_t)> draw_transform_node = [&](const uint32_t transform_index) {
+						const auto& transform_name = m_scene.transform_names.at(transform_index);
+						const auto parent_transform_index = m_scene.transform_states.at(transform_index).parent_transform_index;
+						if (ImGui::TreeNode(transform_name.c_str())) {
+							draw_transform_edit_board(transform_index);
+							if (parent_transform_index != EMPTY_UINT32) {
+								draw_transform_node(parent_transform_index);
+							}
+							ImGui::TreePop();
+						}
+					};
+
+					ImGui::Text("Here shows the reference relationship of transforms, you can right click the tree node to see its detailed information :)");
+					if (ImGui::TreeNode("Hierarchy")) {
+						
+						draw_transform_node(transform_index);
 						ImGui::TreePop();
 					}
 				}

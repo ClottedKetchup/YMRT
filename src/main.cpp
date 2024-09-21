@@ -44,18 +44,20 @@ void TestScene_CornellBox(const std::string& exec_path, std::shared_ptr<YumeRT::
 		scene_manager.CreateDefaultMaterial("bottom wall material", glm::vec3(0.75f, 0.75f, 0.75f), glm::vec3(1.0f), 0.15, 0.15, 1.45, 0.0f, 1.0f, 0.0f, 0, tex_checkerboard),
 		-1);
 
+	const auto group_transform_index = scene_manager.CreateTransform("cube group transform", glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(1.0f), glm::vec3(0.0f, 45.0f, 0.0f));
+
 	scene_manager.CreatePrimitiveInstance(cube_index,
-		scene_manager.CreateTransform("left cube transform", glm::vec3(-3.0f, -3.0f, -5.0f), glm::vec3(2.15f, 4.0f, 2.15f)),
+		scene_manager.CreateTransform("left cube transform", glm::vec3(-3.0f, -3.0f, -5.0f), glm::vec3(2.15f, 4.0f, 2.15f), glm::vec3(0.0f), group_transform_index),
 		scene_manager.CreateDefaultMaterial("left cube material", glm::vec3(0.75f, 0.75f, 0.75f)),
 		-1);
 
 	scene_manager.CreatePrimitiveInstance(cube_index,
-		scene_manager.CreateTransform("mid cube transform", glm::vec3(0.0f, -3.0f, -5.0f), glm::vec3(2.15f, 4.0f, 2.15f)),
+		scene_manager.CreateTransform("mid cube transform", glm::vec3(0.0f, -3.0f, -5.0f), glm::vec3(2.15f, 4.0f, 2.15f), glm::vec3(0.0f), group_transform_index),
 		scene_manager.CreateDefaultMaterial("mid cube material", glm::vec3(0.75f, 0.75f, 0.75f)),
 		-1);
 
 	scene_manager.CreatePrimitiveInstance(cube_index,
-		scene_manager.CreateTransform("right cube transform", glm::vec3(3.0f, -3.0f, -5.0f), glm::vec3(2.15f, 4.0f, 2.15f)),
+		scene_manager.CreateTransform("right cube transform", glm::vec3(3.0f, -3.0f, -5.0f), glm::vec3(2.15f, 4.0f, 2.15f), glm::vec3(0.0f), group_transform_index),
 		scene_manager.CreateDefaultMaterial("right cube material", glm::vec3(0.75f, 0.75f, 0.75f)),
 		-1);
 

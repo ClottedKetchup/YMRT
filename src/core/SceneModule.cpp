@@ -87,14 +87,12 @@ namespace YumeRT {
 		ResetSceneFlag(SCENE_INIT);
 	}
 
-	uint32_t SceneModule::CreateTransform(const std::string& name, const glm::vec3& translate, const glm::vec3& scale, const glm::vec3& rotate, const glm::vec3& pivot)
+	uint32_t SceneModule::CreateTransform(const std::string& name, const glm::vec3& translate, const glm::vec3& scale, const glm::vec3& rotate, const int parent_transform_index, const glm::vec3& pivot)
 	{
-		TransformState transform_state;
-		transform_state.translate_xyz = translate;
-		transform_state.scale_xyz = scale;
-		transform_state.rotate_xyz = rotate;
-
-		const auto transform_matrix = transform_state.GetTransformMatrix();
+		TransformState transform_state(translate, scale, rotate, parent_transform_index);
+		const auto transform_matrix = transform_state.GetTransformMatrix(transform_states, transforms, i_transforms);
+		
+		transform_state.SetValid();
 
 		transforms.emplace_back(transform_matrix);
 		i_transforms.emplace_back(glm::inverse(transform_matrix));
@@ -118,8 +116,10 @@ namespace YumeRT {
 		}
 
 		auto& scene_device_data = scene_resource.scene;
-		transforms[index] = transform_states[index].GetTransformMatrix();
+		transforms[index] = transform_states[index].GetTransformMatrix(transform_states, transforms, i_transforms);
 		i_transforms[index] = glm::inverse(transforms[index]);
+		
+		transform_states[index].SetValid();
 
 		assert(scene_device_data.transforms != nullptr && scene_device_data.i_transforms != nullptr);
 		TRANSFER_TO_GPU(scene_device_data.transforms + index, &transforms[index], sizeof(glm::mat4));
