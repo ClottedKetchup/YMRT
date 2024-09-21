@@ -198,7 +198,7 @@ namespace YumeRT
 		return node_count;
 	}
 
-	__host__ uint32_t ACBVHBuilder::BuildSceneBVH(std::vector<TopNode> &top_nodes, float *time, uint32_t *highlight_prim_idx)
+	__host__ uint32_t ACBVHBuilder::BuildSceneBVH(std::vector<TopNode> &top_nodes, float *time, uint32_t *highlight_prim_idx, std::unordered_map<uint32_t, uint32_t>* dst_indices_map)
 	{
 		// consider when prim_instance_count == 0...
 		if (prim_instance_count == 0)
@@ -259,6 +259,13 @@ namespace YumeRT
 		std::vector<uint32_t> dst_prims_interleave(prim_instance_count);
 		uint32_t node_count = FlattenAC(raw_nodes, total_node_count - 1, top_nodes, dst_prims_interleave.data());
 		assert(node_count == total_node_count);
+
+		if (dst_indices_map != nullptr) {
+			auto& index_to_index_map = *dst_indices_map;
+			for (uint32_t index = 0; index < prim_instance_count; ++index) {
+				index_to_index_map[index] = dst_prims_interleave[index];
+			}
+		}
 
 		std::vector<PrimitiveInstance> temp_prims(prim_instance_count);
 		concurrency::parallel_for((uint32_t)0, prim_instance_count, [&](uint32_t i)

@@ -203,6 +203,27 @@ namespace YumeRT{
 		void UpdateVolume(const uint32_t index);
 
 	private:
+		struct PrimitiveIndexGenerator{
+			uint32_t index_counter;
+			std::unordered_set<uint32_t> inused_index;
+
+			inline PrimitiveIndexGenerator() : index_counter(0), inused_index() {}
+			uint32_t GetNextIndex() {
+				while (inused_index.find(index_counter) != inused_index.end()) {
+					++index_counter;
+				}
+				uint32_t result_index = index_counter;
+				inused_index.insert(result_index);
+				return result_index;
+			}
+			void ReleaseIndex(uint32_t index) {
+				auto iter = inused_index.find(index);
+				if (iter != inused_index.end()) {
+					inused_index.erase(iter);
+				}
+			}
+		};
+
 		uint32_t scene_change_flag;
 
 		// note: device data block.
@@ -224,7 +245,9 @@ namespace YumeRT{
 		std::vector<uint32_t> geometry_reference_counters;
 		std::vector<std::string> geometry_names;
 
+		PrimitiveIndexGenerator primitive_index_generator;
 		std::vector<PrimitiveInstance> primitive_instances;
+		std::unordered_map<uint32_t, uint32_t> primitive_index_to_index_map;
 
 		std::vector<TopNode> top_nodes;
 

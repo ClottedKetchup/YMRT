@@ -197,15 +197,19 @@ namespace YumeRT {
 		auto& transform_reference_counter = transform_reference_counters[transform_index];
 		auto& material_reference_counter = material_reference_counters[material_index];
 
-		primitive_instances.emplace_back(PrimitiveInstance(geometry_index, transform_index, material_index, inner_volume_index, treat_as_boundary));
+		const auto unique_index = primitive_index_generator.GetNextIndex();
+
+		primitive_instances.emplace_back(PrimitiveInstance(unique_index, geometry_index, transform_index, material_index, inner_volume_index, treat_as_boundary));
 		++geometry_reference_counter, ++transform_reference_counter, ++material_reference_counter;
+
+		const auto primitive_instance_index = (uint32_t)primitive_instances.size() - 1;
+
+		primitive_index_to_index_map[unique_index] = primitive_instance_index;
 
 		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_INSTANCE_CREATE);
 		if (materials[material_index].material_type == LIGHT_MTL) {
 			AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CREATE);
 		}
-
-		const auto primitive_instance_index = (uint32_t)primitive_instances.size() - 1;
 		return primitive_instance_index;
 	}
 	void SceneModule::DeletePrimitiveInstance(const uint32_t index)
