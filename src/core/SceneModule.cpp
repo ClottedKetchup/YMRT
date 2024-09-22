@@ -97,12 +97,19 @@ namespace YumeRT {
 		transforms.emplace_back(transform_matrix);
 		i_transforms.emplace_back(glm::inverse(transform_matrix));
 		transform_states.emplace_back(transform_state);
-		transform_reference_counters.emplace_back(0);
 		transform_names.emplace_back(name);
 
-		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TRANSFORM_CREATE);
+		transform_reference_transform_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+		transform_reference_primitive_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+		transform_reference_light_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+		transform_reference_volume_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		const auto transform_index = (uint32_t)transform_states.size() - 1;
+		if (parent_transform_index != EMPTY_UINT32) {
+			transform_reference_transform_indices[parent_transform_index][transform_index]++;
+		}
+
+		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TRANSFORM_CREATE);
 		return transform_index;
 	}
 	void SceneModule::DeleteTransform(const uint32_t index)
@@ -136,49 +143,49 @@ namespace YumeRT {
 		std::vector<float>& mesh_texcoords)
 	{
 		geometries.emplace_back(GeometryData().InitCustomMesh(mesh_triangles, 
-			mesh_position_idxs, 
-			mesh_positions, 
-			mesh_normal_idxs, 
-			mesh_normals,
-			mesh_texcoord_idxs,
-			mesh_texcoords));
-		geometry_reference_counters.emplace_back(0);
+			mesh_position_idxs, mesh_positions, 
+			mesh_normal_idxs, mesh_normals,
+			mesh_texcoord_idxs, mesh_texcoords));
 		geometry_names.emplace_back(name);
+
+		geometry_reference_primitive_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		auto& mesh = geometries.back();
 		mesh.Upload();
 
-		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_GEOMETRY_CREATE);
-
 		const auto mesh_index = (uint32_t)geometries.size() - 1;
+
+		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_GEOMETRY_CREATE);
 		return mesh_index;
 	}
 	uint32_t SceneModule::CreateCube(const std::string& name)
 	{
 		geometries.emplace_back(GeometryData().InitCube());
-		geometry_reference_counters.emplace_back(0);
 		geometry_names.emplace_back(name);
+
+		geometry_reference_primitive_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		auto& cube = geometries.back();
 		cube.Upload();
 
-		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_GEOMETRY_CREATE);
-
 		const auto cube_index = (uint32_t)geometries.size() - 1;
+
+		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_GEOMETRY_CREATE);
 		return cube_index;
 	}
 	uint32_t SceneModule::CreateSphere(const std::string& name, const float radius)
 	{
 		geometries.emplace_back(GeometryData().InitSphere(radius));
-		geometry_reference_counters.emplace_back(0);
 		geometry_names.emplace_back(name);
+
+		geometry_reference_primitive_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		auto& sphere = geometries.back();
 		sphere.Upload();
 
-		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_GEOMETRY_CREATE);
-
 		const auto sphere_index = (uint32_t)geometries.size() - 1;
+
+		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_GEOMETRY_CREATE);
 		return sphere_index;
 	}
 	void SceneModule::DeleteGeometry(const uint32_t index)
@@ -192,22 +199,34 @@ namespace YumeRT {
 
 	uint32_t SceneModule::CreatePrimitiveInstance(const uint32_t geometry_index, const uint32_t transform_index, const uint32_t material_index, const int inner_volume_index, const bool treat_as_boundary)
 	{
-		assert(geometry_index < geometries.size() && transform_index < transform_states.size() && material_index < materials.size());
-		auto& geometry_reference_counter = geometry_reference_counters[geometry_index];
-		auto& transform_reference_counter = transform_reference_counters[transform_index];
-		auto& material_reference_counter = material_reference_counters[material_index];
+		if (!(geometry_index < geometries.size() && transform_index < transform_states.size())) {
+			return EMPTY_UINT32;
+		}
 
 		const auto unique_index = primitive_index_generator.GetNextIndex();
 
 		primitive_instances.emplace_back(PrimitiveInstance(unique_index, geometry_index, transform_index, material_index, inner_volume_index, treat_as_boundary));
-		++geometry_reference_counter, ++transform_reference_counter, ++material_reference_counter;
 
 		const auto primitive_instance_index = (uint32_t)primitive_instances.size() - 1;
+		
+		// note: for primitive, use unique index to specify it.
+		if (geometry_index != EMPTY_UINT32) {
+			geometry_reference_primitive_indices[geometry_index][unique_index]++;
+		}
+		if (transform_index != EMPTY_UINT32) {
+			transform_reference_primitive_indices[transform_index][unique_index]++;
+		}
+		if (material_index != EMPTY_UINT32) {
+			material_reference_primitive_indices[material_index][unique_index]++;
+		}
+		if (inner_volume_index != EMPTY_UINT32) {
+			volume_reference_primitive_indices[inner_volume_index][unique_index]++;
+		}
 
 		primitive_index_to_index_map[unique_index] = primitive_instance_index;
 
 		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_INSTANCE_CREATE);
-		if (materials[material_index].material_type == LIGHT_MTL) {
+		if (material_index != EMPTY_UINT32 && materials[material_index].material_type == LIGHT_MTL) {
 			AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CREATE);
 		}
 		return primitive_instance_index;
@@ -266,12 +285,13 @@ namespace YumeRT {
 			bump_mapping_tex);
 
 		materials.emplace_back(default_material);
-		material_reference_counters.emplace_back(0);
 		material_names.emplace_back(name);
 
-		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_MATERIAL_CREATE);
+		material_reference_primitive_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		const auto default_material_index = (uint32_t)materials.size() - 1;
+
+		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_MATERIAL_CREATE);
 		return default_material_index;
 	}
 	uint32_t SceneModule::CreateLightMaterial(const std::string& name, const glm::vec3& light_color, const float intensity)
@@ -279,12 +299,13 @@ namespace YumeRT {
 		auto light_material = Material().InitLightMtl(light_color, intensity);
 
 		materials.emplace_back(light_material);
-		material_reference_counters.emplace_back(0);
 		material_names.emplace_back(name);
+
+		material_reference_primitive_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+
+		const auto light_material_index = (uint32_t)materials.size() - 1;
 		
 		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_MATERIAL_CREATE);
-		
-		const auto light_material_index = (uint32_t)materials.size() - 1;
 		return light_material_index;
 	}
 	void SceneModule::DeleteMaterial(const uint32_t index)
@@ -322,9 +343,12 @@ namespace YumeRT {
 		textures.emplace_back(Texture().InitImageTexture(image_texture));
 		texture_names.emplace_back(name);
 
-		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE);
+		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		const auto texture_index = (uint32_t)textures.size() - 1;
+
+		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE);
 		return texture_index;
 	}
 	uint32_t SceneModule::CreateConstantTexture(const std::string& name, const float value)
@@ -334,9 +358,12 @@ namespace YumeRT {
 		textures.emplace_back(constant_texture_float);
 		texture_names.emplace_back(name);
 
-		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE);
+		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		const auto texture_index = (uint32_t)textures.size() - 1;
+
+		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE);
 		return texture_index;
 	}
 	uint32_t SceneModule::CreateConstantTexture(const std::string& name, const glm::vec3& color)
@@ -346,9 +373,12 @@ namespace YumeRT {
 		textures.emplace_back(constant_texture_rgb);
 		texture_names.emplace_back(name);
 
-		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE);
+		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		const auto texture_index = (uint32_t)textures.size() - 1;
+
+		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE);
 		return texture_index;
 	}
 	uint32_t SceneModule::CreateCheckerBoardTexture(const std::string& name,
@@ -360,9 +390,18 @@ namespace YumeRT {
 		textures.emplace_back(checkerboard_texture);
 		texture_names.emplace_back(name);
 
-		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE);
+		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		const auto texture_index = (uint32_t)textures.size() - 1;
+		if (texture_black_idx != EMPTY_UINT32) {
+			texture_reference_texture_indices[texture_black_idx][texture_index]++;
+		}
+		if (texture_white_idx != EMPTY_UINT32) {
+			texture_reference_texture_indices[texture_white_idx][texture_index]++;
+		}
+
+		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE);
 		return texture_index;
 	}
 	uint32_t SceneModule::CreateNoiseTexture(const std::string& name,
@@ -375,9 +414,18 @@ namespace YumeRT {
 		textures.emplace_back(noise_texture);
 		texture_names.emplace_back(name);
 
-		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE);
+		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		const auto texture_index = (uint32_t)textures.size() - 1;
+		if (texture_black_idx != EMPTY_UINT32) {
+			texture_reference_texture_indices[texture_black_idx][texture_index]++;
+		}
+		if (texture_white_idx != EMPTY_UINT32) {
+			texture_reference_texture_indices[texture_white_idx][texture_index]++;
+		}
+
+		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE);
 		return texture_index;
 	}
 	uint32_t SceneModule::CreateNoiseTextureFBM(const std::string& name,
@@ -396,9 +444,18 @@ namespace YumeRT {
 		textures.emplace_back(noise_texture_fbm);
 		texture_names.emplace_back(name);
 
-		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE);
+		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		const auto texture_index = (uint32_t)textures.size() - 1;
+		if (texture_black_idx != EMPTY_UINT32) {
+			texture_reference_texture_indices[texture_black_idx][texture_index]++;
+		}
+		if (texture_white_idx != EMPTY_UINT32) {
+			texture_reference_texture_indices[texture_white_idx][texture_index]++;
+		}
+
+		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE);
 		return texture_index;
 	}
 	uint32_t SceneModule::CreateNoiseTextureTurbulence(const std::string& name,
@@ -417,9 +474,18 @@ namespace YumeRT {
 		textures.emplace_back(noise_texture_turbulence);
 		texture_names.emplace_back(name);
 
-		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE);
+		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		const auto texture_index = (uint32_t)textures.size() - 1;
+		if (texture_black_idx != EMPTY_UINT32) {
+			texture_reference_texture_indices[texture_black_idx][texture_index]++;
+		}
+		if (texture_white_idx != EMPTY_UINT32) {
+			texture_reference_texture_indices[texture_white_idx][texture_index]++;
+		}
+
+		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE);
 		return texture_index;
 	}
 	uint32_t SceneModule::CreateNoiseTextureMarble(const std::string& name,
@@ -440,9 +506,18 @@ namespace YumeRT {
 		textures.emplace_back(noise_texture_marble);
 		texture_names.emplace_back(name);
 
-		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE);
+		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		const auto texture_index = (uint32_t)textures.size() - 1;
+		if (texture_black_idx != EMPTY_UINT32) {
+			texture_reference_texture_indices[texture_black_idx][texture_index]++;
+		}
+		if (texture_white_idx != EMPTY_UINT32) {
+			texture_reference_texture_indices[texture_white_idx][texture_index]++;
+		}
+
+		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE);
 		return texture_index;
 	}
 	uint32_t SceneModule::CreateNoiseTextureWood(const std::string& name,
@@ -457,9 +532,18 @@ namespace YumeRT {
 		textures.emplace_back(noise_texture_wood);
 		texture_names.emplace_back(name);
 
-		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE);
+		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		const auto texture_index = (uint32_t)textures.size() - 1;
+		if (texture_black_idx != EMPTY_UINT32) {
+			texture_reference_texture_indices[texture_black_idx][texture_index]++;
+		}
+		if (texture_white_idx != EMPTY_UINT32) {
+			texture_reference_texture_indices[texture_white_idx][texture_index]++;
+		}
+
+		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE);
 		return texture_index;
 	}
 	uint32_t SceneModule::CreateNoiseTexturePolkaDot(const std::string& name,
@@ -474,9 +558,18 @@ namespace YumeRT {
 		textures.emplace_back(noise_texture_polka_dot);
 		texture_names.emplace_back(name);
 
-		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE);
+		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		const auto texture_index = (uint32_t)textures.size() - 1;
+		if (texture_black_idx != EMPTY_UINT32) {
+			texture_reference_texture_indices[texture_black_idx][texture_index]++;
+		}
+		if (texture_white_idx != EMPTY_UINT32) {
+			texture_reference_texture_indices[texture_white_idx][texture_index]++;
+		}
+
+		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE);
 		return texture_index;
 	}
 	uint32_t SceneModule::CreateNoiseTextureWave(const std::string& name,
@@ -495,9 +588,18 @@ namespace YumeRT {
 		textures.emplace_back(noise_texture_wave);
 		texture_names.emplace_back(name);
 
-		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE);
+		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		const auto texture_index = (uint32_t)textures.size() - 1;
+		if (texture_black_idx != EMPTY_UINT32) {
+			texture_reference_texture_indices[texture_black_idx][texture_index]++;
+		}
+		if (texture_white_idx != EMPTY_UINT32) {
+			texture_reference_texture_indices[texture_white_idx][texture_index]++;
+		}
+
+		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE);
 		return texture_index;
 	}
 	void SceneModule::DeleteTexture(const uint32_t index)
@@ -511,18 +613,21 @@ namespace YumeRT {
 
 	uint32_t SceneModule::CreateDistantLight(const std::string& name, const glm::vec3& light_color, const uint32_t transform_index, float intensity, float theta_max)
 	{
-		assert(transform_index < transform_states.size());
+		if (!(transform_index < transform_states.size())) {
+			return EMPTY_UINT32;
+		}
+
 		DistantLight distant_light(light_color, transform_index, intensity, theta_max);
 
 		distant_lights.emplace_back(distant_light);
 		distant_light_names.emplace_back(name);
 
-		auto& transform_reference_counter = transform_reference_counters[transform_index];
-		++transform_reference_counter;
+		const auto distant_light_index = (uint32_t)distant_lights.size() - 1;
+		if (transform_index != EMPTY_UINT32) {
+			transform_reference_light_indices[transform_index][distant_light_index]++;
+		}
 
 		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_DISTANT_LIGHT_CREATE);
-
-		const auto distant_light_index = (uint32_t)distant_lights.size() - 1;
 		return distant_light_index;
 	}
 	void SceneModule::DeleteDistantLight(const uint32_t index)
@@ -638,7 +743,10 @@ namespace YumeRT {
 
 	uint32_t SceneModule::CreateVolume(const std::string& name, const uint32_t transform_index, const glm::vec3& sigma_t, const glm::vec3& albedo, const float g, const int density_texture_index)
 	{
-		assert(transform_index < transform_states.size());
+		if (!(transform_index < transforms.size())) {
+			return EMPTY_UINT32;
+		}
+
 		Volume volume;
 		volume.sigma_t = sigma_t;
 		volume.albedo = albedo;
@@ -649,12 +757,14 @@ namespace YumeRT {
 		volumes.emplace_back(volume);
 		volume_names.emplace_back(name);
 
-		auto& transform_reference_counter = transform_reference_counters[transform_index];
-		++transform_reference_counter;
-
-		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_VOLUME_CREATE);
+		volume_reference_primitive_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		const auto volume_index = (uint32_t)volumes.size() - 1;
+		if (transform_index != EMPTY_UINT32) {
+			transform_reference_volume_indices[transform_index][volume_index]++;
+		}
+
+		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_VOLUME_CREATE);
 		return volume_index;
 	}
 	void SceneModule::DeleteVolume(const uint32_t index)

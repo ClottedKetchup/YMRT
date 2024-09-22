@@ -238,11 +238,14 @@ namespace YumeRT{
 		std::vector<TransformState> transform_states;
 		std::vector<glm::mat4> transforms;
 		std::vector<glm::mat4> i_transforms;
-		std::vector<uint32_t> transform_reference_counters;
+		std::vector<std::unordered_map<uint32_t, uint32_t>> transform_reference_transform_indices;
+		std::vector<std::unordered_map<uint32_t, uint32_t>> transform_reference_primitive_indices;
+		std::vector<std::unordered_map<uint32_t, uint32_t>> transform_reference_light_indices;
+		std::vector<std::unordered_map<uint32_t, uint32_t>> transform_reference_volume_indices;
 		std::vector<std::string> transform_names;
 
 		std::vector<GeometryData> geometries;
-		std::vector<uint32_t> geometry_reference_counters;
+		std::vector<std::unordered_map<uint32_t, uint32_t>> geometry_reference_primitive_indices;
 		std::vector<std::string> geometry_names;
 
 		PrimitiveIndexGenerator primitive_index_generator;
@@ -252,10 +255,12 @@ namespace YumeRT{
 		std::vector<TopNode> top_nodes;
 
 		std::vector<Material> materials;
-		std::vector<uint32_t> material_reference_counters;
+		std::vector<std::unordered_map<uint32_t, uint32_t>> material_reference_primitive_indices;
 		std::vector<std::string> material_names;
 
 		std::vector<Texture> textures;
+		std::vector<std::unordered_map<uint32_t, uint32_t>> texture_reference_material_indices;
+		std::vector<std::unordered_map<uint32_t, uint32_t>> texture_reference_texture_indices;
 		std::vector<std::string> texture_names;
 
 		std::vector<DistantLight> distant_lights;
@@ -265,6 +270,7 @@ namespace YumeRT{
 		std::vector<float> shape_light_sample_table;
 
 		std::vector<Volume> volumes;
+		std::vector<std::unordered_map<uint32_t, uint32_t>> volume_reference_primitive_indices;
 		std::vector<std::string> volume_names;
 
 		std::vector<uint32_t> permute_table;

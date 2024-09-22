@@ -472,7 +472,7 @@ namespace YumeRT {
 		enum ObjectType {
 			Type_Directional_Light = 0, Type_Primitive_Instance = 1, Type_Volume = 2
 		};
-		ObjectType object_type_to_render = Type_Primitive_Instance;
+		ObjectType object_type_to_render = ObjectType::Type_Primitive_Instance;
 
 		static int selected_directional_index = EMPTY_UINT32;
 		static uint32_t selected_primitive_unique_index = EMPTY_UINT32;
@@ -523,18 +523,36 @@ namespace YumeRT {
 		if (selected_primitive_array_index_valid) {
 			// TODO: use selectable list.
 			auto& selected_primitive_instance = m_scene.primitive_instances.at(selected_primitive_array_index);
+
+			const auto original_geometry_index = selected_primitive_instance.geometry_idx;
 			if (ImGui::InputInt("Geometry index", (int*)(&selected_primitive_instance.geometry_idx))) {
 				selected_primitive_instance.geometry_idx = glm::clamp(selected_primitive_instance.geometry_idx, 0u, (uint32_t)m_scene.geometries.size() - 1);
 				UpdateDeviceData([&]() {
 					m_scene.UpdatePrimitiveInstance(selected_primitive_array_index);
 				});
+
+				const auto current_geometry_index = selected_primitive_instance.geometry_idx;
+				if ((--m_scene.geometry_reference_primitive_indices[original_geometry_index][selected_primitive_unique_index]) == 0) {
+					m_scene.geometry_reference_primitive_indices[original_geometry_index].erase(selected_primitive_unique_index);
+				}
+				m_scene.geometry_reference_primitive_indices[current_geometry_index][selected_primitive_unique_index]++;
+
 				m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_GEOMETRY_CHANGE);
 			}
+
+			const auto original_transform_index = selected_primitive_instance.transform_idx;
 			if (ImGui::InputInt("Transform index", (int*)(&selected_primitive_instance.transform_idx))) {
 				selected_primitive_instance.transform_idx = glm::clamp(selected_primitive_instance.transform_idx, 0u, (uint32_t)m_scene.transform_states.size() - 1);
 				UpdateDeviceData([&]() {
 					m_scene.UpdatePrimitiveInstance(selected_primitive_array_index);
 				});
+
+				const auto current_transform_index = selected_primitive_instance.transform_idx;
+				if ((--m_scene.transform_reference_primitive_indices[original_transform_index][selected_primitive_unique_index]) == 0) {
+					m_scene.transform_reference_primitive_indices[original_transform_index].erase(selected_primitive_unique_index);
+				}
+				m_scene.transform_reference_primitive_indices[current_transform_index][selected_primitive_unique_index]++;
+
 				m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_TRANSFORM_CHANGE);
 			}
 
@@ -544,17 +562,32 @@ namespace YumeRT {
 				UpdateDeviceData([&]() {
 					m_scene.UpdatePrimitiveInstance(selected_primitive_array_index);
 				});
+
+				const auto current_material_index = selected_primitive_instance.material_idx;
+				if ((--m_scene.material_reference_primitive_indices[original_material_index][selected_primitive_unique_index]) == 0) {
+					m_scene.material_reference_primitive_indices[original_material_index].erase(selected_primitive_unique_index);
+				}
+				m_scene.material_reference_primitive_indices[current_material_index][selected_primitive_unique_index]++;
+
 				m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_MATERIAL_CHANGE);
 				if (m_scene.materials[selected_primitive_instance.material_idx].material_type == LIGHT_MTL || m_scene.materials[original_material_index].material_type == LIGHT_MTL) {
 					m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE);
 				}
 			}
 
+			const auto original_inner_volume_index = selected_primitive_instance.inner_volume_idx;
 			if (ImGui::InputInt("Inner volume index", (int*)(&selected_primitive_instance.inner_volume_idx))) {
 				selected_primitive_instance.inner_volume_idx = glm::clamp(selected_primitive_instance.inner_volume_idx, -1, (int)m_scene.volumes.size() - 1);
 				UpdateDeviceData([&]() {
 					m_scene.UpdatePrimitiveInstance(selected_primitive_array_index);
 				});
+
+				const auto current_inner_volume_index = selected_primitive_instance.inner_volume_idx;
+				if ((--m_scene.volume_reference_primitive_indices[original_inner_volume_index][selected_primitive_unique_index]) == 0) {
+					m_scene.volume_reference_primitive_indices[original_inner_volume_index].erase(selected_primitive_unique_index);
+				}
+				m_scene.volume_reference_primitive_indices[current_inner_volume_index][selected_primitive_unique_index]++;
+
 				m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_VOLUME_CHANGE);
 			}
 
@@ -594,6 +627,19 @@ namespace YumeRT {
 						m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE);
 					}
 				};
+				
+				// note: according to test, one hierarchy's update is about 200 nanoseconds.
+				std::function<void(const uint32_t transform_index)> update_transform_hierarchy = [&](const uint32_t transform_index) {
+					m_scene.UpdateTransform(transform_index);
+					for (const auto& item : m_scene.transform_reference_transform_indices[transform_index]) {
+						if (item.second == 0) {
+							continue;
+						}
+						const auto referenct_transform_index = item.first;
+						update_transform_hierarchy(referenct_transform_index);
+					}
+				};
+
 				auto draw_arrow_buttons = [&](const char* title,
 					const char* arrow_sub,
 					const char* arrow_add,
@@ -608,7 +654,7 @@ namespace YumeRT {
 					if (ImGui::ArrowButton(arrow_sub, ImGuiDir_Left)) {
 						primitive_translate[i] -= primitive_move_speed;
 						UpdateDeviceData([&]() {
-							m_scene.UpdateTransform(transform_index);
+							update_transform_hierarchy(transform_index);
 						});
 						set_instance_transform_flag(primitive_is_light);
 					}
@@ -616,8 +662,8 @@ namespace YumeRT {
 					if (ImGui::ArrowButton(arrow_add, ImGuiDir_Right)) {
 						primitive_translate[i] += primitive_move_speed;
 						UpdateDeviceData([&]() {
-							m_scene.UpdateTransform(transform_index);
-							});
+							update_transform_hierarchy(transform_index);
+						});
 						set_instance_transform_flag(primitive_is_light);
 					}
 					ImGui::PopButtonRepeat();
@@ -629,7 +675,7 @@ namespace YumeRT {
 					const bool primitive_is_light) {
 					if (ImGui::SliderFloat(title, &primitive_scale[i], primitive_scale_lower, primitive_scale_upper)) {
 						UpdateDeviceData([&]() {
-							m_scene.UpdateTransform(transform_index);
+							update_transform_hierarchy(transform_index);
 						});
 						set_instance_transform_flag(primitive_is_light);
 					}
@@ -641,7 +687,7 @@ namespace YumeRT {
 					const bool primitive_is_light) {
 					if (ImGui::SliderFloat(title, &primitive_rotate[i], 0.0f, 360.0f)) {
 						UpdateDeviceData([&]() {
-							m_scene.UpdateTransform(transform_index);
+							update_transform_hierarchy(transform_index);
 						});
 						set_instance_transform_flag(primitive_is_light);
 					}
@@ -651,7 +697,37 @@ namespace YumeRT {
 				{
 					const auto transform_index = m_scene.primitive_instances.at(selected_primitive_array_index).transform_idx;
 					const auto material_index = m_scene.primitive_instances.at(selected_primitive_array_index).material_idx;
-					const bool primitive_is_light = m_scene.materials[material_index].material_type == LIGHT_MTL;
+					
+					std::function<bool(const uint32_t transform_index)> check_influence_shape_light = [&](const uint32_t transform_index) {
+						bool influence_shape_light = false;
+						for (const auto& item : m_scene.transform_reference_primitive_indices[transform_index]) {
+							if (item.second == 0) {
+								continue;
+							}
+							const auto primitive_unique_index = item.first;
+							const auto primitive_offset = m_scene.primitive_index_to_index_map[primitive_unique_index];
+							const auto primitive_material_index = m_scene.primitive_instances.at(primitive_offset).material_idx;
+							if (primitive_material_index != EMPTY_UINT32 && m_scene.materials[primitive_material_index].material_type == LIGHT_MTL) {
+								influence_shape_light = true;
+								break;
+							}
+						}
+
+						for (const auto& item : m_scene.transform_reference_transform_indices[transform_index]) {
+							if (item.second == 0) {
+								continue;
+							}
+							const auto referenct_transform_index = item.first;
+							if (referenct_transform_index != EMPTY_UINT32 && check_influence_shape_light(referenct_transform_index)) {
+								influence_shape_light = true;
+								break;
+							}
+						}
+
+						return influence_shape_light;
+					};
+					
+					const bool primitive_is_light = check_influence_shape_light(transform_index);
 					
 					auto& transform_state = m_scene.transform_states[transform_index];
 					if (ImGui::TreeNode("Translate"))
@@ -662,7 +738,7 @@ namespace YumeRT {
 						draw_arrow_buttons("Translate Z", "Z-", "Z+", prim_translate, transform_index, 2, primitive_is_light);
 						if (ImGui::InputFloat3("Translate", (float*)(&prim_translate))) {
 							UpdateDeviceData([&]() {
-								m_scene.UpdateTransform(transform_index);
+								update_transform_hierarchy(transform_index);
 							});
 							set_instance_transform_flag(primitive_is_light);
 						}
@@ -677,7 +753,7 @@ namespace YumeRT {
 						if (ImGui::InputFloat3("Scale", (float*)(&prim_scale))) {
 							prim_scale = glm::clamp(prim_scale, glm::vec3(primitive_scale_lower), glm::vec3(primitive_scale_upper));
 							UpdateDeviceData([&]() {
-								m_scene.UpdateTransform(transform_index);
+								update_transform_hierarchy(transform_index);
 							});
 							set_instance_transform_flag(primitive_is_light);
 						}
@@ -692,7 +768,7 @@ namespace YumeRT {
 						if (ImGui::InputFloat3("Rotate", (float*)(&prim_rotate))) {
 							prim_rotate = glm::clamp(prim_rotate, glm::vec3(0.0f), glm::vec3(360.0f));
 							UpdateDeviceData([&]() {
-								m_scene.UpdateTransform(transform_index);
+								update_transform_hierarchy(transform_index);
 							});
 							set_instance_transform_flag(primitive_is_light);
 						}
@@ -710,7 +786,7 @@ namespace YumeRT {
 							draw_arrow_buttons("Translate Z", "Z-", "Z+", translate, transform_index, 2, primitive_is_light);
 							if (ImGui::InputFloat3("Translate", (float*)(&translate))) {
 								UpdateDeviceData([&]() {
-									m_scene.UpdateTransform(transform_index);
+									update_transform_hierarchy(transform_index);
 								});
 								set_instance_transform_flag(primitive_is_light);
 							}
@@ -722,7 +798,7 @@ namespace YumeRT {
 							if (ImGui::InputFloat3("Scale", (float*)(&scale))) {
 								scale = glm::clamp(scale, glm::vec3(primitive_scale_lower), glm::vec3(primitive_scale_upper));
 								UpdateDeviceData([&]() {
-									m_scene.UpdateTransform(transform_index);
+									update_transform_hierarchy(transform_index);
 								});
 								set_instance_transform_flag(primitive_is_light);
 							}
@@ -734,7 +810,7 @@ namespace YumeRT {
 							if (ImGui::InputFloat3("Rotate", (float*)(&rotate))) {
 								rotate = glm::clamp(rotate, glm::vec3(0.0f), glm::vec3(360.0f));
 								UpdateDeviceData([&]() {
-									m_scene.UpdateTransform(transform_index);
+									update_transform_hierarchy(transform_index);
 								});
 								set_instance_transform_flag(primitive_is_light);
 							}
@@ -755,7 +831,6 @@ namespace YumeRT {
 
 					ImGui::Text("Here shows the reference relationship of transforms, you can right click the tree node to see its detailed information :)");
 					if (ImGui::TreeNode("Hierarchy")) {
-						
 						draw_transform_node(transform_index);
 						ImGui::TreePop();
 					}
