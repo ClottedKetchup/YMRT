@@ -1063,6 +1063,76 @@ namespace YumeRT {
 		};
 		const uint32_t scene_texture_change_flag = (SceneModule::SCENE_CHANGE_FLAG::SCENE_TEXTURE_CHANGE | check_texture_derive_change(texture_index));
 
+		std::function<bool(const uint32_t, const uint32_t)> check_texture_reference_loop = [&](const uint32_t start_texture_index, const uint32_t current_texture_index) {
+			if (current_texture_index == start_texture_index) {
+				return true;
+			}
+			for (const auto reference_item : m_scene.texture_reference_texture_indices[current_texture_index]) {
+				if (check_texture_reference_loop(start_texture_index, reference_item.first)) {
+					return true;
+				}
+			}
+			return false;
+		};
+		auto draw_texture_selector = [&](const uint32_t parent_texture_index, const char *selector_name, uint32_t * child_texture_index, bool * has_circle) {
+			assert(child_texture_index != nullptr);
+			auto& textures = m_scene.textures;
+			auto& texture_names = m_scene.texture_names;
+			auto& selected_texture_index = *child_texture_index;
+
+			const auto original_texture_index = selected_texture_index;
+			if (*has_circle) {
+				ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(250, 4, 4, 255));
+				ImGui::Text("Sorry, you can't connect to this texture! that will form a loop reference relationship :(");
+				ImGui::PopStyleColor();
+			}
+			if (ImGui::BeginCombo(selector_name, selected_texture_index == EMPTY_UINT32 ? "NULL" : texture_names[selected_texture_index].c_str())) {
+				if (ImGui::Selectable("Null")) {
+					if (selected_texture_index != EMPTY_UINT32) {
+						selected_texture_index = EMPTY_UINT32;
+						UpdateDeviceData([&]() {
+							m_scene.UpdateTexture(parent_texture_index);
+							});
+
+						if ((uint32_t)original_texture_index < textures.size() && (--m_scene.texture_reference_texture_indices[original_texture_index][parent_texture_index]) == 0) {
+							m_scene.texture_reference_texture_indices[original_texture_index].erase(parent_texture_index);
+						}
+
+						m_scene.AddSceneFlag(scene_texture_change_flag);
+					}
+				}
+				for (int texture_index = 0; texture_index < (int)textures.size(); ++texture_index) {
+					if (ImGui::Selectable(texture_names[texture_index].c_str())) {
+						if (texture_index == selected_texture_index) {
+							continue;
+						}
+						if (check_texture_reference_loop(parent_texture_index, texture_index)) {
+							*has_circle = true;
+							continue;
+						}
+
+						*has_circle = false;
+						selected_texture_index = texture_index;
+						UpdateDeviceData([&]() {
+							m_scene.UpdateTexture(parent_texture_index);
+						});
+
+						const auto current_texture_index = texture_index;
+						if ((uint32_t)original_texture_index < textures.size() && (--m_scene.texture_reference_texture_indices[original_texture_index][parent_texture_index]) == 0) {
+							m_scene.texture_reference_texture_indices[original_texture_index].erase(parent_texture_index);
+						}
+						if (current_texture_index < textures.size()) {
+							m_scene.texture_reference_texture_indices[current_texture_index][parent_texture_index]++;
+						}
+
+						m_scene.AddSceneFlag(scene_texture_change_flag);
+					}
+				}
+				ImGui::EndCombo();
+			}
+			
+		};
+
 		auto& texture = m_scene.textures.at(texture_index);
 		if (texture.texture_type == IMAGE_TEXTURE)
 		{
@@ -1132,10 +1202,11 @@ namespace YumeRT {
 		{
 			CheckerBoardTexture& checkerboard = texture.checker_board_texture;
 
-			ImGui::Text("Child Texture black: %s", checkerboard.child_texture_indices.texture_black < m_scene.textures.size() ?
-				m_scene.texture_names.at(checkerboard.child_texture_indices.texture_black).c_str() : "Null");
-			ImGui::Text("Child Texture white: %s", checkerboard.child_texture_indices.texture_white < m_scene.textures.size() ?
-				m_scene.texture_names.at(checkerboard.child_texture_indices.texture_white).c_str() : "Null");
+			static bool has_circle_black = false;
+			draw_texture_selector(texture_index, "Checker Child Texture black", & checkerboard.child_texture_indices.texture_black, &has_circle_black);
+			static bool has_circle_white = false;
+			draw_texture_selector(texture_index, "Checker Child Texture white", &checkerboard.child_texture_indices.texture_white, &has_circle_white);
+
 			if (ImGui::InputFloat("frequency", &checkerboard.frequency)) {
 				checkerboard.frequency = glm::max(0.0001f, checkerboard.frequency);
 				UpdateDeviceData([&]() {
@@ -1148,10 +1219,11 @@ namespace YumeRT {
 		{
 			NoiseTexture& perlin_noise_tex = texture.noise_texture;
 
-			ImGui::Text("Child Texture black: %s", perlin_noise_tex.child_texture_indices.texture_black < m_scene.textures.size() ?
-				m_scene.texture_names.at(perlin_noise_tex.child_texture_indices.texture_black).c_str() : "Null");
-			ImGui::Text("Child Texture white: %s", perlin_noise_tex.child_texture_indices.texture_white < m_scene.textures.size() ?
-				m_scene.texture_names.at(perlin_noise_tex.child_texture_indices.texture_white).c_str() : "Null");
+			static bool has_circle_black = false;
+			draw_texture_selector(texture_index, "noise Child Texture black", &perlin_noise_tex.child_texture_indices.texture_black, &has_circle_black);
+			static bool has_circle_white = false;
+			draw_texture_selector(texture_index, "noise Child Texture white", &perlin_noise_tex.child_texture_indices.texture_white, &has_circle_white);
+
 			if (ImGui::Checkbox("Normalized", &perlin_noise_tex.normalized)) {
 				UpdateDeviceData([&]() {
 					m_scene.UpdateTexture(texture_index);
@@ -1170,10 +1242,11 @@ namespace YumeRT {
 		{
 			NoiseTextureFBM& noise_texture_fbm = texture.noise_texture_fbm;
 
-			ImGui::Text("Child Texture black: %s", noise_texture_fbm.child_texture_indices.texture_black < m_scene.textures.size() ?
-				m_scene.texture_names.at(noise_texture_fbm.child_texture_indices.texture_black).c_str() : "Null");
-			ImGui::Text("Child Texture white: %s", noise_texture_fbm.child_texture_indices.texture_white < m_scene.textures.size() ?
-				m_scene.texture_names.at(noise_texture_fbm.child_texture_indices.texture_white).c_str() : "Null");
+			static bool has_circle_black = false;
+			draw_texture_selector(texture_index, "Fbm noise Child Texture black", &noise_texture_fbm.child_texture_indices.texture_black, &has_circle_black);
+			static bool has_circle_white = false;
+			draw_texture_selector(texture_index, "Fbm noise Child Texture white", &noise_texture_fbm.child_texture_indices.texture_white, &has_circle_white);
+
 			if (ImGui::InputFloat("amplitude", &noise_texture_fbm.amplitude)) {
 				noise_texture_fbm.amplitude = glm::max(noise_texture_fbm.amplitude, 0.0f);
 				UpdateDeviceData([&]() {
@@ -1220,10 +1293,11 @@ namespace YumeRT {
 		{
 			NoiseTextureTurbulence& noise_texture_turbulence = texture.noise_texture_turbulence;
 
-			ImGui::Text("Child Texture black: %s", noise_texture_turbulence.child_texture_indices.texture_black < m_scene.textures.size() ?
-				m_scene.texture_names.at(noise_texture_turbulence.child_texture_indices.texture_black).c_str() : "Null");
-			ImGui::Text("Child Texture white: %s", noise_texture_turbulence.child_texture_indices.texture_white < m_scene.textures.size() ?
-				m_scene.texture_names.at(noise_texture_turbulence.child_texture_indices.texture_white).c_str() : "Null");
+			static bool has_circle_black = false;
+			draw_texture_selector(texture_index, "Turb noise Child Texture black", &noise_texture_turbulence.child_texture_indices.texture_black, &has_circle_black);
+			static bool has_circle_white = false;
+			draw_texture_selector(texture_index, "Turb noise Child Texture white", &noise_texture_turbulence.child_texture_indices.texture_white, &has_circle_white);
+
 			if (ImGui::InputFloat("amplitude", &noise_texture_turbulence.amplitude)) {
 				noise_texture_turbulence.amplitude = glm::max(noise_texture_turbulence.amplitude, 0.0f);
 				UpdateDeviceData([&]() {
@@ -1270,10 +1344,11 @@ namespace YumeRT {
 		{
 			NoiseTextureMarble& noise_texture_marble = texture.noise_texture_marble;
 
-			ImGui::Text("Child Texture black: %s", noise_texture_marble.child_texture_indices.texture_black < m_scene.textures.size() ?
-				m_scene.texture_names.at(noise_texture_marble.child_texture_indices.texture_black).c_str() : "Null");
-			ImGui::Text("Child Texture white: %s", noise_texture_marble.child_texture_indices.texture_white < m_scene.textures.size() ?
-				m_scene.texture_names.at(noise_texture_marble.child_texture_indices.texture_white).c_str() : "Null");
+			static bool has_circle_black = false;
+			draw_texture_selector(texture_index, "Marble noise Child Texture black", &noise_texture_marble.child_texture_indices.texture_black, &has_circle_black);
+			static bool has_circle_white = false;
+			draw_texture_selector(texture_index, "Marble noise Child Texture white", &noise_texture_marble.child_texture_indices.texture_white, &has_circle_white);
+
 			if (ImGui::InputFloat("variation", &noise_texture_marble.variation)) {
 				UpdateDeviceData([&]() {
 					m_scene.UpdateTexture(texture_index);
@@ -1331,10 +1406,11 @@ namespace YumeRT {
 		{
 			NoiseTextureWood& noise_texture_wood = texture.noise_texture_wood;
 
-			ImGui::Text("Child Texture black: %s", noise_texture_wood.child_texture_indices.texture_black < m_scene.textures.size() ?
-				m_scene.texture_names.at(noise_texture_wood.child_texture_indices.texture_black).c_str() : "Null");
-			ImGui::Text("Child Texture white: %s", noise_texture_wood.child_texture_indices.texture_white < m_scene.textures.size() ?
-				m_scene.texture_names.at(noise_texture_wood.child_texture_indices.texture_white).c_str() : "Null");
+			static bool has_circle_black = false;
+			draw_texture_selector(texture_index, "Wood noise Child Texture black", &noise_texture_wood.child_texture_indices.texture_black, &has_circle_black);
+			static bool has_circle_white = false;
+			draw_texture_selector(texture_index, "Wood noise Child Texture white", &noise_texture_wood.child_texture_indices.texture_white, &has_circle_white);
+
 			if (ImGui::InputFloat("variation", &noise_texture_wood.variation)) {
 				noise_texture_wood.variation = glm::max(0.f, noise_texture_wood.variation);
 				UpdateDeviceData([&]() {
@@ -1354,10 +1430,11 @@ namespace YumeRT {
 		{
 			NoiseTexturePolkaDot& noise_texture_polka_dot = texture.noise_texture_polka_dot;
 
-			ImGui::Text("Child Texture black: %s", noise_texture_polka_dot.child_texture_indices.texture_black < m_scene.textures.size() ?
-				m_scene.texture_names.at(noise_texture_polka_dot.child_texture_indices.texture_black).c_str() : "Null");
-			ImGui::Text("Child Texture white: %s", noise_texture_polka_dot.child_texture_indices.texture_white < m_scene.textures.size() ?
-				m_scene.texture_names.at(noise_texture_polka_dot.child_texture_indices.texture_white).c_str() : "Null");
+			static bool has_circle_black = false;
+			draw_texture_selector(texture_index, "Dot noise Child Texture black", &noise_texture_polka_dot.child_texture_indices.texture_black, &has_circle_black);
+			static bool has_circle_white = false;
+			draw_texture_selector(texture_index, "Dot noise Child Texture white", &noise_texture_polka_dot.child_texture_indices.texture_white, &has_circle_white);
+
 			if (ImGui::InputFloat("radius", &noise_texture_polka_dot.radius)) {
 				noise_texture_polka_dot.radius = glm::clamp(noise_texture_polka_dot.radius, 0.0f, 0.5f);
 				UpdateDeviceData([&]() {
@@ -1377,10 +1454,11 @@ namespace YumeRT {
 		{
 			NoiseTextureWave& noise_texture_wave = texture.noise_texture_wave;
 
-			ImGui::Text("Child Texture black: %s", noise_texture_wave.child_texture_indices.texture_black < m_scene.textures.size() ?
-				m_scene.texture_names.at(noise_texture_wave.child_texture_indices.texture_black).c_str() : "Null");
-			ImGui::Text("Child Texture white: %s", noise_texture_wave.child_texture_indices.texture_white < m_scene.textures.size() ?
-				m_scene.texture_names.at(noise_texture_wave.child_texture_indices.texture_white).c_str() : "Null");
+			static bool has_circle_black = false;
+			draw_texture_selector(texture_index, "Wave noise Child Texture black", &noise_texture_wave.child_texture_indices.texture_black, &has_circle_black);
+			static bool has_circle_white= false;
+			draw_texture_selector(texture_index, "Wave noise Child Texture white", &noise_texture_wave.child_texture_indices.texture_white, &has_circle_white);
+
 			if (ImGui::InputFloat("frequency0", &noise_texture_wave.freq_0)) {
 				noise_texture_wave.freq_0 = glm::max(0.0001f, noise_texture_wave.freq_0);
 				UpdateDeviceData([&]() {
@@ -1747,9 +1825,6 @@ namespace YumeRT {
 
 		io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 		io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
-
-		// use invisible button to do this. No, use image button.
-		// io.ConfigWindowsMoveFromTitleBarOnly = true;
 
 		ImGui::StyleColorsClassic();
 		ImGuiStyle& imgui_style = ImGui::GetStyle();
