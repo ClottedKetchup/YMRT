@@ -95,6 +95,9 @@ namespace YumeRT{
 		inline void AddSceneFlag(SCENE_CHANGE_FLAG flag) {
 			scene_change_flag |= (uint32_t)flag;
 		}
+		inline void AddSceneFlag(uint32_t flag) {
+			scene_change_flag |= flag;
+		}
 		inline void ResetSceneFlag(SCENE_CHANGE_FLAG flag) {
 			scene_change_flag = (uint32_t)flag;
 		}

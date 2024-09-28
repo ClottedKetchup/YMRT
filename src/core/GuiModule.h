@@ -119,7 +119,15 @@ namespace YumeRT {
 		void InitGUI();
 		void RenderImages();
 		void RenderMainMenu();
+
+		void RenderTextureAttributeEditor(const uint32_t texture_index);
+		void RenderMaterialTextureHierarchy(const uint32_t material_index);
+		void RenderMaterialAttributeEditor(const uint32_t material_index);
+		void RenderTransformAttributeEditor(const uint32_t transform_index, const bool draw_global_speed_edit = false);
+		void RenderTransformHierarchy(const uint32_t transform_index);
+		void RenderPrimitiveAttributeEditor(const uint32_t selected_primitive_unique_index);
 		void RenderObjectList();
+
 		void ExitGUI();
 
 		enum TASK_QUEUE_CLEAR_FLAG

@@ -608,7 +608,13 @@ namespace YumeRT {
 	}
 	void SceneModule::UpdateTexture(const uint32_t index)
 	{
-	
+		if (textures.empty() || !(index < textures.size())) {
+			return;
+		}
+
+		auto& scene_device_data = scene_resource.scene;
+		assert(scene_device_data.textures != nullptr);
+		TRANSFER_TO_GPU(scene_device_data.textures + index, &textures[index], sizeof(Texture));
 	}
 
 	uint32_t SceneModule::CreateDistantLight(const std::string& name, const glm::vec3& light_color, const uint32_t transform_index, float intensity, float theta_max)

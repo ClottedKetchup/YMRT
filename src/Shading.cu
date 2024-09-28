@@ -2076,7 +2076,7 @@ namespace YumeRT
 			never_scatter = false;
 			camera_ray = false;
 			ray_depth += 1;
-			
+
 			generate_indirect_ray(indirect_ray, ray_received_light, ray_throughput, pixel_position_x, pixel_position_y, ray_depth, never_scatter, camera_ray, pixel_sample_index, ray_sampler, ray_transfer);
 			return;
 		}
