@@ -84,7 +84,9 @@ namespace YumeRT {
 			m_scene.InitHaltonPermuteTable();
 		}
 
-		if (m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_CAMERA_CHANGE)) {
+		const bool update_camera = m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_CAMERA_CHANGE) ||
+			m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_VOLUME_CHANGE);
+		if (update_camera) {
 			m_scene.camera[EDITOR_CAMERA_INDEX].InitCameraRayTransfer(m_scene.GetHostSceneDataPointer());
 
 			// restore rendering camera's width, height, aspect ratio.
@@ -179,7 +181,7 @@ namespace YumeRT {
 				}
 			}
 
-			if (m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_CAMERA_CHANGE)) {
+			if (update_camera) {
 				if (scene_device_data.camera == nullptr) {
 					scene_device_data.camera_count = CAMERA_COUNT;
 					UPLOAD_TO_GPU(scene_device_data.camera, m_scene.camera, sizeof(Camera) * CAMERA_COUNT);

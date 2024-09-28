@@ -431,7 +431,10 @@ namespace YumeRT
 		{
 			float r = RadicalInversion(sample_idx, m_primes[dim_idx], permutes + m_prime_sums[dim_idx]);
 			++dim_idx;
-			if (dim_idx >= 1000) { dim_idx = 2; }
+			if (dim_idx >= 1000) { 
+				printf("Halton: dim index overflow. consider using PCG or Sobol!\n");
+				dim_idx = 2; 
+			}
 			return r;
 		}
 		__device__ __host__ inline glm::vec2 Random2D()

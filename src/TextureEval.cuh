@@ -150,12 +150,20 @@ namespace YumeRT
 		float frequency = 1.0f;
 		for (int i = 0; i < num_layer; ++i)
 		{
-			turbulence_result += amplitude * glm::abs(PerlinNoiseEval(frequency * p)) + offset;
+			turbulence_result += amplitude * abs(PerlinNoiseEval(frequency * p)) + offset;
 			amplitude *= gain;
 			offset *= gain;
 			frequency *= lacunarity;
 		}
-		assert(turbulence_result >= 0.0f);
+		assert(!glm::isnan(turbulence_result));
+		if (!(turbulence_result >= 0.0f)) {
+			PRINT_FLOAT(lacunarity);
+			PRINT_FLOAT(gain);
+			PRINT_FLOAT(amplitude);
+			PRINT_FLOAT(offset);
+			printf("Wired result from turbulence.\n");
+			turbulence_result = abs(turbulence_result);
+		}
 		return turbulence_result;
 	}
 

@@ -63,12 +63,12 @@ namespace YumeRT {
 
 			auto parent_index = parent_transform_index;
 			while (parent_index != EMPTY_UINT32) {
-				const auto& parent_transform_states = transform_states[parent_index];
-				assert(parent_transform_states.Valid());
+				const auto& parent_transform_state = transform_states[parent_index];
+				assert(parent_transform_state.valid);
 				const auto& parent_matrix = transforms[parent_index];
 				matrix = parent_matrix * matrix;
 
-				parent_index = parent_transform_states.parent_transform_index;
+				parent_index = parent_transform_state.parent_transform_index;
 			}
 			return matrix;
 		}
