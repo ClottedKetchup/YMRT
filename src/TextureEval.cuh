@@ -156,14 +156,6 @@ namespace YumeRT
 			frequency *= lacunarity;
 		}
 		assert(!glm::isnan(turbulence_result));
-		if (!(turbulence_result >= 0.0f)) {
-			PRINT_FLOAT(lacunarity);
-			PRINT_FLOAT(gain);
-			PRINT_FLOAT(amplitude);
-			PRINT_FLOAT(offset);
-			printf("Wired result from turbulence.\n");
-			turbulence_result = abs(turbulence_result);
-		}
 		return turbulence_result;
 	}
 

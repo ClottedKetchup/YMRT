@@ -203,15 +203,16 @@ namespace YumeRT
 			}
 		}
 
-		__device__ __host__ inline glm::vec3 SampleLi(const Scene &scene,
-																			const glm::vec3& position,
-																			float u0,
-																			float u1,
-																			glm::vec3 *wi,
-																			glm::vec3 *light_sample_pos,
-																			glm::vec3 *light_sample_pos_error,
-																			glm::vec3 *light_sample_geo_normal,
-																			float *pdf) const
+		__device__ __host__ inline bool SampleLi(const Scene &scene,
+																		const glm::vec3& position,
+																		float u0,
+																		float u1,
+																		glm::vec3 *wi,
+																		glm::vec3 *light_sample_pos,
+																		glm::vec3 *light_sample_pos_error,
+																		glm::vec3 *light_sample_geo_normal,
+																		glm::vec3 *light_sample_color,
+																		float *pdf) const
 		{
 			const PrimitiveInstance &prim = scene.primitive_instances[instance_idx];
 			const Material &light_mtl = scene.materials[prim.material_idx];
@@ -270,11 +271,12 @@ namespace YumeRT
 				float cos_theta = -glm::dot(world_space_normal, *wi);
 				if (cos_theta <= 0.0f) {
 					*pdf = 0.0f;
-					return glm::vec3(0.0f);
+					return false;
 				}
 
 				*pdf = Sqr(distance) * SafeRcp(area * cos_theta);
-				return   light_mtl.light_mtl.light_color * light_mtl.light_mtl.intensity / (*pdf);
+				*light_sample_color = light_mtl.light_mtl.light_color * light_mtl.light_mtl.intensity / (*pdf);
+				return true;
 			}
 			else if (geometry.geometry_type == SPHERE)
 			{
@@ -284,7 +286,7 @@ namespace YumeRT
 				float radius = geometry.sphere.radius;
 				if (length_po < radius) {
 					*pdf = 0.0f;
-					return glm::vec3(0.0f);
+					return false;
 				}
 
 				float cos_theta_max = glm::sqrt(glm::max(Sqr(length_po) - Sqr(radius), 0.0f)) / length_po;
@@ -307,11 +309,12 @@ namespace YumeRT
 				*light_sample_geo_normal = glm::normalize((*light_sample_pos) - GetTranslate(otw));
 				*wi = glm::normalize(TransformVector(otw, cone_sample));
 				*pdf = 1.0f / cone_solid_angle;
-				return light_mtl.light_mtl.light_color * light_mtl.light_mtl.intensity * cone_solid_angle;
+				*light_sample_color = light_mtl.light_mtl.light_color * light_mtl.light_mtl.intensity * cone_solid_angle;
+				return true;
 			}
 			else
 			{
-				return glm::vec3(0.0f);
+				return false;
 			}
 		}
 	};
@@ -353,23 +356,31 @@ namespace YumeRT
 		}
 
 		// return light's energy
-		__device__ __host__ inline glm::vec3 SampleLi(const Scene &scene,
+		__device__ __host__ inline bool SampleLi(const Scene &scene,
 																				 const glm::vec3& position, 
 																				 float u0, 
 																				 float u1,
 																				 glm::vec3 *wi, 
 																				 glm::vec3 *light_sample_pos, 
+																				 glm::vec3 *sample_light_color,
 																				 float *pdf) const
 		{
 			const glm::mat4 &otw = scene.transforms[transform_idx];
 			const float cone_solid_angle = 2.0f * ONE_PI * (1.0f - cos_theta_max);
 			
-			glm::vec3 cone_sample = SampleCone(u0, u1, cos_theta_max);
-			cone_sample = glm::vec3(cone_sample.x, cone_sample.z, cone_sample.y);
+			glm::vec3 cone_sample(0.0f);
+			if (cone_solid_angle < 1E-10f) {
+				cone_sample = glm::vec3(0.0f, 1.0f, 0.0f);
+			}
+			else {
+				cone_sample = SampleCone(u0, u1, cos_theta_max);
+				cone_sample = glm::vec3(cone_sample.x, cone_sample.z, cone_sample.y);
+			}
 			
 			*wi = -glm::normalize(TransformVector(otw, cone_sample));
-			*pdf = 1.0f / cone_solid_angle;
-			return light_color * intensity;
+			*pdf = 1.0f / glm::max(cone_solid_angle, 1E-10f);
+			*sample_light_color = light_color * intensity;
+			return true;
 		}
 
 	};

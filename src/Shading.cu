@@ -88,15 +88,16 @@ namespace YumeRT
 
 		// sample from light
 		{
-			glm::vec3 light_dir, light_pos;
-			float light_sample_pdf;
-			const glm::vec3 Li = scene.distant_lights[selected_distant_light_idx].SampleLi(scene, hit_position, random(), random(), &light_dir, &light_pos, &light_sample_pdf);
+			glm::vec3 light_dir(0.0f), light_pos(0.0f);
+			float light_sample_pdf = 0.0f;
+			glm::vec3 Li(0.0f);
+			const bool light_sample_valid	= scene.distant_lights[selected_distant_light_idx].SampleLi(scene, hit_position, random(), random(), &light_dir, &light_pos, &Li, &light_sample_pdf);
 
 			glm::vec3 light_wi = material_bsdf.WorldToShading(light_dir);
 			float light_wi_pdf = 0.0f;
 			const glm::vec3 bsdf_weight = material_bsdf.EvalWi(wo, light_wi, &light_wi_pdf);
 
-			if (MaxComponent(bsdf_weight) > MIN_COLOR_EPSILON)
+			if (MaxComponent(bsdf_weight) > MIN_COLOR_EPSILON && light_sample_valid)
 			{
 				const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, hit_position_error, light_dir, hit_geometry_normal);
 				Ray shadow_ray(shadow_ray_origin, light_dir);
@@ -200,15 +201,16 @@ namespace YumeRT
 
 		// sample from light
 		{
-			glm::vec3 light_dir, light_pos;
-			float light_sample_pdf;
-			const glm::vec3 Li = scene.distant_lights[selected_distant_light_idx].SampleLi(scene, volume_hit_position, random(), random(), &light_dir, &light_pos, &light_sample_pdf);
+			glm::vec3 light_dir(0.0f), light_pos(0.0f);
+			float light_sample_pdf = 0.0f;
+			glm::vec3 Li(0.0f);
+			const bool light_sample_valid = scene.distant_lights[selected_distant_light_idx].SampleLi(scene, volume_hit_position, random(), random(), &light_dir, &light_pos, &Li, &light_sample_pdf);
 
 			glm::vec3 light_wi = light_dir;
 			float light_wi_pdf = 0.0f;
 			const float phase_weight = EvalMixedPhases(volume_weighs, gs, volume_count, -ray.direction, light_wi, &light_wi_pdf);
 
-			if (phase_weight > MIN_COLOR_EPSILON)
+			if (phase_weight > MIN_COLOR_EPSILON && light_sample_valid)
 			{
 				Ray shadow_ray(volume_hit_position, light_dir);
 				shadow_ray.t = TMAX;
@@ -293,14 +295,15 @@ namespace YumeRT
 		// sample from light
 		{
 			glm::vec3 light_dir(0.0f), light_pos(0.0f), light_pos_error(0.0f), light_geo_normal(0.0f);
-			float light_sample_pdf;
-			const glm::vec3 Li = shape_light.SampleLi(scene, hit_position, random(), random(), &light_dir, &light_pos, &light_pos_error, &light_geo_normal, &light_sample_pdf);
+			float light_sample_pdf = 0.0f;
+			glm::vec3 Li(0.0f);
+			const bool light_sample_valid = shape_light.SampleLi(scene, hit_position, random(), random(), &light_dir, &light_pos, &light_pos_error, &light_geo_normal, &Li, &light_sample_pdf);
 
 			glm::vec3 light_wi = material_bsdf.WorldToShading(light_dir);
 			float light_wi_pdf = 0.0f;
 			const glm::vec3 bsdf_weight = material_bsdf.EvalWi(wo, light_wi, &light_wi_pdf);
 
-			if (MaxComponent(bsdf_weight) > MIN_COLOR_EPSILON)
+			if (MaxComponent(bsdf_weight) > MIN_COLOR_EPSILON && light_sample_valid)
 			{
 				const glm::vec3 shadow_ray_origin = OffsetRayOrigin(hit_position, hit_position_error, light_dir, hit_geometry_normal);
 
@@ -417,13 +420,14 @@ namespace YumeRT
 		// sample from light
 		{
 			glm::vec3 light_dir(0.0f), light_pos(0.0f), light_pos_error(0.0f), light_geo_normal(0.0f);
-			float light_sample_pdf;
-			const glm::vec3 Li = shape_light.SampleLi(scene, volume_hit_position, random(), random(), &light_dir, &light_pos, &light_pos_error, &light_geo_normal, &light_sample_pdf);
+			float light_sample_pdf = 0.0f;
+			glm::vec3 Li(0.0f);
+			const bool light_sample_valid = shape_light.SampleLi(scene, volume_hit_position, random(), random(), &light_dir, &light_pos, &light_pos_error, &light_geo_normal, &Li, &light_sample_pdf);
 
 			float light_wi_pdf = 0.0f;
 			float phase_weight = EvalMixedPhases(volume_weighs, gs, volume_count, -ray.direction ,light_dir, &light_wi_pdf);
 
-			if (phase_weight > MIN_COLOR_EPSILON)
+			if (phase_weight > MIN_COLOR_EPSILON && light_sample_valid)
 			{
 				Ray shadow_ray(volume_hit_position, light_dir);
 				float max_trace_distance = glm::length(OffsetRayOrigin(light_pos, light_pos_error, -light_dir, light_geo_normal) - volume_hit_position) * SHADOW_RAY_CLAMP;
