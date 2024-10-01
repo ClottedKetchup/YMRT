@@ -85,7 +85,9 @@ namespace YumeRT {
 		}
 
 		const bool update_camera = m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_CAMERA_CHANGE) ||
-			m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_VOLUME_CHANGE);
+			m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_VOLUME_CHANGE) ||
+			m_scene.CheckSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_MATERIAL_CHANGE) || rebuild_bounding_volume_hierarchy;
+
 		if (update_camera) {
 			m_scene.camera[EDITOR_CAMERA_INDEX].InitCameraRayTransfer(m_scene.GetHostSceneDataPointer());
 
@@ -930,6 +932,172 @@ namespace YumeRT {
 		}
 	}
 
+	void GuiModule::RenderLightAttributeEditor(const uint32_t light_index)
+	{
+		auto& m_scene = *m_module_scene;
+		const bool selected_distant_light_index_valid = light_index < m_scene.distant_lights.size();
+		const auto selected_distant_light_index = selected_distant_light_index_valid ? light_index : EMPTY_UINT32;
+		ImGui::Text("Selected light name: %s", selected_distant_light_index_valid ? m_scene.distant_light_names.at(selected_distant_light_index).c_str() : "Null");
+		ImGui::Text("Selected light index: %d", selected_distant_light_index);
+
+		if (!selected_distant_light_index_valid) {
+			return;
+		}
+
+		auto& selected_distant_light = m_scene.distant_lights.at(selected_distant_light_index);
+
+		const auto original_transform_index = selected_distant_light.transform_idx;
+		if (ImGui::InputInt("Transform index", (int*)(&selected_distant_light.transform_idx))) {
+			selected_distant_light.transform_idx = glm::clamp(selected_distant_light.transform_idx, 0u, (uint32_t)m_scene.transform_states.size() - 1);
+			UpdateDeviceData([&]() {
+				m_scene.UpdateDistantLight(selected_distant_light_index);
+				});
+
+			const auto current_transform_index = selected_distant_light.transform_idx;
+			if ((uint32_t)original_transform_index < m_scene.transforms.size() && (--m_scene.transform_reference_light_indices[original_transform_index][selected_distant_light_index]) == 0) {
+				m_scene.transform_reference_light_indices[original_transform_index].erase(selected_distant_light_index);
+			}
+			if ((uint32_t)current_transform_index < m_scene.transforms.size()) {
+				m_scene.transform_reference_light_indices[current_transform_index][selected_distant_light_index]++;
+			}
+
+			m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_DISTANT_LIGHT_CHANGE);
+		}
+
+		if (ImGui::ColorEdit3("Light color", (float*)(&selected_distant_light.light_color), ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR)) {
+			UpdateDeviceData([&]() {
+				m_scene.UpdateDistantLight(selected_distant_light_index);
+				});
+			m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_DISTANT_LIGHT_CHANGE);
+		}
+		if (ImGui::InputFloat("Intensity", &selected_distant_light.intensity)) {
+			selected_distant_light.intensity = glm::max(0.0f, selected_distant_light.intensity);
+			UpdateDeviceData([&]() {
+				m_scene.UpdateDistantLight(selected_distant_light_index);
+				});
+			m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_DISTANT_LIGHT_CHANGE);
+		}
+		if (ImGui::SliderFloat("Max Scatter Angle", &selected_distant_light.theta_max, 0.01f, 89.99f))
+		{
+			selected_distant_light.cos_theta_max = glm::cos(glm::radians(selected_distant_light.theta_max));
+			UpdateDeviceData([&]() {
+				m_scene.UpdateDistantLight(selected_distant_light_index);
+				});
+			m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_DISTANT_LIGHT_CHANGE);
+		}
+	}
+
+	void GuiModule::RenderVolumeAttributeEditor(const uint32_t volume_index)
+	{
+		auto& m_scene = *m_module_scene;
+		const bool selected_volume_index_valid = volume_index < m_scene.volumes.size();
+		const auto selected_volume_index = selected_volume_index_valid ? volume_index : EMPTY_UINT32;
+		ImGui::Text("Selected volume name: %s", selected_volume_index_valid ? m_scene.volume_names.at(selected_volume_index).c_str() : "Null");
+		ImGui::Text("Selected volume index: %d", selected_volume_index);
+
+		if (!selected_volume_index_valid) {
+			return;
+		}
+
+		auto& selected_volume = m_scene.volumes.at(selected_volume_index);
+
+		auto get_volume_change_flag = [&]() {
+			uint32_t vol_change_flag = SceneModule::SCENE_CHANGE_FLAG::SCENE_VOLUME_CHANGE;
+			if (!m_scene.volume_reference_primitive_indices[selected_volume_index].empty()) {
+				vol_change_flag |= SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_VOLUME_CHANGE;
+			}
+			return vol_change_flag;
+		};
+
+		const auto volume_change_flag = get_volume_change_flag();
+
+		const auto original_transform_index = selected_volume.transform_idx;
+		if (ImGui::InputInt("Transform index", (int*)(&selected_volume.transform_idx))) {
+			selected_volume.transform_idx = glm::clamp(selected_volume.transform_idx, 0u, (uint32_t)m_scene.transform_states.size() - 1);
+			UpdateDeviceData([&]() {
+				m_scene.UpdateVolume(selected_volume_index);
+				});
+
+			const auto current_transform_index = selected_volume.transform_idx;
+			if ((uint32_t)original_transform_index < m_scene.transforms.size() && (--m_scene.transform_reference_volume_indices[original_transform_index][selected_volume_index]) == 0) {
+				m_scene.transform_reference_volume_indices[original_transform_index].erase(selected_volume_index);
+			}
+			if ((uint32_t)current_transform_index < m_scene.transforms.size()) {
+				m_scene.transform_reference_volume_indices[current_transform_index][selected_volume_index]++;
+			}
+
+			m_scene.AddSceneFlag(volume_change_flag);
+		}
+
+		auto draw_texture_selector = [&](const char * selector_name, uint32_t * volume_texture_index) {
+			assert(volume_texture_index != nullptr);
+			auto& textures = m_scene.textures;
+			auto& texture_names = m_scene.texture_names;
+			auto& selected_texture_index = *volume_texture_index;
+
+			const auto original_texture_index = selected_texture_index;
+			if (ImGui::BeginCombo(selector_name, selected_texture_index == EMPTY_UINT32 ? "NULL" : texture_names[selected_texture_index].c_str())) {
+				if (ImGui::Selectable("Null")) {
+					if (selected_texture_index != EMPTY_UINT32) {
+						selected_texture_index = EMPTY_UINT32;
+						UpdateDeviceData([&]() {
+							m_scene.UpdateVolume(selected_volume_index);
+							});
+
+						if ((uint32_t)original_texture_index < textures.size() && (--m_scene.texture_reference_volume_indices[original_texture_index][selected_volume_index]) == 0) {
+							m_scene.texture_reference_volume_indices[original_texture_index].erase(selected_volume_index);
+						}
+
+						m_scene.AddSceneFlag(volume_change_flag);
+					}
+				}
+				for (int texture_index = 0; texture_index < (int)textures.size(); ++texture_index) {
+					if (ImGui::Selectable(texture_names[texture_index].c_str())) {
+						if (texture_index == selected_texture_index) {
+							continue;
+						}
+						selected_texture_index = texture_index;
+						UpdateDeviceData([&]() {
+							m_scene.UpdateVolume(selected_volume_index);
+							});
+
+						const auto current_texture_index = texture_index;
+						if ((uint32_t)original_texture_index < textures.size() && (--m_scene.texture_reference_volume_indices[original_texture_index][selected_volume_index]) == 0) {
+							m_scene.texture_reference_volume_indices[original_texture_index].erase(selected_volume_index);
+						}
+						if (current_texture_index < textures.size()) {
+							m_scene.texture_reference_volume_indices[current_texture_index][selected_volume_index]++;
+						}
+
+						m_scene.AddSceneFlag(volume_change_flag);
+					}
+				}
+				ImGui::EndCombo();
+			}
+		};
+
+		draw_texture_selector("Density texture", (uint32_t*)(&selected_volume.density_texture_idx));
+		if (ImGui::ColorEdit3("Transmittance", (float*)(&selected_volume.sigma_t), ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR)) {
+			UpdateDeviceData([&]() {
+				m_scene.UpdateVolume(selected_volume_index);
+				});
+			m_scene.AddSceneFlag(volume_change_flag);
+		}
+		if (ImGui::ColorEdit3("Albedo ", (float*)(&selected_volume.albedo), ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR)) {
+			selected_volume.albedo = glm::min(glm::vec3(1.0f), selected_volume.albedo);
+			UpdateDeviceData([&]() {
+				m_scene.UpdateVolume(selected_volume_index);
+				});
+			m_scene.AddSceneFlag(volume_change_flag);
+		}
+		if (ImGui::SliderFloat("Anisotropy", &selected_volume.g, -0.9999f, 0.9999f)) {
+			UpdateDeviceData([&]() {
+				m_scene.UpdateVolume(selected_volume_index);
+				});
+			m_scene.AddSceneFlag(volume_change_flag);
+		}
+	}
+
 	void GuiModule::RenderPrimitiveAttributeEditor(const uint32_t selected_primitive_unique_index)
 	{
 		auto& m_scene = *m_module_scene;
@@ -1054,6 +1222,19 @@ namespace YumeRT {
 						if (m_scene.materials[material_index].material_type == LIGHT_MTL) {
 							change_flag |= SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE;
 						}
+						break;
+					}
+				}
+			}
+			if (!m_scene.texture_reference_volume_indices[texture_index].empty()) {
+				change_flag |= SceneModule::SCENE_CHANGE_FLAG::SCENE_VOLUME_CHANGE;
+			}
+			for (const auto item : m_scene.texture_reference_volume_indices[texture_index]) {
+				assert(item.second > 0);
+				const auto volume_index = item.first;
+				if (!m_scene.volumes.empty() && volume_index < m_scene.volumes.size()) {
+					if (!m_scene.volume_reference_primitive_indices[volume_index].empty()) {
+						change_flag |= SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_VOLUME_CHANGE;
 						break;
 					}
 				}
@@ -1524,6 +1705,118 @@ namespace YumeRT {
 		}
 	}
 
+	void GuiModule::RenderTextureNode(const char* var_name, const uint32_t texture_index)
+	{
+		auto& m_scene = *m_module_scene;
+		if (!(texture_index < m_scene.textures.size())) {
+			return;
+		}
+		const auto& texture_name = m_scene.texture_names.at(texture_index);
+		const auto& texture = m_scene.textures.at(texture_index);
+		const std::string full_node_name = std::string(var_name) + std::string(":") + texture_name;
+		if (ImGui::TreeNode(full_node_name.c_str())) {
+			if (ImGui::BeginPopupContextItem()) {
+				RenderTextureAttributeEditor(texture_index);
+				ImGui::EndPopup();
+			}
+			if (texture.texture_type <= CONSTANT_TEXTURE_RGB) {
+
+			}
+			else if (texture.texture_type == SOLID_TEXTURE_CHECKERBOARD) {
+				const auto& checker_board_texture = texture.checker_board_texture;
+				const auto black_color_index = checker_board_texture.child_texture_indices.texture_black;
+				if (black_color_index != EMPTY_UINT32) {
+					RenderTextureNode(VAR_NAME(black_color_index), black_color_index);
+				}
+				const auto white_color_index = checker_board_texture.child_texture_indices.texture_white;
+				if (white_color_index != EMPTY_UINT32) {
+					RenderTextureNode(VAR_NAME(white_color_index), white_color_index);
+				}
+			}
+			else if (texture.texture_type == SOLID_TEXTURE_NOISE) {
+				const auto& noise_texture = texture.noise_texture;
+				const auto black_color_index = noise_texture.child_texture_indices.texture_black;
+				if (black_color_index != EMPTY_UINT32) {
+					RenderTextureNode(VAR_NAME(black_color_index), black_color_index);
+				}
+				const auto white_color_index = noise_texture.child_texture_indices.texture_white;
+				if (white_color_index != EMPTY_UINT32) {
+					RenderTextureNode(VAR_NAME(white_color_index), white_color_index);
+				}
+			}
+			else if (texture.texture_type == SOLID_TEXTURE_FBM) {
+				const auto& noise_texture_fbm = texture.noise_texture_fbm;
+				const auto black_color_index = noise_texture_fbm.child_texture_indices.texture_black;
+				if (black_color_index != EMPTY_UINT32) {
+					RenderTextureNode(VAR_NAME(black_color_index), black_color_index);
+				}
+				const auto white_color_index = noise_texture_fbm.child_texture_indices.texture_white;
+				if (white_color_index != EMPTY_UINT32) {
+					RenderTextureNode(VAR_NAME(white_color_index), white_color_index);
+				}
+			}
+			else if (texture.texture_type == SOLID_TEXTURE_TURBULENCE) {
+				const auto& noise_texture_turbulence = texture.noise_texture_turbulence;
+				const auto black_color_index = noise_texture_turbulence.child_texture_indices.texture_black;
+				if (black_color_index != EMPTY_UINT32) {
+					RenderTextureNode(VAR_NAME(black_color_index), black_color_index);
+				}
+				const auto white_color_index = noise_texture_turbulence.child_texture_indices.texture_white;
+				if (white_color_index != EMPTY_UINT32) {
+					RenderTextureNode(VAR_NAME(white_color_index), white_color_index);
+				}
+			}
+			else if (texture.texture_type == SOLID_TEXTURE_MARBLE) {
+				const auto& noise_texture_marble = texture.noise_texture_marble;
+				const auto black_color_index = noise_texture_marble.child_texture_indices.texture_black;
+				if (black_color_index != EMPTY_UINT32) {
+					RenderTextureNode(VAR_NAME(black_color_index), black_color_index);
+				}
+				const auto white_color_index = noise_texture_marble.child_texture_indices.texture_white;
+				if (white_color_index != EMPTY_UINT32) {
+					RenderTextureNode(VAR_NAME(white_color_index), white_color_index);
+				}
+			}
+			else if (texture.texture_type == SOLID_TEXTURE_WOOD) {
+				const auto& noise_texture_wood = texture.noise_texture_wood;
+				const auto black_color_index = noise_texture_wood.child_texture_indices.texture_black;
+				if (black_color_index != EMPTY_UINT32) {
+					RenderTextureNode(VAR_NAME(black_color_index), black_color_index);
+				}
+				const auto white_color_index = noise_texture_wood.child_texture_indices.texture_white;
+				if (white_color_index != EMPTY_UINT32) {
+					RenderTextureNode(VAR_NAME(white_color_index), white_color_index);
+				}
+			}
+			else if (texture.texture_type == SOLID_TEXTURE_POLKA_DOT) {
+				const auto& noise_texture_polka_dot = texture.noise_texture_polka_dot;
+				const auto black_color_index = noise_texture_polka_dot.child_texture_indices.texture_black;
+				if (black_color_index != EMPTY_UINT32) {
+					RenderTextureNode(VAR_NAME(black_color_index), black_color_index);
+				}
+				const auto white_color_index = noise_texture_polka_dot.child_texture_indices.texture_white;
+				if (white_color_index != EMPTY_UINT32) {
+					RenderTextureNode(VAR_NAME(white_color_index), white_color_index);
+				}
+			}
+			else if (texture.texture_type == SOLID_TEXTURE_WAVE) {
+				const auto& noise_texture_wave = texture.noise_texture_wave;
+				const auto black_color_index = noise_texture_wave.child_texture_indices.texture_black;
+				if (black_color_index != EMPTY_UINT32) {
+					RenderTextureNode(VAR_NAME(black_color_index), black_color_index);
+				}
+				const auto white_color_index = noise_texture_wave.child_texture_indices.texture_white;
+				if (white_color_index != EMPTY_UINT32) {
+					RenderTextureNode(VAR_NAME(white_color_index), white_color_index);
+				}
+			}
+			else {
+
+			}
+			ImGui::TreePop();
+		}
+	}
+
 	void GuiModule::RenderMaterialTextureHierarchy(const uint32_t material_index)
 	{
 		auto& m_scene = *m_module_scene;
@@ -1532,121 +1825,8 @@ namespace YumeRT {
 			return;
 		}
 
-		auto draw_texture_edit_board = [&](const uint32_t texture_index) {
-			if (ImGui::BeginPopupContextItem()) {
-				RenderTextureAttributeEditor(texture_index);
-				ImGui::EndPopup();
-			}
-		};
-
-		std::function<void(const char* var_name, const uint32_t texture_index)> draw_texture_node = [&](const char *var_name, const uint32_t texture_index)
-		{
-			const auto& texture_name = m_scene.texture_names.at(texture_index);
-			const auto& texture = m_scene.textures.at(texture_index);
-			const std::string full_node_name = std::string(var_name) + std::string(":") + texture_name;
-			if (ImGui::TreeNode(full_node_name.c_str())) {
-				draw_texture_edit_board(texture_index);
-				if (texture.texture_type <= CONSTANT_TEXTURE_RGB) {
-
-				}
-				else if (texture.texture_type == SOLID_TEXTURE_CHECKERBOARD) {
-					const auto& checker_board_texture = texture.checker_board_texture;
-					const auto black_color_index = checker_board_texture.child_texture_indices.texture_black;
-					if (black_color_index != EMPTY_UINT32) {
-						draw_texture_node(VAR_NAME(black_color_index), black_color_index);
-					}
-					const auto white_color_index = checker_board_texture.child_texture_indices.texture_white;
-					if (white_color_index != EMPTY_UINT32) {
-						draw_texture_node(VAR_NAME(white_color_index), white_color_index);
-					}
-				}
-				else if (texture.texture_type == SOLID_TEXTURE_NOISE) {
-					const auto& noise_texture = texture.noise_texture;
-					const auto black_color_index = noise_texture.child_texture_indices.texture_black;
-					if (black_color_index != EMPTY_UINT32) {
-						draw_texture_node(VAR_NAME(black_color_index), black_color_index);
-					}
-					const auto white_color_index = noise_texture.child_texture_indices.texture_white;
-					if (white_color_index != EMPTY_UINT32) {
-						draw_texture_node(VAR_NAME(white_color_index), white_color_index);
-					}
-				}
-				else if (texture.texture_type == SOLID_TEXTURE_FBM) {
-					const auto& noise_texture_fbm = texture.noise_texture_fbm;
-					const auto black_color_index = noise_texture_fbm.child_texture_indices.texture_black;
-					if (black_color_index != EMPTY_UINT32) {
-						draw_texture_node(VAR_NAME(black_color_index), black_color_index);
-					}
-					const auto white_color_index = noise_texture_fbm.child_texture_indices.texture_white;
-					if (white_color_index != EMPTY_UINT32) {
-						draw_texture_node(VAR_NAME(white_color_index), white_color_index);
-					}
-				}
-				else if (texture.texture_type == SOLID_TEXTURE_TURBULENCE) {
-					const auto& noise_texture_turbulence = texture.noise_texture_turbulence;
-					const auto black_color_index = noise_texture_turbulence.child_texture_indices.texture_black;
-					if (black_color_index != EMPTY_UINT32) {
-						draw_texture_node(VAR_NAME(black_color_index), black_color_index);
-					}
-					const auto white_color_index = noise_texture_turbulence.child_texture_indices.texture_white;
-					if (white_color_index != EMPTY_UINT32) {
-						draw_texture_node(VAR_NAME(white_color_index), white_color_index);
-					}
-				}
-				else if (texture.texture_type == SOLID_TEXTURE_MARBLE) {
-					const auto& noise_texture_marble = texture.noise_texture_marble;
-					const auto black_color_index = noise_texture_marble.child_texture_indices.texture_black;
-					if (black_color_index != EMPTY_UINT32) {
-						draw_texture_node(VAR_NAME(black_color_index), black_color_index);
-					}
-					const auto white_color_index = noise_texture_marble.child_texture_indices.texture_white;
-					if (white_color_index != EMPTY_UINT32) {
-						draw_texture_node(VAR_NAME(white_color_index), white_color_index);
-					}
-				}
-				else if (texture.texture_type == SOLID_TEXTURE_WOOD) {
-					const auto& noise_texture_wood = texture.noise_texture_wood;
-					const auto black_color_index = noise_texture_wood.child_texture_indices.texture_black;
-					if (black_color_index != EMPTY_UINT32) {
-						draw_texture_node(VAR_NAME(black_color_index), black_color_index);
-					}
-					const auto white_color_index = noise_texture_wood.child_texture_indices.texture_white;
-					if (white_color_index != EMPTY_UINT32) {
-						draw_texture_node(VAR_NAME(white_color_index), white_color_index);
-					}
-				}
-				else if (texture.texture_type == SOLID_TEXTURE_POLKA_DOT) {
-					const auto& noise_texture_polka_dot = texture.noise_texture_polka_dot;
-					const auto black_color_index = noise_texture_polka_dot.child_texture_indices.texture_black;
-					if (black_color_index != EMPTY_UINT32) {
-						draw_texture_node(VAR_NAME(black_color_index), black_color_index);
-					}
-					const auto white_color_index = noise_texture_polka_dot.child_texture_indices.texture_white;
-					if (white_color_index != EMPTY_UINT32) {
-						draw_texture_node(VAR_NAME(white_color_index), white_color_index);
-					}
-				}
-				else if (texture.texture_type == SOLID_TEXTURE_WAVE) {
-					const auto& noise_texture_wave = texture.noise_texture_wave;
-					const auto black_color_index = noise_texture_wave.child_texture_indices.texture_black;
-					if (black_color_index != EMPTY_UINT32) {
-						draw_texture_node(VAR_NAME(black_color_index), black_color_index);
-					}
-					const auto white_color_index = noise_texture_wave.child_texture_indices.texture_white;
-					if (white_color_index != EMPTY_UINT32) {
-						draw_texture_node(VAR_NAME(white_color_index), white_color_index);
-					}
-				}
-				else {
-
-				}
-				ImGui::TreePop();
-			}
-		};
-
 		auto& selected_material = m_scene.materials.at(material_index);
 
-		ImGui::Separator();
 		ImGui::Text("Here shows the reference relationship of textures, you can right click the texture node to see its detailed information :)");
 		if (selected_material.material_type == DEFAULT_MTL)
 		{
@@ -1654,39 +1834,39 @@ namespace YumeRT {
 
 			auto diffuse_albedo_texture = selected_default_mtl.diffuse_albedo_tex;
 			if (diffuse_albedo_texture != EMPTY_UINT32) {
-				draw_texture_node(VAR_NAME(diffuse_albedo_texture), diffuse_albedo_texture);
+				RenderTextureNode(VAR_NAME(diffuse_albedo_texture), diffuse_albedo_texture);
 			}
 			auto metalness_texture = selected_default_mtl.metalness_tex;
 			if (metalness_texture != EMPTY_UINT32) {
-				draw_texture_node(VAR_NAME(metalness_texture), metalness_texture);
+				RenderTextureNode(VAR_NAME(metalness_texture), metalness_texture);
 			}
 			auto specular_weight_texture = selected_default_mtl.specular_weight_tex;
 			if (specular_weight_texture != EMPTY_UINT32) {
-				draw_texture_node(VAR_NAME(specular_weight_texture), specular_weight_texture);
+				RenderTextureNode(VAR_NAME(specular_weight_texture), specular_weight_texture);
 			}
 			auto specular_albedo_texture = selected_default_mtl.specular_albedo_tex;
 			if (specular_albedo_texture != EMPTY_UINT32) {
-				draw_texture_node(VAR_NAME(specular_albedo_texture), specular_albedo_texture);
+				RenderTextureNode(VAR_NAME(specular_albedo_texture), specular_albedo_texture);
 			}
 			auto roughness_x_texture = selected_default_mtl.alpha_x_tex;
 			if (roughness_x_texture != EMPTY_UINT32) {
-				draw_texture_node(VAR_NAME(roughness_x_texture), roughness_x_texture);
+				RenderTextureNode(VAR_NAME(roughness_x_texture), roughness_x_texture);
 			}
 			auto roughness_y_texture = selected_default_mtl.alpha_y_tex;
 			if (roughness_y_texture != EMPTY_UINT32) {
-				draw_texture_node(VAR_NAME(roughness_y_texture), roughness_y_texture);
+				RenderTextureNode(VAR_NAME(roughness_y_texture), roughness_y_texture);
 			}
 			auto transmission_weight_texture = selected_default_mtl.transmission_weight_tex;
 			if (transmission_weight_texture != EMPTY_UINT32) {
-				draw_texture_node(VAR_NAME(transmission_weight_texture), transmission_weight_texture);
+				RenderTextureNode(VAR_NAME(transmission_weight_texture), transmission_weight_texture);
 			}
 			auto normal_mapping_texture = selected_default_mtl.normal_mapping_tex;
 			if (normal_mapping_texture != EMPTY_UINT32) {
-				draw_texture_node(VAR_NAME(normal_mapping_texture), normal_mapping_texture);
+				RenderTextureNode(VAR_NAME(normal_mapping_texture), normal_mapping_texture);
 			}
 			auto bump_mapping_texture = selected_default_mtl.bump_mapping_tex;
 			if (bump_mapping_texture != EMPTY_UINT32) {
-				draw_texture_node(VAR_NAME(bump_mapping_texture), bump_mapping_texture);
+				RenderTextureNode(VAR_NAME(bump_mapping_texture), bump_mapping_texture);
 			}
 		}
 		else if (selected_material.material_type == LIGHT_MTL)
@@ -1709,22 +1889,30 @@ namespace YumeRT {
 		enum ObjectType {
 			Type_Directional_Light = 0, Type_Primitive_Instance = 1, Type_Volume = 2
 		};
-		ObjectType object_type_to_render = ObjectType::Type_Primitive_Instance;
 
-		static int selected_directional_index = EMPTY_UINT32;
+		static ObjectType object_type_to_render = ObjectType::Type_Primitive_Instance;
+		static int selected_distant_light_index = EMPTY_UINT32;
 		static uint32_t selected_primitive_unique_index = EMPTY_UINT32;
 		static int selected_volume_index = EMPTY_UINT32;
 
 		selected_primitive_unique_index = clicked_pixel_primitive_index;
+		if (selected_primitive_unique_index != EMPTY_UINT32) {
+			object_type_to_render = ObjectType::Type_Primitive_Instance, selected_distant_light_index = EMPTY_UINT32, selected_volume_index = EMPTY_UINT32;
+		}
 
 		ImGui::Begin("Object List");
 		const float window_x_size = ImGui::GetWindowContentRegionMax().x - ImGui::GetWindowContentRegionMin().x;
 		// Left
 		ImGui::BeginChild("left pane", ImVec2(window_x_size * 0.25f, 0), ImGuiChildFlags_Border | ImGuiChildFlags_ResizeX);
-		for (int directional_light_index = 0; directional_light_index < m_scene.distant_lights.size(); ++directional_light_index) {
-			if (ImGui::Selectable(m_scene.distant_light_names[directional_light_index].c_str(), directional_light_index == selected_directional_index)) {
-				selected_directional_index = directional_light_index;
+		for (int distant_light_index = 0; distant_light_index < m_scene.distant_lights.size(); ++distant_light_index) {
+			if (ImGui::Selectable(m_scene.distant_light_names[distant_light_index].c_str(), distant_light_index == selected_distant_light_index)) {
+				selected_distant_light_index = distant_light_index;
+				selected_primitive_unique_index = EMPTY_UINT32;
+				selected_volume_index = EMPTY_UINT32;
+
 				object_type_to_render = Type_Directional_Light;
+
+				clicked_pixel_primitive_index = selected_primitive_unique_index;
 			}
 		}
 
@@ -1732,17 +1920,23 @@ namespace YumeRT {
 			const auto unique_index = item.first;
 			const std::string primitive_name = std::string("primitive_") + std::to_string(unique_index);
 			if (ImGui::Selectable(primitive_name.c_str(), unique_index == selected_primitive_unique_index)) {
+				selected_distant_light_index = EMPTY_UINT32;
 				selected_primitive_unique_index = unique_index;
+				selected_volume_index = EMPTY_UINT32;
 				object_type_to_render = Type_Primitive_Instance;
 
-				clicked_pixel_primitive_index = unique_index;
+				clicked_pixel_primitive_index = selected_primitive_unique_index;
 			}
 		}
 
 		for (int volume_index = 0; volume_index < m_scene.volumes.size(); volume_index++) {
 			if (ImGui::Selectable(m_scene.volume_names[volume_index].c_str(), volume_index == selected_volume_index)) {
+				selected_distant_light_index = EMPTY_UINT32;
+				selected_primitive_unique_index = EMPTY_UINT32;
 				selected_volume_index = volume_index;
 				object_type_to_render = Type_Volume;
+
+				clicked_pixel_primitive_index = selected_primitive_unique_index;
 			}
 		}
 		ImGui::EndChild();
@@ -1752,41 +1946,117 @@ namespace YumeRT {
 		ImGui::BeginGroup();
 		ImGui::BeginChild("Attribute editor", ImVec2(0, -ImGui::GetFrameHeight()), ImGuiChildFlags_Border); // Leave room for 1 line below us
 		
-		const auto selected_primitive_index = m_scene.primitive_index_to_index_map.find(selected_primitive_unique_index) != m_scene.primitive_index_to_index_map.end() ?
-			m_scene.primitive_index_to_index_map[selected_primitive_unique_index] : EMPTY_UINT32;
-		const bool selected_primitive_index_valid = selected_primitive_index < m_scene.primitive_instances.size();
-		
-		RenderPrimitiveAttributeEditor(selected_primitive_unique_index);
-		ImGui::Separator();
-		
-		if (ImGui::BeginTabBar("##Tabs", ImGuiTabBarFlags_None))
+		if (object_type_to_render == Type_Directional_Light) 
 		{
-			if (ImGui::BeginTabItem("Geometry")) 
+			const bool selected_light_index_valid = selected_distant_light_index < m_scene.distant_lights.size();
+			RenderLightAttributeEditor(selected_distant_light_index);
+			ImGui::Separator();
+			if (ImGui::BeginTabBar("Light##Tabs", ImGuiTabBarFlags_None))
 			{
-				ImGui::Text("Geometry name: %s", selected_primitive_index_valid ? m_scene.geometry_names[m_scene.primitive_instances.at(selected_primitive_index).geometry_idx].c_str() : "");
-				ImGui::Text("Geometry index: %d", selected_primitive_index_valid ? m_scene.primitive_instances.at(selected_primitive_index).geometry_idx : EMPTY_UINT32);
-				ImGui::Separator();
-				ImGui::EndTabItem();
-			}
-			if (ImGui::BeginTabItem("Transform")) 
-			{
-				const auto transform_index = selected_primitive_index_valid ? m_scene.primitive_instances.at(selected_primitive_index).transform_idx : EMPTY_UINT32;
-				RenderTransformAttributeEditor(transform_index, true);
-				ImGui::Separator();
-				RenderTransformHierarchy(transform_index);
-				ImGui::EndTabItem();
-			}
-			if (ImGui::BeginTabItem("Material")) {
-				uint32_t material_index = EMPTY_UINT32;
-				if (selected_primitive_index_valid) {
-					material_index = m_scene.primitive_instances.at(selected_primitive_index).material_idx;
+				if(ImGui::BeginTabItem("Transform"))
+				{
+					const auto light_transform_index = selected_light_index_valid ? m_scene.distant_lights.at(selected_distant_light_index).transform_idx : EMPTY_UINT32;
+					RenderTransformAttributeEditor(light_transform_index, true);
+					ImGui::Separator();
+					RenderTransformHierarchy(light_transform_index);
+					ImGui::EndTabItem();
 				}
-				RenderMaterialAttributeEditor(material_index);
-				RenderMaterialTextureHierarchy(material_index);
-				ImGui::EndTabItem();
+				ImGui::EndTabBar();
 			}
-			ImGui::EndTabBar();
 		}
+		else if (object_type_to_render == Type_Primitive_Instance) 
+		{
+			const auto selected_primitive_index = m_scene.primitive_index_to_index_map.find(selected_primitive_unique_index) != m_scene.primitive_index_to_index_map.end() ?
+				m_scene.primitive_index_to_index_map[selected_primitive_unique_index] : EMPTY_UINT32;
+			const bool selected_primitive_index_valid = selected_primitive_index < m_scene.primitive_instances.size();
+			RenderPrimitiveAttributeEditor(selected_primitive_unique_index);
+			ImGui::Separator();
+			if (ImGui::BeginTabBar("Primitive##Tabs", ImGuiTabBarFlags_None))
+			{
+				if (ImGui::BeginTabItem("Geometry"))
+				{
+					ImGui::Text("Geometry name: %s", selected_primitive_index_valid ? m_scene.geometry_names[m_scene.primitive_instances.at(selected_primitive_index).geometry_idx].c_str() : "");
+					ImGui::Text("Geometry index: %d", selected_primitive_index_valid ? m_scene.primitive_instances.at(selected_primitive_index).geometry_idx : EMPTY_UINT32);
+					ImGui::Separator();
+					ImGui::EndTabItem();
+				}
+				if (ImGui::BeginTabItem("Transform"))
+				{
+					const auto primitive_transform_index = selected_primitive_index_valid ? m_scene.primitive_instances.at(selected_primitive_index).transform_idx : EMPTY_UINT32;
+					RenderTransformAttributeEditor(primitive_transform_index, true);
+					ImGui::Separator();
+					RenderTransformHierarchy(primitive_transform_index);
+					ImGui::EndTabItem();
+				}
+				if (ImGui::BeginTabItem("Material")) {
+					const auto material_index = selected_primitive_index_valid ? m_scene.primitive_instances.at(selected_primitive_index).material_idx : EMPTY_UINT32;
+					RenderMaterialAttributeEditor(material_index);
+					ImGui::Separator();
+					RenderMaterialTextureHierarchy(material_index);
+					ImGui::EndTabItem();
+				}
+				if (ImGui::BeginTabItem("Volume")) {
+					const auto volume_index = selected_primitive_index_valid ? m_scene.primitive_instances.at(selected_primitive_index).inner_volume_idx : EMPTY_UINT32;
+					RenderVolumeAttributeEditor(volume_index);
+					ImGui::Separator();
+					
+					bool density_texture_valid = false;
+					int density_texture_index = EMPTY_UINT32;
+					if (!m_scene.volumes.empty() && volume_index >= 0 && volume_index < m_scene.volumes.size()) {
+						density_texture_index = m_scene.volumes.at(volume_index).density_texture_idx;
+						if (!m_scene.textures.empty() && density_texture_index >= 0 && density_texture_index < m_scene.textures.size()) {
+							density_texture_valid = true;
+						}
+					}
+					if (density_texture_valid) {
+						ImGui::Text("Here shows the reference relationship of volume textures, you can right click the tree node to see its detailed information :)");
+						RenderTextureNode(VAR_NAME(density_texture_index), density_texture_index);
+					}
+					ImGui::EndTabItem();
+				}
+				ImGui::EndTabBar();
+			}
+		}
+		else if (object_type_to_render == Type_Volume)
+		{
+			const bool selected_volume_index_valid = selected_volume_index < m_scene.volumes.size();
+			RenderVolumeAttributeEditor(selected_volume_index);
+			ImGui::Separator();
+			if (ImGui::BeginTabBar("Volume##Tabs", ImGuiTabBarFlags_None))
+			{
+				if (ImGui::BeginTabItem("Transform"))
+				{
+					const auto volume_transform_index = selected_volume_index_valid ? m_scene.volumes.at(selected_volume_index).transform_idx : EMPTY_UINT32;
+					RenderTransformAttributeEditor(volume_transform_index, true);
+					ImGui::Separator();
+					RenderTransformHierarchy(volume_transform_index);
+					ImGui::EndTabItem();
+				}
+				if (ImGui::BeginTabItem("Textures"))
+				{
+					bool density_texture_valid = false;
+					int density_texture_index = EMPTY_UINT32;
+					if (selected_volume_index_valid) {
+						density_texture_index = m_scene.volumes.at(selected_volume_index).density_texture_idx;
+						if (!m_scene.textures.empty() && density_texture_index >= 0 && density_texture_index < m_scene.textures.size()) {
+							density_texture_valid = true;
+						}
+					}
+					ImGui::Text("Density texture name: %s", density_texture_valid ? m_scene.texture_names.at(density_texture_index).c_str() : "Null");
+					ImGui::Text("Density texture index: %d", density_texture_valid ? density_texture_index : EMPTY_UINT32);
+					if (density_texture_valid) {
+						RenderTextureNode(VAR_NAME(density_texture_index), density_texture_index);
+					}
+					ImGui::EndTabItem();
+				}
+				ImGui::EndTabBar();
+			}
+		}
+		else 
+		{
+		
+		}
+
 		ImGui::EndChild();
 		ImGui::EndGroup();
 		

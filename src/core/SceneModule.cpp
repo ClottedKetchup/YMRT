@@ -345,6 +345,7 @@ namespace YumeRT {
 
 		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+		texture_reference_volume_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		const auto texture_index = (uint32_t)textures.size() - 1;
 
@@ -360,6 +361,7 @@ namespace YumeRT {
 
 		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+		texture_reference_volume_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		const auto texture_index = (uint32_t)textures.size() - 1;
 
@@ -375,6 +377,7 @@ namespace YumeRT {
 
 		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+		texture_reference_volume_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		const auto texture_index = (uint32_t)textures.size() - 1;
 
@@ -392,6 +395,7 @@ namespace YumeRT {
 
 		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+		texture_reference_volume_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		const auto texture_index = (uint32_t)textures.size() - 1;
 		if (texture_black_idx != EMPTY_UINT32) {
@@ -416,6 +420,7 @@ namespace YumeRT {
 
 		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+		texture_reference_volume_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		const auto texture_index = (uint32_t)textures.size() - 1;
 		if (texture_black_idx != EMPTY_UINT32) {
@@ -446,6 +451,7 @@ namespace YumeRT {
 
 		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+		texture_reference_volume_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		const auto texture_index = (uint32_t)textures.size() - 1;
 		if (texture_black_idx != EMPTY_UINT32) {
@@ -476,6 +482,7 @@ namespace YumeRT {
 
 		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+		texture_reference_volume_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		const auto texture_index = (uint32_t)textures.size() - 1;
 		if (texture_black_idx != EMPTY_UINT32) {
@@ -508,6 +515,7 @@ namespace YumeRT {
 
 		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+		texture_reference_volume_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		const auto texture_index = (uint32_t)textures.size() - 1;
 		if (texture_black_idx != EMPTY_UINT32) {
@@ -534,6 +542,7 @@ namespace YumeRT {
 
 		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+		texture_reference_volume_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		const auto texture_index = (uint32_t)textures.size() - 1;
 		if (texture_black_idx != EMPTY_UINT32) {
@@ -560,6 +569,7 @@ namespace YumeRT {
 
 		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+		texture_reference_volume_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		const auto texture_index = (uint32_t)textures.size() - 1;
 		if (texture_black_idx != EMPTY_UINT32) {
@@ -590,6 +600,7 @@ namespace YumeRT {
 
 		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
+		texture_reference_volume_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
 		const auto texture_index = (uint32_t)textures.size() - 1;
 		if (texture_black_idx != EMPTY_UINT32) {
@@ -642,7 +653,13 @@ namespace YumeRT {
 	}
 	void SceneModule::UpdateDistantLight(const uint32_t index)
 	{
-	
+		if (distant_lights.empty() || !(index < distant_lights.size())) {
+			return;
+		}
+
+		auto& scene_device_data = scene_resource.scene;
+		assert(scene_device_data.distant_lights != nullptr);
+		TRANSFER_TO_GPU(scene_device_data.distant_lights + index, &distant_lights[index], sizeof(DistantLight));
 	}
 
 	void SceneModule::LoadShapeLight()
@@ -769,6 +786,9 @@ namespace YumeRT {
 		if (transform_index != EMPTY_UINT32) {
 			transform_reference_volume_indices[transform_index][volume_index]++;
 		}
+		if (density_texture_index >= 0 && density_texture_index < textures.size()) {
+			texture_reference_volume_indices[density_texture_index][volume_index]++;
+		}
 
 		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_VOLUME_CREATE);
 		return volume_index;
@@ -779,7 +799,13 @@ namespace YumeRT {
 	}
 	void SceneModule::UpdateVolume(const uint32_t index)
 	{
-	
+		if (volumes.empty() || !(index < volumes.size())) {
+			return;
+		}
+
+		auto& scene_device_data = scene_resource.scene;
+		assert(scene_device_data.volumes != nullptr);
+		TRANSFER_TO_GPU(scene_device_data.volumes + index, &volumes[index], sizeof(Volume));
 	}
 
 	void SceneModule::InitHaltonPermuteTable()

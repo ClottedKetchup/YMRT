@@ -264,6 +264,7 @@ namespace YumeRT{
 		std::vector<Texture> textures;
 		std::vector<std::unordered_map<uint32_t, uint32_t>> texture_reference_material_indices;
 		std::vector<std::unordered_map<uint32_t, uint32_t>> texture_reference_texture_indices;
+		std::vector<std::unordered_map<uint32_t, uint32_t>> texture_reference_volume_indices;
 		std::vector<std::string> texture_names;
 
 		std::vector<DistantLight> distant_lights;
