@@ -31,8 +31,19 @@ namespace YumeRT
 		return node_count;
 	}
 
-	__host__  uint32_t TopBVHBuilder::BuildSceneBVH(std::vector<TopNode> &top_nodes, float *time)
+	__host__  uint32_t TopBVHBuilder::BuildSceneBVH(std::vector<TopNode>& top_nodes, float* time, uint32_t* highlight_prim_idx, std::unordered_map<uint32_t, uint32_t>* dst_indices_map)
 	{
+		if (prim_instance_count == 0)
+		{
+			if (time != nullptr) {
+				*time = 0.0f;
+			}
+			if (highlight_prim_idx != nullptr) {
+				*highlight_prim_idx = EMPTY_UINT32;
+			}
+			return 0;
+		}
+
 		auto start_time = std::chrono::high_resolution_clock::now();
 
 		std::vector<PrimInstanceInfo> prim_instance_infos(prim_instance_count);
@@ -49,81 +60,36 @@ namespace YumeRT
 		raw_nodes[0].offset = 0;
 		raw_nodes[0].count = prim_instance_count;
 
+		const int single_thread_max_count = 256;
 		uint32_t start = 0;
 		std::atomic<uint32_t> total_node_count(1);
 		while (total_node_count.load() - start > 0)
 		{
 			uint32_t process_count = total_node_count.load() - start;
-			concurrency::parallel_for(start, start + process_count, [&](uint32_t node_idx)
+			auto process_function = [&](uint32_t node_idx)
+			{
+				RawTopNode& raw_node = raw_nodes[node_idx];
+
+				PrimInstanceInfo* node_prims = prim_instance_infos.data() + raw_node.offset;
+				BBox3 node_bbox;
+				BBox3 center_bbox;
+				for (uint32_t i = 0; i < raw_node.count; ++i)
 				{
-					RawTopNode &raw_node = raw_nodes[node_idx];
+					node_bbox = BBox3Union(node_bbox, node_prims[i].bbox);
+					center_bbox = BBox3Extend(center_bbox, node_prims[i].GetCenter());
+				}
 
-					PrimInstanceInfo *node_prims = prim_instance_infos.data() + raw_node.offset;
-					BBox3 node_bbox;
-					for (uint32_t i = 0; i < raw_node.count; ++i)
-					{
-						node_bbox = BBox3Union(node_bbox, node_prims[i].bbox);
-					}
+				raw_node.bbox = node_bbox;
 
-					raw_node.bbox = node_bbox;
+				auto make_leaf = [&]()
+				{
+					raw_node.left = raw_node.right = EMPTY_UINT32;
+				};
 
-					auto make_leaf = [&]()
-					{
-						raw_node.left = raw_node.right = EMPTY_UINT32;
-					};
-
-					auto make_mid_split = [&]()
-					{
-						int axis = BBox3LongestAxis(node_bbox);
-						uint32_t mid_idx = FindMidElement(node_prims, raw_node.count, axis);
-
-						uint32_t left_idx = total_node_count.fetch_add(2);
-						uint32_t right_idx = left_idx + 1;
-
-						raw_node.left = left_idx;
-						raw_node.right = right_idx;
-
-						raw_nodes[left_idx].offset = raw_node.offset;
-						raw_nodes[left_idx].count = mid_idx + 1;
-						use_mid_split[left_idx] = true;
-						assert(raw_nodes[left_idx].count > 0);
-
-						raw_nodes[right_idx].offset = raw_node.offset + mid_idx + 1;
-						raw_nodes[right_idx].count = raw_node.count - 1 - mid_idx;
-						use_mid_split[right_idx] = true;
-						assert(raw_nodes[right_idx].count > 0);
-					};
-
-					if (raw_node.count <= 1)
-					{
-						make_leaf();
-						return;
-					}
-
-					if (use_mid_split[node_idx])
-					{
-						make_mid_split();
-						return;
-					}
-
-					const float parent_cost = raw_node.count * BBox3Area(raw_node.bbox);
-					int split_axis;
-					float split_pos;
-					bool continue_split = EvalSAH(node_prims, raw_node.count, raw_node.bbox, parent_cost, &split_pos, &split_axis);
-
-					if (!continue_split)
-					{
-						make_mid_split();
-						return;
-					}
-
-					uint32_t split_index = BVHNodePartition(node_prims, raw_node.count, split_pos, split_axis);
-
-					if (split_index == EMPTY_UINT32 || split_index == raw_node.count - 1)
-					{
-						make_mid_split();
-						return;
-					}
+				auto make_mid_split = [&]()
+				{
+					int axis = BBox3LongestAxis(node_bbox);
+					uint32_t mid_idx = FindMidElement(node_prims, raw_node.count, axis);
 
 					uint32_t left_idx = total_node_count.fetch_add(2);
 					uint32_t right_idx = left_idx + 1;
@@ -132,27 +98,102 @@ namespace YumeRT
 					raw_node.right = right_idx;
 
 					raw_nodes[left_idx].offset = raw_node.offset;
-					raw_nodes[left_idx].count = split_index + 1;
+					raw_nodes[left_idx].count = mid_idx + 1;
+					use_mid_split[left_idx] = true;
+					assert(raw_nodes[left_idx].count > 0);
 
-					raw_nodes[right_idx].offset = raw_node.offset + split_index + 1;
-					raw_nodes[right_idx].count = raw_node.count - 1 - split_index;
-				});
+					raw_nodes[right_idx].offset = raw_node.offset + mid_idx + 1;
+					raw_nodes[right_idx].count = raw_node.count - 1 - mid_idx;
+					use_mid_split[right_idx] = true;
+					assert(raw_nodes[right_idx].count > 0);
+				};
+
+				if (raw_node.count <= 1)
+				{
+					make_leaf();
+					return;
+				}
+
+				if (use_mid_split[node_idx])
+				{
+					make_mid_split();
+					return;
+				}
+
+				const float parent_cost = raw_node.count * BBox3Area(raw_node.bbox);
+				int split_axis;
+				float split_pos;
+				bool continue_split = EvalSAH(node_prims, raw_node.count, center_bbox, parent_cost, &split_pos, &split_axis);
+
+				if (!continue_split)
+				{
+					make_mid_split();
+					return;
+				}
+
+				uint32_t split_index = BVHNodePartition(node_prims, raw_node.count, split_pos, split_axis);
+
+				if (split_index == EMPTY_UINT32 || split_index == raw_node.count - 1)
+				{
+					make_mid_split();
+					return;
+				}
+
+				uint32_t left_idx = total_node_count.fetch_add(2);
+				uint32_t right_idx = left_idx + 1;
+
+				raw_node.left = left_idx;
+				raw_node.right = right_idx;
+
+				raw_nodes[left_idx].offset = raw_node.offset;
+				raw_nodes[left_idx].count = split_index + 1;
+
+				raw_nodes[right_idx].offset = raw_node.offset + split_index + 1;
+				raw_nodes[right_idx].count = raw_node.count - 1 - split_index;
+			};
+			
+			if (process_count < 256) {
+				for (uint32_t node_idx = start; node_idx < start + process_count; ++node_idx) {
+					process_function(node_idx);
+				}
+			}
+			else {
+				concurrency::parallel_for(start, start + process_count, process_function);
+			}
+
 			start += process_count;
 		}
 
 		raw_nodes.resize(total_node_count.load());
 
 		uint32_t top_node_count = Flatten(raw_nodes, top_nodes);
+		
+		if (dst_indices_map != nullptr) {
+			auto& index_to_index_map = *dst_indices_map;
+			for (uint32_t index = 0; index < prim_instance_count; ++index) {
+				index_to_index_map[prim_instance_infos[index].idx] = index;
+			}
+		}
 
 		std::vector<PrimitiveInstance> temp_prims(prim_instance_count);
-		concurrency::parallel_for((uint32_t)0, (uint32_t)prim_instance_count, [&](uint32_t i)
-			{
-				temp_prims[i] = prim_instances[prim_instance_infos[i].idx];
-			});
+		const int single_thread_copy_limit = 1024;
+		auto copy_function = [&](uint32_t index) {
+			temp_prims[index] = prim_instances[prim_instance_infos[index].idx];
+		};
+		if (prim_instance_count < single_thread_copy_limit) {
+			for (uint32_t index = 0; index < prim_instance_count; ++index) {
+				copy_function(index);
+			}
+		}
+		else {
+			concurrency::parallel_for((uint32_t)0, (uint32_t)prim_instance_count, copy_function);
+		}
 		memcpy(prim_instances, temp_prims.data(), sizeof(PrimitiveInstance) * prim_instance_count);
 
 		auto end_time = std::chrono::high_resolution_clock::now();
-		*time = float(std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count()) / 1000.f;
+		if (time != nullptr) {
+			*time = float(std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count()) / 1000.f;
+		}
 		return 0;
 	}
 

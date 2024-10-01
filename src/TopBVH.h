@@ -51,7 +51,7 @@ namespace YumeRT
 			GeometryData *geometries)
 			:prim_instances(prim_instances), prim_instance_count(prim_instance_count), transforms(transforms), geometries(geometries){}
 
-		__host__  uint32_t BuildSceneBVH(std::vector<TopNode> &top_nodes, float *time);
+		__host__  uint32_t BuildSceneBVH(std::vector<TopNode>& top_nodes, float* time, uint32_t* highlight_prim_idx = nullptr, std::unordered_map<uint32_t, uint32_t>* dst_indices_map = nullptr);
 	private:
 		PrimitiveInstance *prim_instances;
 		uint32_t prim_instance_count;

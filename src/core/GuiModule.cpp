@@ -58,7 +58,7 @@ namespace YumeRT {
 		if (rebuild_bounding_volume_hierarchy) {
 			std::unordered_map<uint32_t, uint32_t> dst_indices_map; // note: old index map to new index;
 
-			ACBVHBuilder SceneBuilder(m_scene.primitive_instances.data(), (uint32_t)m_scene.primitive_instances.size(), m_scene.transforms.data(), m_scene.geometries.data());
+			TopBVHBuilder SceneBuilder(m_scene.primitive_instances.data(), (uint32_t)m_scene.primitive_instances.size(), m_scene.transforms.data(), m_scene.geometries.data());
 			m_scene.top_nodes.clear();
 			SceneBuilder.BuildSceneBVH(m_scene.top_nodes, nullptr, nullptr, &dst_indices_map);
 
