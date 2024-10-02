@@ -105,7 +105,7 @@ namespace YumeRT{
 			return (scene_change_flag & ((uint32_t)flag));
 		} 
 
-		void LoadModelFromFile(const std::string& file_name, const glm::vec3& common_translate = glm::vec3(0.0f), const glm::vec3& common_scale = glm::vec3(1.0f), const glm::vec3& common_rotate = glm::vec3(0.0f), const int common_inner_volume_index = -1, const bool common_treat_as_boundary = false);
+		void LoadModelFromFile(const std::string& file_name, const uint32_t transform_index, const int inner_volume_index = -1, const bool treat_as_boundary = false);
 
 		uint32_t CreateTransform(const std::string& name, const glm::vec3& translate = glm::vec3(0.0f), const glm::vec3& scale = glm::vec3(1.0f), const glm::vec3& rotate = glm::vec3(0.0f), const int parent_transform_index = EMPTY_UINT32, const glm::vec3& pivot = glm::vec3(0.0f));
 		void DeleteTransform(const uint32_t index);

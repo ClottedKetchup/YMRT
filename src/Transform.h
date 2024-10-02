@@ -32,17 +32,14 @@ namespace YumeRT {
 		// this function have to specify a pivot.
 		inline glm::mat4 GetTransformMatrix(const glm::vec3 &pivot)
 		{
-			auto matrix = Matrix_T(pivot) *
+			auto matrix = Matrix_T(translate_xyz) *
+				Matrix_T(pivot) *
 				Matrix_R(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(rotate_xyz.z)) *
 				Matrix_R(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(rotate_xyz.y)) *
 				Matrix_R(glm::vec3(1.0f, 0.0f, 0.0f), glm::radians(rotate_xyz.x)) *
 				Matrix_S(scale_xyz) *
 				Matrix_T(-pivot);
 
-			matrix[3][0] = translate_xyz.x;
-			matrix[3][1] = translate_xyz.y;
-			matrix[3][2] = translate_xyz.z;
-			matrix[3][3] = 1.0f;
 			return matrix;
 		}
 
@@ -51,15 +48,11 @@ namespace YumeRT {
 		{
 			assert(transform_states.size() == transforms.size());
 			
-			auto matrix = Matrix_R(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(rotate_xyz.z)) *
+			auto matrix = Matrix_T(translate_xyz) *
+				Matrix_R(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(rotate_xyz.z)) *
 				Matrix_R(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(rotate_xyz.y)) *
 				Matrix_R(glm::vec3(1.0f, 0.0f, 0.0f), glm::radians(rotate_xyz.x)) *
 				Matrix_S(scale_xyz);
-
-			matrix[3][0] = translate_xyz.x;
-			matrix[3][1] = translate_xyz.y;
-			matrix[3][2] = translate_xyz.z;
-			matrix[3][3] = 1.0f;
 
 			auto parent_index = parent_transform_index;
 			while (parent_index != EMPTY_UINT32) {

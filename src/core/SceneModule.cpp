@@ -932,100 +932,161 @@ namespace YumeRT {
 		return true;
 	}
 
-	static void ReadNodeData(const std::string &file_root_path, const aiNode *node, const aiScene *scene, SceneModule *scene_module,
-		const glm::vec3& common_translate, const glm::vec3& common_scale, const glm::vec3& common_rotate, const int common_inner_volume_index, const bool common_treat_as_boundary)
+	static uint32_t ReadMeshGeometry(const aiMesh *mesh, SceneModule *scene_module) 
+	{
+		if (mesh == nullptr) {
+			return EMPTY_UINT32;
+		}
+
+		auto& scene_manager = *scene_module;
+		const std::string mesh_name = std::string(mesh->mName.C_Str());
+
+		std::vector<Triangle> mesh_triangles;
+		std::vector<uint32_t> mesh_position_idxs;
+		std::vector<float> mesh_positions;
+		std::vector<uint32_t> mesh_normal_idxs;
+		std::vector<float> mesh_normals;
+		std::vector<uint32_t> mesh_texcoord_idxs;
+		std::vector<float> mesh_texcoords;
+		const bool success = ReadMeshData(mesh, mesh_triangles, mesh_position_idxs, mesh_positions, mesh_normal_idxs, mesh_normals, mesh_texcoord_idxs, mesh_texcoords);
+		if (!success) {
+			return EMPTY_UINT32;
+		}
+
+		const auto mesh_index = scene_manager.CreateMesh(mesh_name, mesh_triangles, mesh_position_idxs, mesh_positions, mesh_normal_idxs, mesh_normals, mesh_texcoord_idxs, mesh_texcoords);
+		return mesh_index;
+	}
+
+	static uint32_t ReadMeshMaterial(const std::string& file_root_path,
+		const aiMesh *mesh,
+		const aiScene *scene,
+		SceneModule *scene_module, 
+		std::unordered_map<uint32_t, uint32_t> &material_map)
+	{
+		if (mesh == nullptr) {
+			return EMPTY_UINT32;
+		}
+
+		auto ai_material_index = mesh->mMaterialIndex;
+		if (material_map.find(ai_material_index) != material_map.end()) {
+			return material_map[ai_material_index];
+		}
+
+		auto& ai_material = scene->mMaterials[ai_material_index];
+
+		glm::vec3 diffuse_albedo = glm::vec3(0.5f);
+		glm::vec3 specular_albedo = glm::vec3(1.0f);
+		float roughness_x = 0.2f;
+		float roughness_y = 0.2f;
+		float ior_n = 1.3f;
+		float metalness = 0.0f;
+		float specular_weight = 1.0f;
+		float transmission_weight = 0.0f;
+		uint32_t ior_priority = 0;
+
+		uint32_t diffuse_albedo_tex = EMPTY_UINT32;
+		uint32_t alpha_x_tex = EMPTY_UINT32;
+		uint32_t specular_albedo_tex = EMPTY_UINT32;
+		uint32_t alpha_y_tex = EMPTY_UINT32;
+		uint32_t specular_weight_tex = EMPTY_UINT32;
+		uint32_t metalness_tex = EMPTY_UINT32;
+		uint32_t transmission_weight_tex = EMPTY_UINT32;
+		uint32_t normal_mapping_tex = EMPTY_UINT32;
+		uint32_t bump_mapping_tex = EMPTY_UINT32;
+
+		auto& scene_manager = *scene_module;
+		const std::string material_name = std::string(mesh->mName.C_Str()) + std::string("_material");
+
+		aiColor4D ai_col_diffuse;
+		if (AI_SUCCESS == aiGetMaterialColor(ai_material, AI_MATKEY_COLOR_DIFFUSE, &ai_col_diffuse)) {
+			diffuse_albedo.x = ai_col_diffuse.r, diffuse_albedo.y = ai_col_diffuse.g, diffuse_albedo.z = ai_col_diffuse.b;
+		}
+
+		if (ai_material->GetTextureCount(aiTextureType_DIFFUSE) > 0) {
+			aiString file;
+			if (AI_SUCCESS == ai_material->GetTexture(aiTextureType_DIFFUSE, 0, &file)) {
+				const std::string tex_file_path = file_root_path + std::string(file.C_Str());
+				diffuse_albedo_tex = scene_manager.CreateImageTexture(material_name + std::string("_diffuse_texture"), tex_file_path);
+			}
+		}
+
+		aiColor4D ai_col_specular;
+		if (AI_SUCCESS == aiGetMaterialColor(ai_material, AI_MATKEY_COLOR_SPECULAR, &ai_col_specular)) {
+			specular_albedo.x = ai_col_specular.r, specular_albedo.y = ai_col_specular.g, specular_albedo.z = ai_col_specular.b;
+		}
+
+		if (ai_material->GetTextureCount(aiTextureType_SPECULAR) > 0) {
+			aiString file;
+			if (AI_SUCCESS == ai_material->GetTexture(aiTextureType_SPECULAR, 0, &file)) {
+				const std::string tex_file_path = file_root_path + std::string(file.C_Str());
+				specular_albedo_tex = scene_manager.CreateImageTexture(material_name + std::string("_specular_texture"), tex_file_path);
+			}
+		}
+
+		if (ai_material->GetTextureCount(aiTextureType_NORMALS) > 0) {
+			aiString file;
+			if (AI_SUCCESS == ai_material->GetTexture(aiTextureType_NORMALS, 0, &file)) {
+				const std::string tex_file_path = file_root_path + std::string(file.C_Str());
+				normal_mapping_tex = scene_manager.CreateImageTexture(material_name + std::string("_normal_texture"), tex_file_path);
+			}
+		}
+
+		const auto material_index = scene_manager.CreateDefaultMaterial(material_name, diffuse_albedo, specular_albedo, roughness_x, roughness_y, ior_n, metalness, specular_weight, transmission_weight, ior_priority,
+			diffuse_albedo_tex, alpha_x_tex, specular_albedo_tex, alpha_y_tex, specular_weight_tex, metalness_tex, transmission_weight_tex, normal_mapping_tex, bump_mapping_tex);
+		material_map[ai_material_index] = material_index;
+		
+		return material_index;
+	}
+
+	static void ReadNodeData(const std::string &file_root_path, 
+		const aiNode *node, 
+		const aiScene *scene, 
+		SceneModule *scene_module,
+		std::unordered_map<uint32_t, uint32_t> &material_map, // [key, value]: [assimp material index, material index].
+		const uint32_t parent_transform_index, 
+		const int inner_volume_index, 
+		const bool treat_as_boundary)
 	{
 		if (node == nullptr) {
 			return;
 		}
 		auto& scene_manager = *scene_module;
+
+		auto node_transform = node->mTransformation;
+		aiVector3D node_translate;
+		aiVector3D node_scale;
+		aiVector3D node_rotate;
+		node_transform.Decompose(node_scale, node_rotate, node_translate);
+
+		auto ai_to_glm = [](const aiVector3D &ai_vec) {
+			return glm::vec3(ai_vec.x, ai_vec.y, ai_vec.z);
+		};
+
+		const std::string transform_name = std::string(node->mName.C_Str()) + std::string("_transform");
+		const uint32_t node_transform_index = scene_manager.CreateTransform(transform_name, 
+			ai_to_glm(node_translate), 
+			ai_to_glm(node_scale), 
+			ai_to_glm(node_rotate), 
+			parent_transform_index);
+
 		for (int node_mesh_index = 0; node_mesh_index < node->mNumMeshes; ++node_mesh_index) {
 			const aiMesh *mesh = scene->mMeshes[node->mMeshes[node_mesh_index]];
-			const std::string mesh_name = std::string(mesh->mName.C_Str());
-			const std::string transform_name = mesh_name + std::string("_transform");
-			const std::string material_name = mesh_name + std::string("_material");
-
-			std::vector<Triangle> mesh_triangles;
-			std::vector<uint32_t> mesh_position_idxs;
-			std::vector<float> mesh_positions;
-			std::vector<uint32_t> mesh_normal_idxs;
-			std::vector<float> mesh_normals;
-			std::vector<uint32_t> mesh_texcoord_idxs;
-			std::vector<float> mesh_texcoords;
-
-			ReadMeshData(mesh, mesh_triangles, mesh_position_idxs, mesh_positions, mesh_normal_idxs, mesh_normals, mesh_texcoord_idxs, mesh_texcoords);
-
-			auto ai_material = scene->mMaterials[mesh->mMaterialIndex];
-
-			glm::vec3 diffuse_albedo = glm::vec3(0.5f);
-			glm::vec3 specular_albedo = glm::vec3(1.0f);
-			float roughness_x = 0.2f;
-			float roughness_y = 0.2f;
-			float ior_n = 1.3f;
-			float metalness = 0.0f;
-			float specular_weight = 1.0f;
-			float transmission_weight = 0.0f;
-			uint32_t ior_priority = 0;
-
-			uint32_t diffuse_albedo_tex = EMPTY_UINT32;
-			uint32_t alpha_x_tex = EMPTY_UINT32;
-			uint32_t specular_albedo_tex = EMPTY_UINT32;
-			uint32_t alpha_y_tex = EMPTY_UINT32;
-			uint32_t specular_weight_tex = EMPTY_UINT32;
-			uint32_t metalness_tex = EMPTY_UINT32;
-			uint32_t transmission_weight_tex = EMPTY_UINT32;
-			uint32_t normal_mapping_tex = EMPTY_UINT32;
-			uint32_t bump_mapping_tex = EMPTY_UINT32;
+			const auto geometry_index = ReadMeshGeometry(mesh, &scene_manager);
+			if (geometry_index == EMPTY_UINT32) {
+				continue;
+			}
+			const auto transform_index = node_transform_index;
+			const auto material_index = ReadMeshMaterial(file_root_path, mesh, scene, &scene_manager, material_map);
 			
-			aiColor4D ai_col_diffuse;
-			if (AI_SUCCESS == aiGetMaterialColor(ai_material, AI_MATKEY_COLOR_DIFFUSE, &ai_col_diffuse)) {
-				diffuse_albedo.x = ai_col_diffuse.r, diffuse_albedo.y = ai_col_diffuse.g, diffuse_albedo.z = ai_col_diffuse.b;
-			}
-	
-			if (ai_material->GetTextureCount(aiTextureType_DIFFUSE) > 0) {
-				aiString file;
-				if (AI_SUCCESS == ai_material->GetTexture(aiTextureType_DIFFUSE, 0, &file)) {
-					const std::string tex_file_path = file_root_path + std::string(file.C_Str());
-					diffuse_albedo_tex = scene_manager.CreateImageTexture(material_name + std::string("_diffuse_texture"), tex_file_path);
-				}
-			}
-
-			aiColor4D ai_col_specular;
-			if (AI_SUCCESS == aiGetMaterialColor(ai_material, AI_MATKEY_COLOR_SPECULAR, &ai_col_specular)) {
-				specular_albedo.x = ai_col_specular.r, specular_albedo.y = ai_col_specular.g, specular_albedo.z = ai_col_specular.b;
-			}
-
-			if (ai_material->GetTextureCount(aiTextureType_SPECULAR) > 0) {
-				aiString file;
-				if (AI_SUCCESS == ai_material->GetTexture(aiTextureType_SPECULAR, 0, &file)) {
-					const std::string tex_file_path = file_root_path + std::string(file.C_Str());
-					specular_albedo_tex = scene_manager.CreateImageTexture(material_name + std::string("_specular_texture"), tex_file_path);
-				}
-			}
-
-			if (ai_material->GetTextureCount(aiTextureType_NORMALS) > 0) {
-				aiString file;
-				if (AI_SUCCESS == ai_material->GetTexture(aiTextureType_NORMALS, 0, &file)) {
-					const std::string tex_file_path = file_root_path + std::string(file.C_Str());
-					normal_mapping_tex = scene_manager.CreateImageTexture(material_name + std::string("_normal_texture"), tex_file_path);
-				}
-			}
-
-			auto mesh_ID = scene_manager.CreateMesh(mesh_name, mesh_triangles, mesh_position_idxs, mesh_positions, mesh_normal_idxs, mesh_normals, mesh_texcoord_idxs, mesh_texcoords);
-			auto transform_ID = scene_manager.CreateTransform(transform_name, common_translate, common_scale, common_rotate);
-			auto material_ID = scene_manager.CreateDefaultMaterial(material_name, diffuse_albedo, specular_albedo, roughness_x, roughness_y, ior_n, metalness, specular_weight, transmission_weight, ior_priority,
-				 diffuse_albedo_tex, alpha_x_tex, specular_albedo_tex, alpha_y_tex, specular_weight_tex, metalness_tex, transmission_weight_tex, normal_mapping_tex, bump_mapping_tex);
-			
-			scene_manager.CreatePrimitiveInstance(mesh_ID, transform_ID, material_ID, common_inner_volume_index, common_treat_as_boundary);
+			scene_manager.CreatePrimitiveInstance(geometry_index, transform_index, material_index, inner_volume_index, treat_as_boundary);
 		}
 
 		for (int child_index = 0; child_index < node->mNumChildren; ++child_index) {
-			ReadNodeData(file_root_path, node->mChildren[child_index], scene, scene_module,
-				common_translate, common_scale, common_rotate, common_inner_volume_index, common_treat_as_boundary);
+			ReadNodeData(file_root_path, node->mChildren[child_index], scene, scene_module, material_map, node_transform_index, inner_volume_index, treat_as_boundary);
 		}
 	}
 
-	void SceneModule::LoadModelFromFile(const std::string& file_name, const glm::vec3& common_translate, const glm::vec3& common_scale, const glm::vec3& common_rotate, const int common_inner_volume_index, const bool common_treat_as_boundary)
+	void SceneModule::LoadModelFromFile(const std::string& file_name, const uint32_t transform_index, const int inner_volume_index, const bool treat_as_boundary)
 	{
 		Assimp::Importer importer;
 		const aiScene* scene = importer.ReadFile(file_name, aiProcess_GenSmoothNormals | aiProcess_Triangulate);
@@ -1035,8 +1096,8 @@ namespace YumeRT {
 			return;
 		}
 
-		ReadNodeData(file_name.substr(0, file_name.rfind("\\") + 1), scene->mRootNode, scene, this,
-			common_translate, common_scale, common_rotate, common_inner_volume_index, common_treat_as_boundary);
+		std::unordered_map<uint32_t, uint32_t> material_map;
+		ReadNodeData(file_name.substr(0, file_name.rfind("\\") + 1), scene->mRootNode, scene, this, material_map, transform_index, inner_volume_index, treat_as_boundary);
 		importer.FreeScene();
 	}
 };

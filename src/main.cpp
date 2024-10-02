@@ -28,7 +28,7 @@ void TestScene_CornellBox(const std::string& exec_path, std::shared_ptr<YumeRT::
 	const uint32_t bunny_inner_volume_index_0 = scene_manager.CreateVolume("bunny_inner_vol_0", scene_manager.CreateTransform("bunny_inner_volume_index_0_transform"), glm::vec3(0.085f), glm::vec3(1.0f));
 	const uint32_t bunny_inner_volume_index_1 = scene_manager.CreateVolume("bunny_inner_vol_1", scene_manager.CreateTransform("bunny_inner_volume_index_1_transform"), glm::vec3(0.085f), glm::vec3(1.0f));
 
-	scene_manager.LoadModelFromFile(exec_prefix + std::string("model\\bunny\\bunny.obj"), glm::vec3(0.0f, 0.0f, 0.0f));
+	scene_manager.LoadModelFromFile(exec_prefix + std::string("model\\nanosuit\\nanosuit.obj"), scene_manager.CreateTransform("nanosuit transform"));
 
 	// test basic texture op
 	const uint32_t tex_black_index = scene_manager.CreateConstantTexture("tex_black", glm::vec3(0.15f));

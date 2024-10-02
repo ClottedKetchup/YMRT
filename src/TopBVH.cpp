@@ -152,7 +152,7 @@ namespace YumeRT
 				raw_nodes[right_idx].count = raw_node.count - 1 - split_index;
 			};
 			
-			if (process_count < 256) {
+			if (process_count < single_thread_max_count) {
 				for (uint32_t node_idx = start; node_idx < start + process_count; ++node_idx) {
 					process_function(node_idx);
 				}
