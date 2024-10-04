@@ -164,8 +164,16 @@ namespace YumeRT
 		const ImageTexture &image_texture = texture.image_texture;
 		if (image_texture.tile_offset == -1 || image_texture.file_offset == -1) { return glm::vec3(0.0f); }
 
-		const float tex_u = texture_coordinate.st.x * image_texture.scale_u + image_texture.offset_u;
-		const float tex_v = texture_coordinate.st.y * image_texture.scale_v + image_texture.offset_v;
+		float tex_u = texture_coordinate.st.x * image_texture.scale_u + image_texture.offset_u;
+		if (tex_u < 0.0f) {
+			tex_u = glm::max(0.0f, tex_u + glm::abs(glm::floor(tex_u)));
+		}
+		float tex_v = texture_coordinate.st.y * image_texture.scale_v + image_texture.offset_v;
+		if (tex_v < 0.0f) {
+			tex_v = glm::max(0.0f, tex_v + glm::abs(glm::floor(tex_v)));
+		}
+
+		assert(tex_u >= 0.0f && tex_v >= 0.0f);
 		const float tex_dudx = texture_coordinate.dudx * image_texture.scale_u;
 		const float tex_dudy = texture_coordinate.dudy * image_texture.scale_u;
 		const float tex_dvdx = texture_coordinate.dvdx * image_texture.scale_v;
