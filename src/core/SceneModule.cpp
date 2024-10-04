@@ -973,6 +973,8 @@ namespace YumeRT {
 		}
 
 		auto& ai_material = scene->mMaterials[ai_material_index];
+		auto& scene_manager = *scene_module;
+		const std::string material_name = std::string(mesh->mName.C_Str()) + std::string("_material");
 
 		glm::vec3 diffuse_albedo = glm::vec3(0.5f);
 		glm::vec3 specular_albedo = glm::vec3(1.0f);
@@ -984,6 +986,40 @@ namespace YumeRT {
 		float transmission_weight = 0.0f;
 		uint32_t ior_priority = 0;
 
+		aiColor4D ai_diffuse_albedo;
+		if (AI_SUCCESS == aiGetMaterialColor(ai_material, AI_MATKEY_COLOR_DIFFUSE, &ai_diffuse_albedo)) {
+			diffuse_albedo.x = ai_diffuse_albedo.r, diffuse_albedo.y = ai_diffuse_albedo.g, diffuse_albedo.z = ai_diffuse_albedo.b;
+		}
+		aiColor4D ai_specular_albedo;
+		if (AI_SUCCESS == aiGetMaterialColor(ai_material, AI_MATKEY_COLOR_SPECULAR, &ai_specular_albedo)) {
+			specular_albedo.x = ai_specular_albedo.r, specular_albedo.y = ai_specular_albedo.g, specular_albedo.z = ai_specular_albedo.b;
+		}
+		float ai_roughness;
+		if (AI_SUCCESS == aiGetMaterialFloat(ai_material, AI_MATKEY_ROUGHNESS_FACTOR, &ai_roughness)) {
+			ai_roughness = glm::clamp(ai_roughness, 0.0f, 1.0f);
+			roughness_x = roughness_y = ai_roughness;
+		}
+		float ai_ior;
+		if (AI_SUCCESS == aiGetMaterialFloat(ai_material, AI_MATKEY_REFRACTI, &ai_ior)) {
+			ai_ior = glm::max(0.0f, ai_ior);
+			ior_n = ai_ior;
+		}
+		float ai_metalness;
+		if (AI_SUCCESS == aiGetMaterialFloat(ai_material, AI_MATKEY_METALLIC_FACTOR, &ai_metalness)) {
+			ai_metalness = glm::clamp(ai_metalness, 0.0f, 1.0f);
+			metalness = ai_metalness;
+		}
+		float ai_specular_weight;
+		if (AI_SUCCESS == aiGetMaterialFloat(ai_material, AI_MATKEY_SPECULAR_FACTOR, &ai_specular_weight)) {
+			ai_specular_weight = glm::clamp(ai_specular_weight, 0.0f, 1.0f);
+			specular_weight = ai_specular_weight;
+		}
+		float ai_transmission_weight;
+		if (AI_SUCCESS == aiGetMaterialFloat(ai_material, AI_MATKEY_TRANSMISSION_FACTOR, &ai_transmission_weight)) {
+			ai_transmission_weight = glm::clamp(ai_transmission_weight, 0.0f, 1.0f);
+			transmission_weight = ai_transmission_weight;
+		}
+
 		uint32_t diffuse_albedo_tex = EMPTY_UINT32;
 		uint32_t alpha_x_tex = EMPTY_UINT32;
 		uint32_t specular_albedo_tex = EMPTY_UINT32;
@@ -994,42 +1030,32 @@ namespace YumeRT {
 		uint32_t normal_mapping_tex = EMPTY_UINT32;
 		uint32_t bump_mapping_tex = EMPTY_UINT32;
 
-		auto& scene_manager = *scene_module;
-		const std::string material_name = std::string(mesh->mName.C_Str()) + std::string("_material");
-
-		aiColor4D ai_col_diffuse;
-		if (AI_SUCCESS == aiGetMaterialColor(ai_material, AI_MATKEY_COLOR_DIFFUSE, &ai_col_diffuse)) {
-			diffuse_albedo.x = ai_col_diffuse.r, diffuse_albedo.y = ai_col_diffuse.g, diffuse_albedo.z = ai_col_diffuse.b;
-		}
-
-		if (ai_material->GetTextureCount(aiTextureType_DIFFUSE) > 0) {
-			aiString file;
-			if (AI_SUCCESS == ai_material->GetTexture(aiTextureType_DIFFUSE, 0, &file)) {
-				const std::string tex_file_path = file_root_path + std::string(file.C_Str());
-				diffuse_albedo_tex = scene_manager.CreateImageTexture(material_name + std::string("_diffuse_texture"), tex_file_path);
+		auto get_ai_texture = [&](const std::string& texture_name, const aiTextureType texture_type) {
+			if (ai_material->GetTextureCount(texture_type) > 0) {
+				aiString file_name;
+				if (AI_SUCCESS == ai_material->GetTexture(texture_type, 0, &file_name)) {
+					const std::string texture_file_path = file_root_path + std::string(file_name.C_Str());
+					 return scene_manager.CreateImageTexture(texture_name, texture_file_path);
+				}
 			}
-		}
+			return EMPTY_UINT32;
+		};
 
-		aiColor4D ai_col_specular;
-		if (AI_SUCCESS == aiGetMaterialColor(ai_material, AI_MATKEY_COLOR_SPECULAR, &ai_col_specular)) {
-			specular_albedo.x = ai_col_specular.r, specular_albedo.y = ai_col_specular.g, specular_albedo.z = ai_col_specular.b;
-		}
+		diffuse_albedo_tex = get_ai_texture(material_name + std::string("_diffuse_texture"), aiTextureType_DIFFUSE);
 
-		if (ai_material->GetTextureCount(aiTextureType_SPECULAR) > 0) {
-			aiString file;
-			if (AI_SUCCESS == ai_material->GetTexture(aiTextureType_SPECULAR, 0, &file)) {
-				const std::string tex_file_path = file_root_path + std::string(file.C_Str());
-				specular_albedo_tex = scene_manager.CreateImageTexture(material_name + std::string("_specular_texture"), tex_file_path);
-			}
-		}
+		const uint32_t specular_texture = get_ai_texture(material_name + std::string("_specular_texture"), aiTextureType_SPECULAR);
+		specular_albedo_tex = specular_weight_tex = specular_texture;
 
-		if (ai_material->GetTextureCount(aiTextureType_NORMALS) > 0) {
-			aiString file;
-			if (AI_SUCCESS == ai_material->GetTexture(aiTextureType_NORMALS, 0, &file)) {
-				const std::string tex_file_path = file_root_path + std::string(file.C_Str());
-				normal_mapping_tex = scene_manager.CreateImageTexture(material_name + std::string("_normal_texture"), tex_file_path);
-			}
-		}
+		const uint32_t roughness_texture = get_ai_texture(material_name + std::string("_roughness_texture"), aiTextureType_DIFFUSE_ROUGHNESS);
+		alpha_x_tex = alpha_y_tex = roughness_texture;
+
+		metalness_tex = get_ai_texture(material_name + std::string("_metalness_texture"), aiTextureType_METALNESS);
+
+		transmission_weight_tex = get_ai_texture(material_name + std::string("_transmission_texture"), aiTextureType_TRANSMISSION);
+
+		normal_mapping_tex = get_ai_texture(material_name + std::string("_normal_texture"), aiTextureType_NORMALS);
+
+		bump_mapping_tex = get_ai_texture(material_name + std::string("_normal_texture"), aiTextureType_HEIGHT);
 
 		const auto material_index = scene_manager.CreateDefaultMaterial(material_name, diffuse_albedo, specular_albedo, roughness_x, roughness_y, ior_n, metalness, specular_weight, transmission_weight, ior_priority,
 			diffuse_albedo_tex, alpha_x_tex, specular_albedo_tex, alpha_y_tex, specular_weight_tex, metalness_tex, transmission_weight_tex, normal_mapping_tex, bump_mapping_tex);

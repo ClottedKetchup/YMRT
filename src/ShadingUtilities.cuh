@@ -768,7 +768,7 @@ namespace YumeRT
 		float delta_u01 = uv1.x - uv0.x, delta_v01 = uv1.y - uv0.y;
 		float delta_u02 = uv2.x - uv0.x, delta_v02 = uv2.y - uv0.y;
 		float determinant = delta_u01 * delta_v02 - delta_v01 * delta_u02;
-		if (glm::abs(determinant) < (float)FLOAT_EPSILON)
+		if (glm::abs(determinant) < (float)1E-8f)
 		{
 			delta_u01 = 1.0f, delta_v01 = 0.0f;
 			delta_u02 = 0.0f, delta_v02 = 1.0f;

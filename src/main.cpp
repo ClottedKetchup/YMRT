@@ -28,7 +28,7 @@ void TestScene_CornellBox(const std::string& exec_path, std::shared_ptr<YumeRT::
 	const uint32_t bunny_inner_volume_index_0 = scene_manager.CreateVolume("bunny_inner_vol_0", scene_manager.CreateTransform("bunny_inner_volume_index_0_transform"), glm::vec3(0.085f), glm::vec3(1.0f));
 	const uint32_t bunny_inner_volume_index_1 = scene_manager.CreateVolume("bunny_inner_vol_1", scene_manager.CreateTransform("bunny_inner_volume_index_1_transform"), glm::vec3(0.085f), glm::vec3(1.0f));
 
-	scene_manager.LoadModelFromFile(exec_prefix + std::string("model\\nanosuit\\nanosuit.obj"), scene_manager.CreateTransform("nanosuit transform"));
+	scene_manager.LoadModelFromFile(exec_prefix + std::string("model\\bunny\\bunny.obj"), scene_manager.CreateTransform("bunny_transform"));
 
 	// test basic texture op
 	const uint32_t tex_black_index = scene_manager.CreateConstantTexture("tex_black", glm::vec3(0.15f));
@@ -83,14 +83,6 @@ void TestScene_CornellBox(const std::string& exec_path, std::shared_ptr<YumeRT::
 		scene_manager.CreateTransform("ground transform", glm::vec3(0.0f, -5.55f, 0.0f), glm::vec3(135.0, 1.0f, 135.0f)),
 		scene_manager.CreateDefaultMaterial("ground material", glm::vec3(0.55f, 0.55f, 0.55f), glm::vec3(0.0f), 0.2, 0.2, 1.3, 0.0f, 0.0f, 0.0f, 0,
 			ground_diffuse_tex_idx, ground_roughness_tex_idx, ground_diffuse_tex_idx, ground_roughness_tex_idx, EMPTY_UINT32, EMPTY_UINT32, EMPTY_UINT32, EMPTY_UINT32, ground_bump_tex_idx),
-		-1);
-
-	const uint32_t tex_perlin_noise = scene_manager.CreateNoiseTextureMarble("Noise_0", tex_black_index, tex_white_index, 2.0f);
-
-	scene_manager.CreatePrimitiveInstance(cube_index,
-		scene_manager.CreateTransform("extra cube transform", glm::vec3(5.8f, -2.55f, 5.8f), glm::vec3(4.0f, 4.0f, 4.0f)),
-		scene_manager.CreateDefaultMaterial("extra cube", glm::vec3(0.55f, 0.55f, 0.55f), glm::vec3(0.0f), 0.2, 0.2, 1.3, 0.0f, 0.0f, 0.0f, 0,
-			EMPTY_UINT32, EMPTY_UINT32, EMPTY_UINT32, EMPTY_UINT32, EMPTY_UINT32, EMPTY_UINT32, EMPTY_UINT32, EMPTY_UINT32, tex_perlin_noise),
 		-1);
 
 	const uint32_t cube_volume = scene_manager.CreateVolume("cube volume", scene_manager.CreateTransform("cube volume transform"), glm::vec3(0.085f), glm::vec3(1.0f), 0.0f, fog_tex);

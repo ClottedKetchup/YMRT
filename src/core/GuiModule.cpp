@@ -392,16 +392,16 @@ namespace YumeRT {
 		auto& m_renderer = *m_module_render;
 		auto& m_scene = *m_module_scene;
 
-		if (ImGui::CollapsingHeader("Render Setting"))
+		if (ImGui::CollapsingHeader("Render setting"))
 		{
 			auto& render_setting = m_scene.render_setting;
 			const int accumulated_frame_count = render_setting.max_frame_count > 0 ? glm::min(m_renderer.path_tracing_frame_index, render_setting.max_frame_count) : m_renderer.path_tracing_frame_index;
 
-			ImGui::Text("Accumulate Frame Count: %d", accumulated_frame_count);
+			ImGui::Text("Accumulate frame count: %d", accumulated_frame_count);
 			ImGui::ProgressBar(render_setting.max_frame_count > 0 ? float(accumulated_frame_count) / float(render_setting.max_frame_count) : 1.0f);
 			if (render_setting.max_frame_count > 0 && accumulated_frame_count == render_setting.max_frame_count) {
 				ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(250, 4, 4, 255));
-				ImGui::Text("Render Finish!");
+				ImGui::Text("Render finish!");
 				ImGui::PopStyleColor();
 			}
 
@@ -419,33 +419,33 @@ namespace YumeRT {
 			}
 
 			ImGui::Separator();
-			ImGui::Checkbox("Enable Selected Effect", &draw_selected_effect);
-			if (ImGui::Checkbox("Distant Light", &render_setting.enable_distant_light)) {
+			ImGui::Checkbox("Enable selected effect", &draw_selected_effect);
+			if (ImGui::Checkbox("Distant light", &render_setting.enable_distant_light)) {
 				m_scene.AddSceneFlag(SceneModule::SCENE_RENDER_SETTING_CHANGE);
 			}
-			if (ImGui::Checkbox("Shape Light", (bool*)(&render_setting.enable_shape_light))) {
+			if (ImGui::Checkbox("Shape light", (bool*)(&render_setting.enable_shape_light))) {
 				m_scene.AddSceneFlag(SceneModule::SCENE_RENDER_SETTING_CHANGE);
 			}
-			if (ImGui::Checkbox("Env Light", &render_setting.enable_env_light)) {
+			if (ImGui::Checkbox("Enviroment light", &render_setting.enable_env_light)) {
 				m_scene.AddSceneFlag(SceneModule::SCENE_RENDER_SETTING_CHANGE);
 			}
-			if (ImGui::Checkbox("Volume Scatter", &render_setting.enable_volume_scattering)) {
+			if (ImGui::Checkbox("Volume scatter", &render_setting.enable_volume_scattering)) {
 				m_scene.AddSceneFlag(SceneModule::SCENE_RENDER_SETTING_CHANGE);
 			}
-			if (ImGui::Checkbox("Russian Roulette", &render_setting.enable_russian_roulette)) {
+			if (ImGui::Checkbox("Russian roulette", &render_setting.enable_russian_roulette)) {
 				m_scene.AddSceneFlag(SceneModule::SCENE_RENDER_SETTING_CHANGE);
 			}
 
 			ImGui::Separator();
-			if (ImGui::InputInt("Sample Count", &render_setting.ssp)) {
+			if (ImGui::InputInt("Sample count", &render_setting.ssp)) {
 				render_setting.ssp = glm::clamp(render_setting.ssp, 1, 16);
 				m_scene.AddSceneFlag(SceneModule::SCENE_RENDER_SETTING_CHANGE);
 			}
-			if (ImGui::InputInt("Max Accumulate Frame Count", &render_setting.max_frame_count)) {
+			if (ImGui::InputInt("Max accumulate frame count", &render_setting.max_frame_count)) {
 				render_setting.max_frame_count = glm::max(render_setting.max_frame_count, 0);
 				m_scene.AddSceneFlag(SceneModule::SCENE_RENDER_SETTING_CHANGE);
 			}
-			if (ImGui::InputInt("Ray Depth", &render_setting.ray_depth)) {
+			if (ImGui::InputInt("Ray depth", &render_setting.ray_depth)) {
 				render_setting.ray_depth = glm::clamp(render_setting.ray_depth, 1, 12);
 				m_scene.AddSceneFlag(SceneModule::SCENE_RENDER_SETTING_CHANGE);
 			}
@@ -459,8 +459,17 @@ namespace YumeRT {
 			}
 		}
 
+		if (ImGui::CollapsingHeader("Camera setting")) {
+			if (ImGui::InputFloat("Move speed", &trackball.move_speed))
+			{
+			}
+			if (ImGui::InputFloat("Rotate speed", &trackball.rotate_speed))
+			{
+			}
+		}
+
 		if (ImGui::CollapsingHeader("Primitive")) {
-			ImGui::Checkbox("Show Primitive List", &show_primitive_list);
+			ImGui::Checkbox("Show primitive list", &show_primitive_list);
 		}
 
 		ImGui::End();

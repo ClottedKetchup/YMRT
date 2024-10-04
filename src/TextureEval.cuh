@@ -212,7 +212,11 @@ namespace YumeRT
 			
 			glm::vec3 result(0.0f);
 			const int tile_pixel_offset_channel = tile_pixel_offset * image_texture.channel_count;
-			const float* tile_data = (const float*)(this_tile.GetTileData());
+			const float *tile_data = (const float*)(this_tile.GetTileData());
+			if (image_texture.channel_count == 1) {
+				return glm::vec3(tile_data[tile_pixel_offset_channel]);
+			}
+
 			for (int channel_idx = 0; channel_idx < 3 && channel_idx < image_texture.channel_count; ++channel_idx){
 				result[channel_idx] = tile_data[tile_pixel_offset_channel + channel_idx];
 			}
