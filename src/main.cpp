@@ -95,6 +95,35 @@ void TestScene_CornellBox(const std::string& exec_path, std::shared_ptr<YumeRT::
 	scene_manager.CreateDistantLight("default distant light", glm::vec3(1.0f), scene_manager.CreateTransform("transform_distant_light", glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(-180.0f, 0.0f, 30.0f)), 1.0f);
 }
 
+void TestScene_Sponza(const std::string& exec_path, std::shared_ptr<YumeRT::SceneModule> scene_module) 
+{
+	const std::string exec_prefix = exec_path.substr(0, exec_path.rfind('\\') + 1);
+
+	auto& scene_manager = *scene_module;
+	const uint32_t cube_index = scene_manager.CreateCube("Cube");
+	const uint32_t 	sphere_index = scene_manager.CreateSphere("Sphere", 1.0f);
+	const uint32_t fog_tex_black = scene_manager.CreateConstantTexture("fog_tex_black", glm::vec3(0.04f));
+	const uint32_t fog_tex_white = scene_manager.CreateConstantTexture("fog_tex_white", glm::vec3(0.96f));
+	const uint32_t fog_tex = scene_manager.CreateNoiseTextureMarble("fog_tex", fog_tex_black, fog_tex_white);
+
+	auto& camera = scene_manager.GetSceneCamera();
+
+	glm::vec3 camera_from = glm::vec3(0.0f, 10.0f, 10.0f);
+	glm::vec3 camera_look = glm::vec3(0.0f, 10.0f, 4.0f);
+	constexpr float camera_fov = glm::radians(45.0f);
+
+	camera.SetFov(camera_fov);
+	camera.SetPosition(camera_from);
+	camera.SetDir(camera_from - camera_look);
+
+	const uint32_t default_material = scene_manager.CreateDefaultMaterial("default material", glm::vec3(0.25f), glm::vec3(1.0f), 0.2f, 0.2f, 1.0f, 0.0f, 0.0f, 0.0f, 0);
+	const uint32_t world_volume_index = scene_manager.CreateVolume("world_vol", scene_manager.CreateTransform("world_volume_index_transform"), glm::vec3(0.235f), glm::vec3(1.0f));
+
+	scene_manager.LoadModelFromFile(exec_prefix + std::string("model\\sponza\\sponza.obj"), scene_manager.CreateTransform("sponza_transform"));
+
+	scene_manager.CreateDistantLight("default distant light", glm::vec3(1.0f), scene_manager.CreateTransform("transform_distant_light", glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(-180.0f, 0.0f, 30.0f)), 1.0f);
+}
+
 int main(int argc, char *argv[])
 {
 	try {

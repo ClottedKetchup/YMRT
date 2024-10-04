@@ -624,6 +624,8 @@ namespace YumeRT
 			const uint32_t normal_mapping_tex = mtl.GetNormalMappingTex();
 			const uint32_t bump_mapping_tex = mtl.GetBumpMappingTex();
 
+			const bool weird_data_flip_flag = glm::dot(glm::cross(hit_dpdu, hit_dpdv), hit_geometry_normal) < 0.0f;
+
 			glm::vec3 shading_normal = hit_shading_normal;
 			glm::vec3 shading_dpdu = hit_dpdu - hit_shading_normal * glm::dot(hit_dpdu, hit_shading_normal);
 			glm::vec3 shading_dpdv = hit_dpdv - hit_shading_normal * glm::dot(hit_dpdv, hit_shading_normal);
@@ -675,6 +677,9 @@ namespace YumeRT
 				shading_dpdu = shading_dpdu + (height_delta_u - height) * SafeRcp(delta_u) * shading_normal;
 				shading_dpdv = shading_dpdv + (height_delta_v - height) * SafeRcp(delta_v) * shading_normal;
 				shading_normal = glm::normalize(glm::cross(shading_dpdu, shading_dpdv));
+				if (weird_data_flip_flag) {
+					shading_normal = -shading_normal;
+				}
 
 				if (!hit_back) {
 					normal = shading_normal;

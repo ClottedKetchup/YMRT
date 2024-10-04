@@ -438,7 +438,7 @@ namespace YumeRT {
 
 			ImGui::Separator();
 			if (ImGui::InputInt("Sample count", &render_setting.ssp)) {
-				render_setting.ssp = glm::clamp(render_setting.ssp, 1, 16);
+				render_setting.ssp = glm::clamp(render_setting.ssp, 1, 32);
 				m_scene.AddSceneFlag(SceneModule::SCENE_RENDER_SETTING_CHANGE);
 			}
 			if (ImGui::InputInt("Max accumulate frame count", &render_setting.max_frame_count)) {
