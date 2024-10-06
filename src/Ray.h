@@ -18,13 +18,15 @@ namespace YumeRT
 		glm::vec3 direction;
 		mutable float t;
 		float time;
+		uint32_t last_hit_instance_index;
+		uint32_t last_hit_triangle_index;
 
 		__device__ __host__ inline Ray() : t(TMAX),  origin(0.0f), direction(0.0f), time(0.0f){
 			SetInvalid();
 		};
 
-		__device__ __host__ inline Ray(const glm::vec3 &origin, const glm::vec3 &direction)
-			:origin(origin), direction(glm::normalize(direction)), t(TMAX) {}
+		__device__ __host__ inline Ray(const glm::vec3 &origin, const glm::vec3 &direction, uint32_t last_hit_instance_index = EMPTY_UINT32, uint32_t last_hit_triangle_index = EMPTY_UINT32)
+			:origin(origin), direction(glm::normalize(direction)), t(TMAX), last_hit_instance_index(last_hit_instance_index), last_hit_triangle_index(last_hit_triangle_index) {}
 
 		__device__ __host__ inline glm::vec3 PositionAtT(float time) const
 		{
@@ -59,6 +61,8 @@ namespace YumeRT
 		transformed_ray.direction = glm::vec3(transform * glm::vec4(ray.direction, 0.0f));
 		transformed_ray.t = ray.t;
 		transformed_ray.time = ray.time;
+		transformed_ray.last_hit_instance_index = ray.last_hit_instance_index;
+		transformed_ray.last_hit_triangle_index = ray.last_hit_triangle_index;
 		return transformed_ray;
 	}
 

@@ -135,6 +135,7 @@ namespace YumeRT
 
 	__device__ __host__  inline bool IntersectMeshObject(const TriangleMesh &triangle_mesh, 
 		const Ray &ray, 
+		const uint32_t current_instance_index,
 		HitRecord *hit_record, 
 		bool test_any_hit, 
 		ExtraHitInfo *extra_hit_info = nullptr)
@@ -157,6 +158,8 @@ namespace YumeRT
 			return false; 
 		}
 
+		const bool enable_skip_triangle = ray.last_hit_instance_index != EMPTY_UINT32 && ray.last_hit_triangle_index != EMPTY_UINT32;
+		
 		float t = 0.0f;
 		bool hit = false;
 
@@ -171,6 +174,9 @@ namespace YumeRT
 				const Triangle *tris = triangles + node.leaf.offset;
 				for (uint32_t leaf_prim_idx = 0; leaf_prim_idx < node.leaf.count; ++leaf_prim_idx)
 				{
+					if (enable_skip_triangle && current_instance_index == ray.last_hit_instance_index &&(node.leaf.offset + leaf_prim_idx) == ray.last_hit_triangle_index ) {
+						continue;
+					}
 					if (IntersectTri(tris[leaf_prim_idx], positions, vidxs, ray, hit_record, extra_hit_info)) {
 						hit_record->hit_triangle_idx = node.leaf.offset + leaf_prim_idx;
 						hit = hit || true;
@@ -212,6 +218,7 @@ namespace YumeRT
 
 	__device__ __host__  inline bool IntersectSphereObject(const Sphere &sphere, 
 		const Ray &ray, 
+		const uint32_t current_instance_index,
 		HitRecord *hit_record, 
 		bool test_any_hit, 
 		ExtraHitInfo *extra_hit_info = nullptr)
@@ -270,6 +277,7 @@ namespace YumeRT
 	__device__ __host__  inline bool IntersectGeometry(const GeometryData &geometry, 
 		const Scene &scene, 
 		const Ray &ray, 
+		const uint32_t current_instance_index,
 		HitRecord *hit_record, 
 		bool test_any_hit, 
 		ExtraHitInfo *extra_hit_info = nullptr)
@@ -279,6 +287,7 @@ namespace YumeRT
 		{
 			return IntersectMeshObject(geometry.triangle_mesh, 
 				ray, 
+				current_instance_index,
 				hit_record, 
 				test_any_hit, 
 				extra_hit_info);
@@ -287,6 +296,7 @@ namespace YumeRT
 		{
 			return IntersectSphereObject(geometry.sphere, 
 				ray, 
+				current_instance_index,
 				hit_record, 
 				test_any_hit, 
 				extra_hit_info);
@@ -346,7 +356,7 @@ namespace YumeRT
 
 					HitRecord prim_hit_record;
 					ExtraHitInfo prim_extra_hit_info;
-					if (IntersectGeometry(geometry, scene, object_ray, &prim_hit_record, false, &prim_extra_hit_info))
+					if (IntersectGeometry(geometry, scene, object_ray, node.leaf.offset + leaf_prim_idx, &prim_hit_record, false, &prim_extra_hit_info))
 					{
 						assert(prim_extra_hit_info.hit);
 						hit_record->hit_back = prim_hit_record.hit_back;
@@ -474,7 +484,7 @@ namespace YumeRT
 					
 					HitRecord prim_hit_record;
 					ExtraHitInfo prim_extra_hit_info;
-					if (IntersectGeometry(geometry, scene, object_ray, &prim_hit_record, false, &prim_extra_hit_info))
+					if (IntersectGeometry(geometry, scene, object_ray, node.leaf.offset + leaf_prim_idx, &prim_hit_record, false, &prim_extra_hit_info))
 					{
 						assert(prim_extra_hit_info.hit);
 						hit_record->hit_back = prim_hit_record.hit_back;
@@ -585,7 +595,7 @@ namespace YumeRT
 					Ray object_ray = TransformRay(ray, i_transform);
 					const GeometryData &geometry = scene.geometries[prim_instances[leaf_prim_idx].geometry_idx];
 
-					if (IntersectGeometry(geometry, scene, object_ray, hit_record, true))  /* test any hit */
+					if (IntersectGeometry(geometry, scene, object_ray, node.leaf.offset + leaf_prim_idx, hit_record, true))  /* test any hit */
 					{
 						hit_record->hit_instance_idx = node.leaf.offset + leaf_prim_idx;
 						hit = hit || true;

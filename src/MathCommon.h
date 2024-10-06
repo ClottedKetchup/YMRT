@@ -13,7 +13,7 @@ namespace YumeRT
 #define HALF_PI 1.57079632679f
 #define INV_PI 0.318309886183f
 
-#define FLOAT_EPSILON 8.89209E-07f // note: machine epsilon is 1.19209E-07
+#define FLOAT_EPSILON 1.569209E-07f // note: machine epsilon is 1.19209E-07
 #define MIN_COLOR_EPSILON 3.7252903E-9f
 #define MAX_COLOR_CLAMP 1E16f
 #define SHADOW_RAY_CLAMP 0.9995f

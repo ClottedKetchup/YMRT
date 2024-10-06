@@ -459,7 +459,7 @@ namespace YumeRT {
 				float mtl_ior = mtl.FetchIOR(&mtl_ior_priority);
 
 				BoundaryTransitionBunch(shadow_ray_transfer, scene.primitive_instances, scene.materials, nearby_hits, nearby_hit_count);
-				tr_ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, tr_ray.direction, hit_geometry_normal), tr_ray.direction);
+				tr_ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, tr_ray.direction, hit_geometry_normal), tr_ray.direction, hit_record.hit_instance_idx, hit_record.hit_triangle_idx);
 			}
 		}
 		return tr;

@@ -63,6 +63,7 @@ namespace YumeRT
 															const ImageTileCache& image_tile_cache,
 															MaterialBSDF &material_bsdf,
 															const glm::vec3 &ray_direction, 
+															const HitRecord &hit_record,
 															const RayTransfer &ray_transfer,
 															const int nearby_hit_count,
 															const NearbyHit nearby_hits[],
@@ -117,7 +118,7 @@ namespace YumeRT
 							BoundaryTransitionBunch(shadow_ray_transfer, scene.primitive_instances, scene.materials, nearby_hits, nearby_hit_count);
 						}
 
-						shadow_ray = Ray(shadow_ray_origin, light_dir);
+						shadow_ray = Ray(shadow_ray_origin, light_dir, hit_record.hit_instance_idx, hit_record.hit_triangle_idx);
 						shadow_ray.t = TMAX;
 						tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 					}
@@ -159,7 +160,7 @@ namespace YumeRT
 								BoundaryTransitionBunch(shadow_ray_transfer, scene.primitive_instances, scene.materials, nearby_hits, nearby_hit_count);
 							}
 
-							shadow_ray = Ray(shadow_ray_origin, light_dir);
+							shadow_ray = Ray(shadow_ray_origin, light_dir, hit_record.hit_instance_idx, hit_record.hit_triangle_idx);
 							shadow_ray.t = TMAX;
 							tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 						}
@@ -183,6 +184,7 @@ namespace YumeRT
 																		const float gs[],
 																		const float volume_weighs[],
 																		const Ray &ray,
+																		const HitRecord &hit_record,
 																		const RayTransfer &ray_transfer,
 																		const glm::vec3 &volume_hit_position,
 																		RandomSampler &sampler)
@@ -220,7 +222,7 @@ namespace YumeRT
 				{
 					RayTransfer shadow_ray_transfer(ray_transfer);
 
-					shadow_ray = Ray(volume_hit_position, light_dir);
+					shadow_ray = Ray(volume_hit_position, light_dir, EMPTY_UINT32, EMPTY_UINT32);
 					shadow_ray.t = TMAX;
 					glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 
@@ -252,7 +254,7 @@ namespace YumeRT
 					{
 						RayTransfer shadow_ray_transfer(ray_transfer);
 						
-						shadow_ray = Ray(volume_hit_position, light_dir);
+						shadow_ray = Ray(volume_hit_position, light_dir, EMPTY_UINT32, EMPTY_UINT32);
 						shadow_ray.t = TMAX;
 						glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 
@@ -272,6 +274,7 @@ namespace YumeRT
 															const ImageTileCache& image_tile_cache,
 															MaterialBSDF &material_bsdf,
 															const glm::vec3 &ray_direction,
+															const HitRecord &hit_record,
 															const RayTransfer &ray_transfer,
 															const int nearby_hit_count,
 															const NearbyHit nearby_hits[],
@@ -327,7 +330,7 @@ namespace YumeRT
 							BoundaryTransitionBunch(shadow_ray_transfer, scene.primitive_instances, scene.materials, nearby_hits, nearby_hit_count);
 						}
 
-						shadow_ray = Ray(shadow_ray_origin, light_dir);
+						shadow_ray = Ray(shadow_ray_origin, light_dir, hit_record.hit_instance_idx, hit_record.hit_triangle_idx);
 						shadow_ray.t = max_trace_distance;
 						tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 					}
@@ -375,7 +378,7 @@ namespace YumeRT
 								BoundaryTransitionBunch(shadow_ray_transfer, scene.primitive_instances, scene.materials, nearby_hits, nearby_hit_count);
 							}
 							
-							shadow_ray = Ray(shadow_ray_origin, light_dir);
+							shadow_ray = Ray(shadow_ray_origin, light_dir, hit_record.hit_instance_idx, hit_record.hit_triangle_idx);
 							shadow_ray.t = max_trace_distance;
 							tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 						}
@@ -398,6 +401,7 @@ namespace YumeRT
 																		const float gs[],
 																		const float volume_weighs[],
 																		const Ray &ray,
+																		const HitRecord &hit_record,
 																		const RayTransfer &ray_transfer,
 																		const glm::vec3 &volume_hit_position, 
 																		RandomSampler &sampler)
@@ -438,7 +442,7 @@ namespace YumeRT
 				{
 					RayTransfer shadow_ray_transfer(ray_transfer);
 
-					shadow_ray = Ray(volume_hit_position, light_dir);
+					shadow_ray = Ray(volume_hit_position, light_dir, EMPTY_UINT32, EMPTY_UINT32);
 					shadow_ray.t = max_trace_distance;
 					glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 					
@@ -472,7 +476,7 @@ namespace YumeRT
 					{
 						RayTransfer shadow_ray_transfer(ray_transfer);
 						
-						shadow_ray = Ray(volume_hit_position, light_dir);
+						shadow_ray = Ray(volume_hit_position, light_dir, EMPTY_UINT32, EMPTY_UINT32);
 						shadow_ray.t = max_trace_distance;
 						glm::vec3 tr = TraceTr(scene, image_tile_cache, shadow_ray, shadow_ray_transfer, sampler);
 						
@@ -600,11 +604,11 @@ namespace YumeRT
 						glm::vec3 volume_hit_position = ray.PositionAtT(sampled_distance);
 						if (render_setting.enable_distant_light) {
 							L += throughput * EvalVolumeDistantLight(render_setting, scene, image_tile_cache, overlapped_volume_count, gs, volume_weights, 
-								ray, ray_transfer, volume_hit_position, sampler);
+								ray, hit_record, ray_transfer, volume_hit_position, sampler);
 						}
 
 						L += throughput * EvalVolumeShapeLight(render_setting, scene, image_tile_cache, overlapped_volume_count, gs, volume_weights, 
-							ray, ray_transfer, volume_hit_position, sampler);
+							ray, hit_record, ray_transfer, volume_hit_position, sampler);
 
 						// sample phase function
 						// multiply phase weight
@@ -628,7 +632,7 @@ namespace YumeRT
 							}
 						}
 
-						ray = Ray(volume_hit_position, wi);
+						ray = Ray(volume_hit_position, wi, EMPTY_UINT32, EMPTY_UINT32);
 						never_scatter = false; 
 						camera_ray = false;
 						++depth;
@@ -671,7 +675,7 @@ namespace YumeRT
 					{
 						// note: should not consume depth
 						BoundaryTransitionBunch(ray_transfer, scene.primitive_instances, scene.materials, nearby_hits, nearby_hit_count);
-						ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, ray.direction, hit_geometry_normal), ray.direction);
+						ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, ray.direction, hit_geometry_normal), ray.direction, hit_record.hit_instance_idx, hit_record.hit_triangle_idx);
 						camera_ray = false;
 						continue;
 					}
@@ -681,7 +685,7 @@ namespace YumeRT
 						// note: should not consume depth
 						// note: although volume is treat as boundary, but the material's ior will still affect its attribute, so remember to set it!
 						BoundaryTransitionBunch(ray_transfer, scene.primitive_instances, scene.materials, nearby_hits, nearby_hit_count);
-						ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, ray.direction, hit_geometry_normal), ray.direction);
+						ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, ray.direction, hit_geometry_normal), ray.direction, hit_record.hit_instance_idx, hit_record.hit_triangle_idx);
 						camera_ray = false;
 						continue;
 					}
@@ -740,6 +744,7 @@ namespace YumeRT
 								image_tile_cache,
 								material_bsdf,
 								ray.direction,
+								hit_record,
 								ray_transfer,
 								nearby_hit_count,
 								nearby_hits,
@@ -756,6 +761,7 @@ namespace YumeRT
 							image_tile_cache, 
 							material_bsdf,
 							ray.direction,
+							hit_record,
 							ray_transfer,
 							nearby_hit_count,
 							nearby_hits,
@@ -799,7 +805,7 @@ namespace YumeRT
 
 					// this method to avoid self intersection is still not robust, it makes the sphere self-intersection when radius is big
 					bool front_side_bounce = glm::dot(hit_geometry_normal, new_direction) >= 0.0f;
-					ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, new_direction, hit_geometry_normal), new_direction);
+					ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, new_direction, hit_geometry_normal), new_direction, hit_record.hit_instance_idx, hit_record.hit_triangle_idx);
 					never_scatter = false;
 					camera_ray = false;
 					++depth;
@@ -1535,7 +1541,7 @@ namespace YumeRT
 		const auto &material = scene.materials[material_index];
 		if (primitive.treat_as_boundary) {
 			BoundaryTransitionBunch(ray_transfer, scene.primitive_instances, scene.materials, nearby_hits, nearby_hit_count);
-			Ray indirect_ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, ray.direction, hit_geometry_normal), ray.direction);
+			Ray indirect_ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, ray.direction, hit_geometry_normal), ray.direction, hit_record.hit_instance_idx, hit_record.hit_triangle_idx);
 			camera_ray = false;
 
 			const uint32_t indirect_ray_index = AtomicAddInt((int*)(&(ray_counter.shading_ray_counter)), 1);
@@ -2048,11 +2054,11 @@ namespace YumeRT
 			const glm::vec3 volume_hit_position = hit_record.hit_barycentric;
 			if (render_setting.enable_distant_light) {
 				ray_received_light += ray_throughput * EvalVolumeDistantLight(render_setting, scene, image_tile_cache, overlapped_volume_count, gs, volume_weights,
-					ray, ray_transfer, volume_hit_position, ray_sampler);
+					ray, hit_record, ray_transfer, volume_hit_position, ray_sampler);
 			}
 			if (render_setting.enable_shape_light) {
 				ray_received_light += ray_throughput * EvalVolumeShapeLight(render_setting, scene, image_tile_cache, overlapped_volume_count, gs, volume_weights,
-					ray, ray_transfer, volume_hit_position, ray_sampler);
+					ray, hit_record, ray_transfer, volume_hit_position, ray_sampler);
 			}
 
 			glm::vec3 wi;
@@ -2076,7 +2082,7 @@ namespace YumeRT
 				}
 			}
 			
-			Ray indirect_ray = Ray(volume_hit_position, wi);
+			Ray indirect_ray = Ray(volume_hit_position, wi, EMPTY_UINT32, EMPTY_UINT32);
 			never_scatter = false;
 			camera_ray = false;
 			ray_depth += 1;
@@ -2115,7 +2121,7 @@ namespace YumeRT
 		if (!ray_transfer.empty() && material_ior_priority < ray_transfer.GetMaxPriorityRecord().ior_priority) {
 			// note: should not consume depth
 			BoundaryTransitionBunch(ray_transfer, scene.primitive_instances, scene.materials, nearby_hits, nearby_hit_count);
-			Ray indirect_ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, ray.direction, hit_geometry_normal), ray.direction);
+			Ray indirect_ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, ray.direction, hit_geometry_normal), ray.direction, hit_record.hit_instance_idx, hit_record.hit_triangle_idx);
 			camera_ray = false;
 
 			generate_indirect_ray(indirect_ray, ray_received_light, ray_throughput, pixel_position_x, pixel_position_y, ray_depth, never_scatter, camera_ray, pixel_sample_index, ray_sampler, ray_transfer);
@@ -2127,7 +2133,7 @@ namespace YumeRT
 			// note: should not consume depth
 			// note: although volume is treat as boundary, but the material's ior will still affect its attribute, so remember to set it!
 			BoundaryTransitionBunch(ray_transfer, scene.primitive_instances, scene.materials, nearby_hits, nearby_hit_count);
-			Ray indirect_ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, ray.direction, hit_geometry_normal), ray.direction);
+			Ray indirect_ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, ray.direction, hit_geometry_normal), ray.direction, hit_record.hit_instance_idx, hit_record.hit_triangle_idx);
 			camera_ray = false;
 
 			generate_indirect_ray(indirect_ray, ray_received_light, ray_throughput, pixel_position_x, pixel_position_y, ray_depth, never_scatter, camera_ray, pixel_sample_index, ray_sampler, ray_transfer);
@@ -2186,6 +2192,7 @@ namespace YumeRT
 					image_tile_cache,
 					material_bsdf,
 					ray.direction,
+					hit_record,
 					ray_transfer,
 					nearby_hit_count,
 					nearby_hits,
@@ -2204,6 +2211,7 @@ namespace YumeRT
 					image_tile_cache,
 					material_bsdf,
 					ray.direction,
+					hit_record,
 					ray_transfer,
 					nearby_hit_count,
 					nearby_hits,
@@ -2249,7 +2257,7 @@ namespace YumeRT
 		}
 
 		const bool front_side_bounce = glm::dot(hit_geometry_normal, new_direction) >= 0.0f;
-		Ray indirect_ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, new_direction, hit_geometry_normal), new_direction);
+		Ray indirect_ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, new_direction, hit_geometry_normal), new_direction, hit_record.hit_instance_idx, hit_record.hit_triangle_idx);
 		never_scatter = false;
 		camera_ray = false;
 		ray_depth += 1;

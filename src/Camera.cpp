@@ -16,8 +16,10 @@ namespace YumeRT {
 	{
 		std::unordered_map<uint32_t, HitRecord> prim_map;
 
+		int depth = 0;
 		Ray ray = GenerateRay(0.5f, 0.5f);
-		while (true)
+		// TODO: record last hit instance and last hit triangle ID.
+		while (true && depth < 48)
 		{
 			HitRecord hit_record;
 			int nearby_hit_count = 0;
@@ -35,7 +37,8 @@ namespace YumeRT {
 				prim_map[hit_record.hit_instance_idx] = hit_record;
 			}
 
-			ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, ray.direction, hit_geometry_normal), ray.direction);
+			ray = Ray(OffsetRayOrigin(hit_position, hit_position_error, ray.direction, hit_geometry_normal), ray.direction, hit_record.hit_instance_idx, hit_record.hit_triangle_idx);
+			++depth;
 		}
 
 		camera_ray_transfer.record_count = 0;
@@ -46,20 +49,24 @@ namespace YumeRT {
 			const Material &mtl = scene.materials[prim.material_idx];
 			
 			Ray test_ray = GenerateRay(0.5f, 0.5f);
-			Ray positive_object_ray = TransformRay(test_ray, i_transform);
-			Ray negative_object_ray;
 
+			Ray positive_object_ray = TransformRay(test_ray, i_transform);
+			assert(positive_object_ray.last_hit_instance_index == EMPTY_UINT32 && positive_object_ray.last_hit_triangle_index == EMPTY_UINT32);
+			
+			Ray negative_object_ray;
 			negative_object_ray.origin = positive_object_ray.origin;
 			negative_object_ray.direction = -positive_object_ray.direction;
 			negative_object_ray.t = positive_object_ray.t;
 			negative_object_ray.time = positive_object_ray.time;
+			negative_object_ray.last_hit_instance_index = positive_object_ray.last_hit_instance_index;
+			negative_object_ray.last_hit_triangle_index = positive_object_ray.last_hit_triangle_index;
 
 			const GeometryData &geometry = scene.geometries[prim.geometry_idx];
 
 			HitRecord hit_record_positive;
 			HitRecord hit_record_negative;
-			if (IntersectGeometry(geometry, scene, positive_object_ray, &hit_record_positive, true) && 
-				IntersectGeometry(geometry, scene, negative_object_ray, &hit_record_negative, true))
+			if (IntersectGeometry(geometry, scene, positive_object_ray, item.second.hit_instance_idx, &hit_record_positive, true) &&
+				IntersectGeometry(geometry, scene, negative_object_ray, item.second.hit_instance_idx, &hit_record_negative, true))
 			{
 				uint32_t mtl_ior_priority;
 				float mtl_ior = mtl.FetchIOR(&mtl_ior_priority);
