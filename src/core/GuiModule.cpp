@@ -488,7 +488,7 @@ namespace YumeRT {
 
 		if (draw_global_speed_edit) {
 			if (ImGui::InputFloat("Max Scale", &primitive_scale_upper)) {
-				primitive_scale_upper = glm::clamp(primitive_scale_upper, 2.0f * primitive_scale_lower, 1000.0f);
+				primitive_scale_upper = glm::clamp(primitive_scale_upper, 2.0f * primitive_scale_lower, 20000.0f);
 			}
 			if (ImGui::InputFloat("Move Speed", &primitive_move_speed)) {
 				primitive_move_speed = glm::max(+0.0f, primitive_move_speed);

@@ -92,7 +92,7 @@ void TestScene_CornellBox(const std::string& exec_path, std::shared_ptr<YumeRT::
 		scene_manager.CreateDefaultMaterial("extra cube 2 material"),
 		-1, true);
 
-	scene_manager.CreateDistantLight("default distant light", glm::vec3(1.0f), scene_manager.CreateTransform("transform_distant_light", glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(-180.0f, 0.0f, 30.0f)), 1.0f);
+	scene_manager.CreateDistantLight("default distant light", glm::vec3(1.0f), scene_manager.CreateTransform("transform_distant_light", glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(180.0f, 0.0f, 30.0f)), 1.0f);
 }
 
 void TestScene_Sponza(const std::string& exec_path, std::shared_ptr<YumeRT::SceneModule> scene_module) 
@@ -104,7 +104,9 @@ void TestScene_Sponza(const std::string& exec_path, std::shared_ptr<YumeRT::Scen
 	const uint32_t 	sphere_index = scene_manager.CreateSphere("Sphere", 1.0f);
 	const uint32_t fog_tex_black = scene_manager.CreateConstantTexture("fog_tex_black", glm::vec3(0.04f));
 	const uint32_t fog_tex_white = scene_manager.CreateConstantTexture("fog_tex_white", glm::vec3(0.96f));
-	const uint32_t fog_tex = scene_manager.CreateNoiseTextureMarble("fog_tex", fog_tex_black, fog_tex_white);
+	const uint32_t fog_tex = scene_manager.CreateNoiseTextureTurbulence("fog_tex", fog_tex_black, fog_tex_white);
+
+	const uint32_t cube_volume = scene_manager.CreateVolume("cube_volume", scene_manager.CreateTransform("cube_volume_transform"), glm::vec3(0.085f), glm::vec3(1.0f), 0.0f, fog_tex);
 
 	auto& camera = scene_manager.GetSceneCamera();
 
@@ -119,9 +121,17 @@ void TestScene_Sponza(const std::string& exec_path, std::shared_ptr<YumeRT::Scen
 	const uint32_t default_material = scene_manager.CreateDefaultMaterial("default material", glm::vec3(0.25f), glm::vec3(1.0f), 0.2f, 0.2f, 1.0f, 0.0f, 0.0f, 0.0f, 0);
 	const uint32_t world_volume_index = scene_manager.CreateVolume("world_vol", scene_manager.CreateTransform("world_volume_index_transform"), glm::vec3(0.235f), glm::vec3(1.0f));
 
+	scene_manager.LoadModelFromFile(exec_prefix + std::string("model\\bunny\\bunny.obj"), scene_manager.CreateTransform("bunny_transform", glm::vec3(0, 20, 0), glm::vec3(15)));
+
+	scene_manager.CreatePrimitiveInstance(cube_index,
+		scene_manager.CreateTransform("cube volume boundary transform", glm::vec3(0.0f, 100.0f, 0.0f), glm::vec3(45.0f, 45.0f, 45.0f)),
+		scene_manager.CreateDefaultMaterial("extra cube 2 material"),
+		-1, false);
+
 	scene_manager.LoadModelFromFile(exec_prefix + std::string("model\\sponza\\sponza.obj"), scene_manager.CreateTransform("sponza_transform"));
 
-	scene_manager.CreateDistantLight("default distant light", glm::vec3(1.0f), scene_manager.CreateTransform("transform_distant_light", glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(-180.0f, 0.0f, 30.0f)), 1.0f);
+	
+	scene_manager.CreateDistantLight("default distant light", glm::vec3(1.0f), scene_manager.CreateTransform("transform_distant_light", glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(180.0f, 0.0f, 30.0f)), 1.0f);
 }
 
 int main(int argc, char *argv[])
