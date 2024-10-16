@@ -45,8 +45,12 @@ namespace YumeRT
 		uint32_t left = 0, right = count - 1;
 		while (left <= right && right != EMPTY_UINT32)
 		{
-			if (types[left].GetCenter()[axis] <= pivot) { ++left; }
-			else { Swap(types[left], types[right--]); }
+			if (types[left].GetCenter()[axis] <= pivot) { 
+				++left; 
+			}
+			else { 
+				Swap(types[left], types[right--]); 
+			}
 		}
 		return right;
 	}
@@ -55,19 +59,31 @@ namespace YumeRT
 	__host__ inline  bool EvalSAH(T *prims, uint32_t count, const BBox3 &center_bbox, const float parent_cost, float *split_pos, int *split_axis)
 	{
 		assert(count > 0);
-		if (BBox3Area(center_bbox) <= 0.0f) { return false; }
 
 		// check all axis
 		int best_axis = -1;
 		float best_pos = 0.0f;
 		float best_cost = 1E36f;
 
-		struct Bin { uint32_t count = 0; BBox3 bbox; };
-		const int bin_count = 16;
+		struct Bin { 
+			uint32_t count = 0; 
+			BBox3 bbox; 
+		};
+		const int bin_count = 24;
+		const float min_extent = FLOAT_EPSILON;
+
+		bool axis_valid[3] = { true, true, true };
+		glm::vec3 cent_bbox_extent = center_bbox.p_max - center_bbox.p_min;
+		for (int axis = 0; axis < 3; ++axis) {
+			if (cent_bbox_extent[axis] < min_extent) {
+				axis_valid[axis] = false;
+				cent_bbox_extent[axis] = min_extent;
+			}
+		}
 
 		Bin bins[bin_count][3];
-		const glm::vec3 i_extent = glm::vec3(1.0f) / (center_bbox.p_max - center_bbox.p_min);
-		const glm::vec3 bin_length = (center_bbox.p_max - center_bbox.p_min) / float(bin_count);
+		const glm::vec3 i_extent = glm::vec3(1.0f) / cent_bbox_extent;
+		const glm::vec3 bin_length = glm::max(center_bbox.p_max - center_bbox.p_min, glm::vec3(0.0f)) / float(bin_count);
 		for (uint32_t idx = 0; idx < count; ++idx)
 		{
 			const BBox3 prim_bbox = prims[idx].GetBBox();
@@ -90,7 +106,9 @@ namespace YumeRT
 		uint32_t left_counts[bin_count - 1][3], right_counts[bin_count - 1][3];
 		for (int axis = 0; axis < 3; ++axis)
 		{
-			if ((center_bbox.p_max[axis] - center_bbox.p_min[axis]) < 1E-8f) { continue; }
+			if (!axis_valid[axis]) { 
+				continue; 
+			}
 
 			BBox3 left_bbox, right_bbox;
 			uint32_t left_count = 0, right_count = 0;
@@ -111,9 +129,10 @@ namespace YumeRT
 			for (int i = 0; i < bin_count - 1; ++i)
 			{
 				float cost = left_counts[i][axis] * left_areas[i][axis] + right_counts[i][axis] * right_areas[i][axis];
-				if (cost <= 0.0f) { continue; }
-				if (cost < best_cost)
-				{
+				if (cost <= 0.0f) { 
+					continue; 
+				}
+				if (cost < best_cost) {
 					best_cost = cost;
 					best_axis = axis;
 					best_pos = center_bbox.p_min[axis] + float(i + 1) * bin_length[axis];
@@ -121,7 +140,9 @@ namespace YumeRT
 			}
 		}
 
-		if (best_axis == -1 || best_cost >= parent_cost) { return false; }
+		if (best_axis == -1 || best_cost >= parent_cost) { 
+			return false; 
+		}
 
 		*split_axis = best_axis;
 		*split_pos = best_pos;
@@ -132,10 +153,16 @@ namespace YumeRT
 	__host__ inline void HeapDown(T *types, uint32_t i, uint32_t right, int axis)
 	{
 		uint32_t left_child = (2 * i) + 1, right_child = (2 * i) + 2;
-		if (!(left_child <= right)) { return; }
+		if (!(left_child <= right)) { 
+			return; 
+		}
 		uint32_t swap_target = left_child;
-		if (right_child <= right && types[right_child].GetCenter()[axis] > types[left_child].GetCenter()[axis]) { swap_target = right_child; }
-		if (types[i].GetCenter()[axis] > types[swap_target].GetCenter()[axis]) { return; }
+		if (right_child <= right && types[right_child].GetCenter()[axis] > types[left_child].GetCenter()[axis]) { 
+			swap_target = right_child; 
+		}
+		if (types[i].GetCenter()[axis] > types[swap_target].GetCenter()[axis]) { 
+			return; 
+		}
 		Swap(types[i], types[swap_target]);
 		HeapDown(types, swap_target, right, axis);
 	}
