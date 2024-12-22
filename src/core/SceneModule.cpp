@@ -197,7 +197,7 @@ namespace YumeRT {
 	
 	}
 
-	uint32_t SceneModule::CreatePrimitiveInstance(const uint32_t geometry_index, const uint32_t transform_index, const uint32_t material_index, const int inner_volume_index, const bool treat_as_boundary)
+	uint32_t SceneModule::CreatePrimitiveInstance(const std::string& name, const uint32_t geometry_index, const uint32_t transform_index, const uint32_t material_index, const int inner_volume_index, const bool treat_as_boundary)
 	{
 		if (!(geometry_index < geometries.size() && transform_index < transform_states.size())) {
 			return EMPTY_UINT32;
@@ -224,6 +224,7 @@ namespace YumeRT {
 		}
 
 		primitive_index_to_index_map[unique_index] = primitive_instance_index;
+		primitive_index_to_name_map[unique_index] = name;
 
 		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_INSTANCE_CREATE);
 		if (material_index != EMPTY_UINT32 && materials[material_index].material_type == LIGHT_MTL) {
@@ -1104,7 +1105,9 @@ namespace YumeRT {
 			const auto transform_index = node_transform_index;
 			const auto material_index = ReadMeshMaterial(file_root_path, mesh, scene, &scene_manager, material_map);
 			
-			scene_manager.CreatePrimitiveInstance(geometry_index, transform_index, material_index, inner_volume_index, treat_as_boundary);
+			const std::string mesh_name = std::string(mesh->mName.C_Str());
+			const std::string instance_name = mesh_name + "_" + transform_name + "_instance";
+			scene_manager.CreatePrimitiveInstance(instance_name, geometry_index, transform_index, material_index, inner_volume_index, treat_as_boundary);
 		}
 
 		for (int child_index = 0; child_index < node->mNumChildren; ++child_index) {

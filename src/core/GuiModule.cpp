@@ -1,6 +1,14 @@
 #include "src/core/GuiModule.h"
 
 namespace YumeRT {
+
+#define BUTTON_HIGHLIGHT_COL IM_COL32(250, 4, 4, 122)
+#define BUTTON_HIGHLIGHT_COL_HOVERED IM_COL32(250, 4, 4, 255)
+#define BUTTON_SELECTED_COL IM_COL32(255, 127, 255, 122)
+#define BUTTON_SELECTED_COL_HOVERED IM_COL32(255, 127, 255, 255)
+#define BUTTON_DOUBLE_SELECTED_COL IM_COL32(255, 255, 255, 160)
+#define BUTTON_DOUBLE_SELECTED_COL_HOVERED IM_COL32(255, 255, 255, 255)
+
 	static void KeyBoardCallBack(GLFWwindow* window, int key, int scancode, int action, int mods) {
 		if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
 			glfwSetWindowShouldClose(window, true);
@@ -27,6 +35,12 @@ namespace YumeRT {
 		clicked_pixel_primitive_index(EMPTY_UINT32),
 		draw_selected_effect(true),
 		show_primitive_list(true),
+		show_primitive_instance_list(true),
+		show_geometry_list(true),
+		show_transform_list(true),
+		show_material_list(true),
+		show_volume_list(true),
+		show_texture_list(true),
 		primitive_scale_upper(20.0f),
 		primitive_scale_lower(0.05f),
 		primitive_move_speed(0.1f)
@@ -468,8 +482,14 @@ namespace YumeRT {
 			}
 		}
 
-		if (ImGui::CollapsingHeader("Primitive")) {
+		if (ImGui::CollapsingHeader("Resources")) {
 			ImGui::Checkbox("Show primitive list", &show_primitive_list);
+			ImGui::Checkbox("Show instance list", &show_primitive_instance_list);
+			ImGui::Checkbox("Show geometry list", &show_geometry_list);
+			ImGui::Checkbox("Show transform list", &show_transform_list);
+			ImGui::Checkbox("Show material list", &show_material_list);
+			ImGui::Checkbox("Show volume list", &show_volume_list);
+			ImGui::Checkbox("Show texture list", &show_texture_list);
 		}
 
 		ImGui::End();
@@ -478,7 +498,7 @@ namespace YumeRT {
 	void GuiModule::RenderTransformAttributeEditor(const uint32_t transform_index, const bool draw_global_speed_edit)
 	{
 		auto& m_scene = *m_module_scene;
-		const bool transform_index_valid = transform_index < m_scene.transform_states.size();
+		const bool transform_index_valid = (uint32_t)transform_index < m_scene.transform_states.size();
 		ImGui::Text("Transform name: %s", transform_index_valid ? m_scene.transform_names[transform_index].c_str() : "");
 		ImGui::Text("Transform index: %d", transform_index_valid ? transform_index : EMPTY_UINT32);
 		ImGui::Separator();
@@ -498,50 +518,60 @@ namespace YumeRT {
 		std::function<uint32_t(const uint32_t transform_index)> check_transform_derive_change = [&](const uint32_t transform_index)
 		{
 			uint32_t change_flag = SceneModule::SCENE_CHANGE_FLAG::SCENE_NONE_CHANGE;
-			auto check_flag_already_complete = [&change_flag]() {
-				return (change_flag & SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_TRANSFORM_CHANGE) &&
-					(change_flag & SceneModule::SCENE_CHANGE_FLAG::SCENE_DISTANT_LIGHT_CHANGE) &&
-					(change_flag & SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE) &&
-					(change_flag & SceneModule::SCENE_CHANGE_FLAG::SCENE_VOLUME_CHANGE);
+			auto check_flag_already_complete = [](const uint32_t flag) {
+				return (flag & SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_TRANSFORM_CHANGE) &&
+					(flag & SceneModule::SCENE_CHANGE_FLAG::SCENE_DISTANT_LIGHT_CHANGE) &&
+					(flag & SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE) &&
+					(flag & SceneModule::SCENE_CHANGE_FLAG::SCENE_VOLUME_CHANGE);
 			};
-			if (!(transform_index < m_scene.transform_states.size())) {
+			if (!((uint32_t)transform_index < m_scene.transform_states.size())) {
 				return change_flag;
 			}
 
-
+			// note: primitives that use this transform.
 			if (m_scene.transform_reference_primitive_indices[transform_index].size() > 0) {
 				change_flag |= SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_TRANSFORM_CHANGE;
 			}
+			// note: light that use this transform, currently only the distant light.
 			if (m_scene.transform_reference_light_indices[transform_index].size() > 0) {
 				change_flag |= SceneModule::SCENE_CHANGE_FLAG::SCENE_DISTANT_LIGHT_CHANGE;
 			}
+			// note: volumes that use this transform.
 			if (m_scene.transform_reference_volume_indices[transform_index].size() > 0) {
 				change_flag |= SceneModule::SCENE_CHANGE_FLAG::SCENE_VOLUME_CHANGE;
 			}
+
+			// note: check if trigger shape light change.
 			for (const auto& item : m_scene.transform_reference_primitive_indices[transform_index]) {
 				assert(item.second != 0);
 				const auto primitive_unique_index = item.first;
+				if (m_scene.primitive_index_to_index_map.find(primitive_unique_index) == m_scene.primitive_index_to_index_map.end()) {
+					continue;
+				}
 				const auto primitive_offset = m_scene.primitive_index_to_index_map[primitive_unique_index];
 				const auto primitive_material_index = m_scene.primitive_instances.at(primitive_offset).material_idx;
-				if (primitive_material_index != EMPTY_UINT32 && m_scene.materials[primitive_material_index].material_type == LIGHT_MTL) {
+				if (primitive_material_index < m_scene.materials.size() && m_scene.materials.at(primitive_material_index).material_type == LIGHT_MTL) 
+				{
 					change_flag |= SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE;
 					break;
 				}
 			}
 
-			if (check_flag_already_complete()) {
+			if (check_flag_already_complete(change_flag)) {
 				return change_flag;
 			}
 
 			for (const auto child_transform_index_pair : m_scene.transform_reference_transform_indices[transform_index]) {
 				change_flag |= check_transform_derive_change(child_transform_index_pair.first);
-				if (check_flag_already_complete()) {
+				if (check_flag_already_complete(change_flag)) {
 					break;
 				}
 			}
 
 			return change_flag;
 		};
+
+
 		const uint32_t scene_transform_change_flag = (SceneModule::SCENE_CHANGE_FLAG::SCENE_TRANSFORM_CHANGE | check_transform_derive_change(transform_index));
 		auto set_instance_transform_flag = [&m_scene, &scene_transform_change_flag]() {
 			m_scene.AddSceneFlag(scene_transform_change_flag);
@@ -657,7 +687,65 @@ namespace YumeRT {
 			}
 			ImGui::TreePop();
 		}
-	}
+
+		const auto& transform_names = m_scene.transform_names;
+		auto& current_transform = m_scene.transform_states[transform_index];
+		std::function<bool(const uint32_t, const uint32_t)> check_transform_reference_loop = [&](const uint32_t start_transform_index, const uint32_t current_transform_index) {
+			if (current_transform_index == start_transform_index) {
+				return true;
+			}
+			for (const auto reference_item : m_scene.transform_reference_transform_indices[current_transform_index]) {
+				const auto child_transform_index = reference_item.first;
+				if (check_transform_reference_loop(start_transform_index, child_transform_index)) {
+					return true;
+				}
+			}
+			return false;
+		};
+
+		static bool has_circle = false;
+		if (ImGui::BeginCombo("Parent transform", (uint32_t)current_transform.parent_transform_index < m_scene.transform_names.size() ? transform_names.at(current_transform.parent_transform_index).c_str() : "Null")) 
+		{
+			const int original_parent_transform_index = current_transform.parent_transform_index;
+			int dest_parent_transform_index = original_parent_transform_index;
+
+			if (ImGui::Selectable("Null", !((uint32_t)current_transform.parent_transform_index < m_scene.transform_states.size()))) {
+				dest_parent_transform_index = -1;
+			}
+
+			for (int index = 0; index < m_scene.transform_states.size(); ++index) {
+				if (ImGui::Selectable(transform_names.at(index).c_str(), index == current_transform.parent_transform_index)) {
+					dest_parent_transform_index = (has_circle = check_transform_reference_loop(transform_index, index)) ? original_parent_transform_index : index;
+				}
+			}
+
+			if (original_parent_transform_index != dest_parent_transform_index) 
+			{
+				current_transform.parent_transform_index = dest_parent_transform_index;
+				if ((uint32_t)original_parent_transform_index < m_scene.transform_states.size() && (--m_scene.transform_reference_transform_indices[original_parent_transform_index][transform_index]) == 0) {
+					m_scene.transform_reference_transform_indices[original_parent_transform_index].erase(transform_index);
+				}
+				if ((uint32_t)dest_parent_transform_index < m_scene.transform_states.size()) {
+					++m_scene.transform_reference_transform_indices[dest_parent_transform_index][transform_index];
+				}
+				UpdateDeviceData([&]() {
+					update_transform_hierarchy(transform_index);
+				});
+				set_instance_transform_flag();
+			}
+
+			ImGui::EndCombo();
+		}
+
+		if (has_circle)
+		{
+			ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(250, 4, 4, 255));
+			ImGui::Text("Sorry, you can't connect to this transform! that will form a loop reference relationship :(");
+			ImGui::PopStyleColor();
+		}
+
+		// note: checking done.
+}
 
 	void GuiModule::RenderTransformHierarchy(const uint32_t transform_index)
 	{
@@ -677,7 +765,7 @@ namespace YumeRT {
 			const auto parent_transform_index = m_scene.transform_states.at(transform_index).parent_transform_index;
 			if (ImGui::TreeNode(transform_name.c_str())) {
 				draw_transform_edit_board(transform_index);
-				if (parent_transform_index != EMPTY_UINT32) {
+				if ((uint32_t)parent_transform_index < m_scene.transform_states.size()) {
 					draw_transform_node(parent_transform_index);
 				}
 				ImGui::TreePop();
@@ -691,6 +779,8 @@ namespace YumeRT {
 			}
 			ImGui::TreePop();
 		}
+
+		// note: checking done.
 	}
 
 	void GuiModule::RenderMaterialAttributeEditor(const uint32_t material_index)
@@ -706,9 +796,10 @@ namespace YumeRT {
 
 		std::function<uint32_t(const uint32_t material_index)> check_material_derive_change = [&](const uint32_t material_index) {
 			uint32_t change_flag = SceneModule::SCENE_CHANGE_FLAG::SCENE_NONE_CHANGE;
-			if (!m_scene.material_reference_primitive_indices[material_index].empty()) {
-				change_flag |= SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_MATERIAL_CHANGE;
+			if (m_scene.material_reference_primitive_indices[material_index].empty()) {
+				return change_flag;
 			}
+			change_flag |= SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_MATERIAL_CHANGE;
 			if (m_scene.materials[material_index].material_type == LIGHT_MTL) {
 				change_flag |= SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE;
 			}
@@ -717,10 +808,13 @@ namespace YumeRT {
 		const uint32_t scene_material_change_flag = (SceneModule::SCENE_CHANGE_FLAG::SCENE_MATERIAL_CHANGE | check_material_derive_change(material_index));
 
 		auto& selected_material = m_scene.materials.at(material_index);
-		static const char *material_type_names[] = { 
+		static const char *material_type_names[] = 
+		{ 
 			"Default material", 
-			"Light material" };
+			"Light material" 
+		};
 
+		// TO Fix: there may be more material in the future.
 		const auto original_material_type = selected_material.material_type;
 		ImGui::Text("You can click the color button to attach a texture to these attributes! :)");
 		if (ImGui::BeginCombo("Material type", material_type_names[selected_material.material_type])) {
@@ -743,12 +837,10 @@ namespace YumeRT {
 
 		auto draw_texture_selector = [&](const char *selector_name, uint32_t *material_texture_index) {
 			assert(material_texture_index != nullptr);
-			auto& textures = m_scene.textures;
-			auto& texture_names = m_scene.texture_names;
 			auto& selected_texture_index = *material_texture_index;
 
 			const auto original_texture_index = selected_texture_index;
-			if (ImGui::BeginCombo(selector_name, selected_texture_index == EMPTY_UINT32 ? "NULL" : texture_names[selected_texture_index].c_str())) {
+			if (ImGui::BeginCombo(selector_name, (uint32_t)selected_texture_index < m_scene.textures.size() ? m_scene.texture_names[selected_texture_index].c_str() : "NULL")) {
 				if (ImGui::Selectable("Null")) {
 					if (selected_texture_index != EMPTY_UINT32) {
 						selected_texture_index = EMPTY_UINT32;
@@ -756,15 +848,15 @@ namespace YumeRT {
 							m_scene.UpdateMaterial(material_index);
 						});
 
-						if ((uint32_t)original_texture_index < textures.size() && (--m_scene.texture_reference_material_indices[original_texture_index][material_index]) == 0) {
+						if ((uint32_t)original_texture_index < m_scene.textures.size() && (--m_scene.texture_reference_material_indices[original_texture_index][material_index]) == 0) {
 							m_scene.texture_reference_material_indices[original_texture_index].erase(material_index);
 						}
 
 						m_scene.AddSceneFlag(scene_material_change_flag);
 					}
 				}
-				for (int texture_index = 0; texture_index < (int)textures.size(); ++texture_index) {
-					if (ImGui::Selectable(texture_names[texture_index].c_str())) {
+				for (int texture_index = 0; texture_index < (int)m_scene.textures.size(); ++texture_index) {
+					if (ImGui::Selectable(m_scene.texture_names[texture_index].c_str())) {
 						if (texture_index == selected_texture_index) {
 							continue;
 						}
@@ -774,10 +866,10 @@ namespace YumeRT {
 						});
 
 						const auto current_texture_index = texture_index;
-						if ((uint32_t)original_texture_index < textures.size() && (--m_scene.texture_reference_material_indices[original_texture_index][material_index]) == 0) {
+						if ((uint32_t)original_texture_index < m_scene.textures.size() && (--m_scene.texture_reference_material_indices[original_texture_index][material_index]) == 0) {
 							m_scene.texture_reference_material_indices[original_texture_index].erase(material_index);
 						}
-						if (current_texture_index < textures.size()) {
+						if ((uint32_t)current_texture_index < m_scene.textures.size()) {
 							m_scene.texture_reference_material_indices[current_texture_index][material_index]++;
 						}
 
@@ -939,6 +1031,8 @@ namespace YumeRT {
 		else {
 
 		}
+
+		// note: checking done.
 	}
 
 	void GuiModule::RenderLightAttributeEditor(const uint32_t light_index)
@@ -1021,21 +1115,31 @@ namespace YumeRT {
 		const auto volume_change_flag = get_volume_change_flag();
 
 		const auto original_transform_index = selected_volume.transform_idx;
-		if (ImGui::InputInt("Transform index", (int*)(&selected_volume.transform_idx))) {
-			selected_volume.transform_idx = glm::clamp(selected_volume.transform_idx, 0u, (uint32_t)m_scene.transform_states.size() - 1);
-			UpdateDeviceData([&]() {
-				m_scene.UpdateVolume(selected_volume_index);
-				});
-
-			const auto current_transform_index = selected_volume.transform_idx;
-			if ((uint32_t)original_transform_index < m_scene.transforms.size() && (--m_scene.transform_reference_volume_indices[original_transform_index][selected_volume_index]) == 0) {
-				m_scene.transform_reference_volume_indices[original_transform_index].erase(selected_volume_index);
-			}
-			if ((uint32_t)current_transform_index < m_scene.transforms.size()) {
-				m_scene.transform_reference_volume_indices[current_transform_index][selected_volume_index]++;
+		auto dest_transform_index = original_transform_index;
+		if (ImGui::BeginCombo("Transform index", selected_volume.transform_idx < m_scene.transform_states.size() ? m_scene.transform_names[selected_volume.transform_idx].c_str() : "Null")) {
+			for (uint32_t index = 0; index < m_scene.transform_states.size(); ++index) {
+				if (ImGui::Selectable(m_scene.transform_names[index].c_str(), index == selected_volume.transform_idx)) {
+					dest_transform_index = index;
+				}
 			}
 
-			m_scene.AddSceneFlag(volume_change_flag);
+			if (original_transform_index != dest_transform_index)
+			{
+				selected_volume.transform_idx = glm::clamp(dest_transform_index, 0u, (uint32_t)m_scene.transform_states.size() - 1);
+
+				if ((uint32_t)original_transform_index < m_scene.transform_states.size() && (--m_scene.transform_reference_volume_indices[original_transform_index][selected_volume_index]) == 0) {
+					m_scene.transform_reference_volume_indices[original_transform_index].erase(selected_volume_index);
+				}
+				if ((uint32_t)dest_transform_index < m_scene.transform_states.size()) {
+					m_scene.transform_reference_volume_indices[dest_transform_index][selected_volume_index]++;
+				}
+
+				UpdateDeviceData([&]() {
+					m_scene.UpdateVolume(selected_volume_index);
+					});
+				m_scene.AddSceneFlag(volume_change_flag);
+			}
+			ImGui::EndCombo();
 		}
 
 		auto draw_texture_selector = [&](const char * selector_name, uint32_t * volume_texture_index) {
@@ -1113,97 +1217,160 @@ namespace YumeRT {
 		const auto selected_primitive_index = m_scene.primitive_index_to_index_map.find(selected_primitive_unique_index) != m_scene.primitive_index_to_index_map.end() ?
 			m_scene.primitive_index_to_index_map[selected_primitive_unique_index] : EMPTY_UINT32;
 		const bool selected_primitive_index_valid = selected_primitive_index < m_scene.primitive_instances.size();
-		ImGui::Text("Selected primitive unique index: %d", selected_primitive_index);
+		ImGui::Text("Selected primitive unique index: %d", selected_primitive_unique_index);
 
 		if (!selected_primitive_index_valid) {
 			return;
 		}
 
 		auto& selected_primitive_instance = m_scene.primitive_instances.at(selected_primitive_index);
+		const bool instance_is_light = selected_primitive_instance.material_idx < m_scene.materials.size() &&
+			m_scene.materials.at(selected_primitive_instance.material_idx).material_type == LIGHT_MTL;
 
 		const auto original_geometry_index = selected_primitive_instance.geometry_idx;
-		if (ImGui::InputInt("Geometry index", (int*)(&selected_primitive_instance.geometry_idx))) {
-			selected_primitive_instance.geometry_idx = glm::clamp(selected_primitive_instance.geometry_idx, 0u, (uint32_t)m_scene.geometries.size() - 1);
-			UpdateDeviceData([&]() {
-				m_scene.UpdatePrimitiveInstance(selected_primitive_index);
-			});
-
-			const auto current_geometry_index = selected_primitive_instance.geometry_idx;
-			if ((uint32_t)original_geometry_index < m_scene.geometries.size() && (--m_scene.geometry_reference_primitive_indices[original_geometry_index][selected_primitive_unique_index]) == 0) {
-				m_scene.geometry_reference_primitive_indices[original_geometry_index].erase(selected_primitive_unique_index);
+		auto dest_geometry_index = original_geometry_index;
+		if (ImGui::BeginCombo("Geometry index", selected_primitive_instance.geometry_idx < m_scene.geometries.size()? 
+			m_scene.geometry_names[selected_primitive_instance.geometry_idx].c_str() : "Null")) {
+			for (uint32_t index = 0; index < m_scene.geometries.size(); ++index) {
+				if (ImGui::Selectable(m_scene.geometry_names[index].c_str(), index == selected_primitive_instance.geometry_idx)) {
+					dest_geometry_index = index;
+				}
 			}
-			if ((uint32_t)current_geometry_index < m_scene.geometries.size()) {
-				m_scene.geometry_reference_primitive_indices[current_geometry_index][selected_primitive_unique_index]++;
-			}
+			
+			if (original_geometry_index != dest_geometry_index) 
+			{
+				selected_primitive_instance.geometry_idx = glm::clamp(dest_geometry_index, 0u, (uint32_t)m_scene.geometries.size() - 1);
 
-			m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_GEOMETRY_CHANGE);
+				if ((uint32_t)original_geometry_index < m_scene.geometries.size() && (--m_scene.geometry_reference_primitive_indices[original_geometry_index][selected_primitive_unique_index]) == 0) {
+					m_scene.geometry_reference_primitive_indices[original_geometry_index].erase(selected_primitive_unique_index);
+				}
+				if ((uint32_t)dest_geometry_index < m_scene.geometries.size()) {
+					m_scene.geometry_reference_primitive_indices[dest_geometry_index][selected_primitive_unique_index]++;
+				}
+
+				UpdateDeviceData([&]() {
+					m_scene.UpdatePrimitiveInstance(selected_primitive_index);
+				});
+
+				const uint32_t change_flag = SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_GEOMETRY_CHANGE | (instance_is_light ? SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE : 0u);
+				m_scene.AddSceneFlag(change_flag);
+			}
+			ImGui::EndCombo();
 		}
 
 		const auto original_transform_index = selected_primitive_instance.transform_idx;
-		if (ImGui::InputInt("Transform index", (int*)(&selected_primitive_instance.transform_idx))) {
-			selected_primitive_instance.transform_idx = glm::clamp(selected_primitive_instance.transform_idx, 0u, (uint32_t)m_scene.transform_states.size() - 1);
-			UpdateDeviceData([&]() {
-				m_scene.UpdatePrimitiveInstance(selected_primitive_index);
-			});
-
-			const auto current_transform_index = selected_primitive_instance.transform_idx;
-			if ((uint32_t)original_transform_index < m_scene.transforms.size() && (--m_scene.transform_reference_primitive_indices[original_transform_index][selected_primitive_unique_index]) == 0) {
-				m_scene.transform_reference_primitive_indices[original_transform_index].erase(selected_primitive_unique_index);
-			}
-			if ((uint32_t)current_transform_index < m_scene.transforms.size()) {
-				m_scene.transform_reference_primitive_indices[current_transform_index][selected_primitive_unique_index]++;
+		auto dest_transform_index = original_transform_index;
+		if (ImGui::BeginCombo("Transform index", selected_primitive_instance.transform_idx < m_scene.transform_states.size() ?
+			m_scene.transform_names[selected_primitive_instance.transform_idx].c_str() : "Null")) {
+			for (uint32_t index = 0; index < m_scene.transform_states.size(); ++index) {
+				if (ImGui::Selectable(m_scene.transform_names[index].c_str(), index == selected_primitive_instance.transform_idx)) {
+					dest_transform_index = index;
+				}
 			}
 
-			m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_TRANSFORM_CHANGE);
+			if (original_transform_index != dest_transform_index)
+			{
+				selected_primitive_instance.transform_idx = glm::clamp(dest_transform_index, 0u, (uint32_t)m_scene.transform_states.size() - 1);
+
+				if ((uint32_t)original_transform_index < m_scene.transform_states.size() && (--m_scene.transform_reference_primitive_indices[original_transform_index][selected_primitive_unique_index]) == 0) {
+					m_scene.transform_reference_primitive_indices[original_transform_index].erase(selected_primitive_unique_index);
+				}
+				if ((uint32_t)dest_transform_index < m_scene.transform_states.size()) {
+					m_scene.transform_reference_primitive_indices[dest_transform_index][selected_primitive_unique_index]++;
+				}
+
+				UpdateDeviceData([&]() {
+					m_scene.UpdatePrimitiveInstance(selected_primitive_index);
+				});
+
+				const uint32_t change_flag = SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_TRANSFORM_CHANGE | (instance_is_light ? SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE : 0u);
+				m_scene.AddSceneFlag(change_flag);
+			}
+			ImGui::EndCombo();
 		}
 
 		const auto original_material_index = selected_primitive_instance.material_idx;
-		if (ImGui::InputInt("Material index", (int*)(&selected_primitive_instance.material_idx))) {
-			selected_primitive_instance.material_idx = glm::clamp(selected_primitive_instance.material_idx, 0u, (uint32_t)m_scene.materials.size() - 1);
-			UpdateDeviceData([&]() {
-				m_scene.UpdatePrimitiveInstance(selected_primitive_index);
-			});
-
-			const auto current_material_index = selected_primitive_instance.material_idx;
-			if ((uint32_t)original_material_index < m_scene.materials.size() && (--m_scene.material_reference_primitive_indices[original_material_index][selected_primitive_unique_index]) == 0) {
-				m_scene.material_reference_primitive_indices[original_material_index].erase(selected_primitive_unique_index);
+		auto dest_material_index = original_material_index;
+		if (ImGui::BeginCombo("Material index", selected_primitive_instance.material_idx < m_scene.materials.size() ?
+			m_scene.material_names[selected_primitive_instance.material_idx].c_str() : "Null")) {
+			if (ImGui::Selectable("Null", !(selected_primitive_instance.material_idx < m_scene.materials.size()))) {
+				dest_material_index = EMPTY_UINT32;
 			}
-			if ((uint32_t)current_material_index < m_scene.materials.size()) {
-				m_scene.material_reference_primitive_indices[current_material_index][selected_primitive_unique_index]++;
+			for (uint32_t index = 0; index < m_scene.materials.size(); ++index) {
+				if (ImGui::Selectable(m_scene.material_names[index].c_str(), index == selected_primitive_instance.material_idx)) {
+					dest_material_index = index;
+				}
 			}
 
-			m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_MATERIAL_CHANGE);
-			if ((original_material_index < m_scene.materials.size() && m_scene.materials[current_material_index].material_type == LIGHT_MTL) ||
-				(current_material_index < m_scene.materials.size() && m_scene.materials[original_material_index].material_type == LIGHT_MTL)) 
+			if (original_material_index != dest_material_index)
 			{
-				m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE);
+				selected_primitive_instance.material_idx = dest_material_index;
+
+				if ((uint32_t)original_material_index < m_scene.materials.size() && (--m_scene.material_reference_primitive_indices[original_material_index][selected_primitive_unique_index]) == 0) {
+					m_scene.material_reference_primitive_indices[original_material_index].erase(selected_primitive_unique_index);
+				}
+				if ((uint32_t)dest_material_index < m_scene.materials.size()) {
+					m_scene.material_reference_primitive_indices[dest_material_index][selected_primitive_unique_index]++;
+				}
+
+				UpdateDeviceData([&]() {
+					m_scene.UpdatePrimitiveInstance(selected_primitive_index);
+					});
+				m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_MATERIAL_CHANGE);
+				if ((original_material_index < m_scene.materials.size() && m_scene.materials[original_material_index].material_type == LIGHT_MTL) ||
+					(dest_material_index < m_scene.materials.size() && m_scene.materials[dest_material_index].material_type == LIGHT_MTL))
+				{
+					m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE);
+				}
 			}
+			ImGui::EndCombo();
 		}
 
-		const auto original_inner_volume_index = selected_primitive_instance.inner_volume_idx;
-		if (ImGui::InputInt("Inner volume index", (int*)(&selected_primitive_instance.inner_volume_idx))) {
-			selected_primitive_instance.inner_volume_idx = glm::clamp(selected_primitive_instance.inner_volume_idx, -1, (int)m_scene.volumes.size() - 1);
+		const auto original_volume_index = selected_primitive_instance.inner_volume_idx;
+		auto dest_volume_index = original_volume_index;
+		if (ImGui::BeginCombo("Volume index", (uint32_t)selected_primitive_instance.inner_volume_idx < m_scene.volumes.size() ?
+			m_scene.volume_names[selected_primitive_instance.inner_volume_idx].c_str() : "Null")) {
+			if (ImGui::Selectable("Null", !((uint32_t)selected_primitive_instance.inner_volume_idx < m_scene.volumes.size()))) {
+				dest_volume_index = -1;
+			}
+			for (uint32_t index = 0; index < m_scene.volumes.size(); ++index) {
+				if (ImGui::Selectable(m_scene.volume_names[index].c_str(), index == (uint32_t)selected_primitive_instance.inner_volume_idx)) {
+					dest_volume_index = index;
+				}
+			}
+
+			if (original_volume_index != dest_volume_index)
+			{
+				selected_primitive_instance.inner_volume_idx = dest_volume_index;
+
+				if ((uint32_t)original_volume_index < m_scene.volumes.size() && (--m_scene.volume_reference_primitive_indices[original_volume_index][selected_primitive_unique_index]) == 0) {
+					m_scene.volume_reference_primitive_indices[original_volume_index].erase(selected_primitive_unique_index);
+				}
+				if ((uint32_t)dest_volume_index < m_scene.volumes.size()) {
+					m_scene.volume_reference_primitive_indices[dest_volume_index][selected_primitive_unique_index]++;
+				}
+
+				UpdateDeviceData([&]() {
+					m_scene.UpdatePrimitiveInstance(selected_primitive_index);
+				});
+				const uint32_t change_flag = SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_VOLUME_CHANGE | (instance_is_light ? SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE : 0u);
+				m_scene.AddSceneFlag(change_flag);
+			}
+			ImGui::EndCombo();
+		}
+
+		bool treat_as_boundary = selected_primitive_instance.treat_as_boundary;
+		if (ImGui::Checkbox("Treat as volume boundary", &treat_as_boundary)) 
+		{
+			selected_primitive_instance.treat_as_boundary = treat_as_boundary;
 			UpdateDeviceData([&]() {
 				m_scene.UpdatePrimitiveInstance(selected_primitive_index);
 			});
-
-			const auto current_inner_volume_index = selected_primitive_instance.inner_volume_idx;
-			if ((uint32_t)original_inner_volume_index < m_scene.volumes.size() && (--m_scene.volume_reference_primitive_indices[original_inner_volume_index][selected_primitive_unique_index]) == 0) {
-				m_scene.volume_reference_primitive_indices[original_inner_volume_index].erase(selected_primitive_unique_index);
-			}
-			if ((uint32_t)current_inner_volume_index < m_scene.volumes.size()) {
-				m_scene.volume_reference_primitive_indices[current_inner_volume_index][selected_primitive_unique_index]++;
-			}
-
-			m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_VOLUME_CHANGE);
+			const uint32_t change_flag = SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_VOLUME_CHANGE | (instance_is_light ? SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE : 0u);
+			m_scene.AddSceneFlag(change_flag);
 		}
 
-		if (ImGui::Checkbox("Treat as volume boundary", (bool*)(&selected_primitive_instance.treat_as_boundary))) {
-			UpdateDeviceData([&]() {
-				m_scene.UpdatePrimitiveInstance(selected_primitive_index);
-			});
-			m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_VOLUME_CHANGE);
-		}
+		// note: checking done.
 	}
 
 	void GuiModule::RenderTextureAttributeEditor(const uint32_t texture_index)
@@ -1896,7 +2063,9 @@ namespace YumeRT {
 
 		auto& m_scene = *m_module_scene;
 		enum ObjectType {
-			Type_Directional_Light = 0, Type_Primitive_Instance = 1, Type_Volume = 2
+			Type_Directional_Light = 0, 
+			Type_Primitive_Instance = 1, 
+			Type_Volume = 2
 		};
 
 		static ObjectType object_type_to_render = ObjectType::Type_Primitive_Instance;
@@ -1905,7 +2074,8 @@ namespace YumeRT {
 		static int selected_volume_index = EMPTY_UINT32;
 
 		selected_primitive_unique_index = clicked_pixel_primitive_index;
-		if (selected_primitive_unique_index != EMPTY_UINT32) {
+
+		if (m_scene.primitive_index_to_index_map.find(selected_primitive_unique_index) != m_scene.primitive_index_to_index_map.end()) {
 			object_type_to_render = ObjectType::Type_Primitive_Instance, selected_distant_light_index = EMPTY_UINT32, selected_volume_index = EMPTY_UINT32;
 		}
 
@@ -1921,20 +2091,20 @@ namespace YumeRT {
 
 				object_type_to_render = Type_Directional_Light;
 
-				clicked_pixel_primitive_index = selected_primitive_unique_index;
+				clicked_pixel_primitive_index = EMPTY_UINT32;
 			}
 		}
 
 		for (auto& item: m_scene.primitive_index_to_index_map) {
 			const auto unique_index = item.first;
-			const std::string primitive_name = std::string("primitive_") + std::to_string(unique_index);
-			if (ImGui::Selectable(primitive_name.c_str(), unique_index == selected_primitive_unique_index)) {
+			if (ImGui::Selectable(m_scene.primitive_index_to_name_map[unique_index].c_str(), unique_index == selected_primitive_unique_index)) {
 				selected_distant_light_index = EMPTY_UINT32;
 				selected_primitive_unique_index = unique_index;
 				selected_volume_index = EMPTY_UINT32;
+
 				object_type_to_render = Type_Primitive_Instance;
 
-				clicked_pixel_primitive_index = selected_primitive_unique_index;
+				clicked_pixel_primitive_index = unique_index;
 			}
 		}
 
@@ -1943,11 +2113,13 @@ namespace YumeRT {
 				selected_distant_light_index = EMPTY_UINT32;
 				selected_primitive_unique_index = EMPTY_UINT32;
 				selected_volume_index = volume_index;
+
 				object_type_to_render = Type_Volume;
 
-				clicked_pixel_primitive_index = selected_primitive_unique_index;
+				clicked_pixel_primitive_index = EMPTY_UINT32;
 			}
 		}
+
 		ImGui::EndChild();
 
 		ImGui::SameLine();
@@ -1957,7 +2129,7 @@ namespace YumeRT {
 		
 		if (object_type_to_render == Type_Directional_Light) 
 		{
-			const bool selected_light_index_valid = selected_distant_light_index < m_scene.distant_lights.size();
+			const bool selected_light_index_valid = (uint32_t)selected_distant_light_index < m_scene.distant_lights.size();
 			RenderLightAttributeEditor(selected_distant_light_index);
 			ImGui::Separator();
 			if (ImGui::BeginTabBar("Light##Tabs", ImGuiTabBarFlags_None))
@@ -1977,8 +2149,8 @@ namespace YumeRT {
 		{
 			const auto selected_primitive_index = m_scene.primitive_index_to_index_map.find(selected_primitive_unique_index) != m_scene.primitive_index_to_index_map.end() ?
 				m_scene.primitive_index_to_index_map[selected_primitive_unique_index] : EMPTY_UINT32;
-			const bool selected_primitive_index_valid = selected_primitive_index < m_scene.primitive_instances.size();
-			RenderPrimitiveAttributeEditor(selected_primitive_unique_index);
+			const bool selected_primitive_index_valid = (uint32_t)selected_primitive_index < m_scene.primitive_instances.size();
+			RenderPrimitiveAttributeEditor(selected_primitive_unique_index); // note: pass unique primitive index as the function input.
 			ImGui::Separator();
 			if (ImGui::BeginTabBar("Primitive##Tabs", ImGuiTabBarFlags_None))
 			{
@@ -1986,6 +2158,7 @@ namespace YumeRT {
 				{
 					ImGui::Text("Geometry name: %s", selected_primitive_index_valid ? m_scene.geometry_names[m_scene.primitive_instances.at(selected_primitive_index).geometry_idx].c_str() : "");
 					ImGui::Text("Geometry index: %d", selected_primitive_index_valid ? m_scene.primitive_instances.at(selected_primitive_index).geometry_idx : EMPTY_UINT32);
+					// TODO: geometry attribute editor.
 					ImGui::Separator();
 					ImGui::EndTabItem();
 				}
@@ -2005,7 +2178,7 @@ namespace YumeRT {
 					ImGui::EndTabItem();
 				}
 				if (ImGui::BeginTabItem("Volume")) {
-					const auto volume_index = selected_primitive_index_valid ? m_scene.primitive_instances.at(selected_primitive_index).inner_volume_idx : EMPTY_UINT32;
+					const int volume_index = selected_primitive_index_valid ? m_scene.primitive_instances.at(selected_primitive_index).inner_volume_idx : EMPTY_UINT32;
 					RenderVolumeAttributeEditor(volume_index);
 					ImGui::Separator();
 					
@@ -2028,7 +2201,7 @@ namespace YumeRT {
 		}
 		else if (object_type_to_render == Type_Volume)
 		{
-			const bool selected_volume_index_valid = selected_volume_index < m_scene.volumes.size();
+			const bool selected_volume_index_valid = (uint32_t)selected_volume_index < m_scene.volumes.size();
 			RenderVolumeAttributeEditor(selected_volume_index);
 			ImGui::Separator();
 			if (ImGui::BeginTabBar("Volume##Tabs", ImGuiTabBarFlags_None))
@@ -2069,6 +2242,595 @@ namespace YumeRT {
 		ImGui::EndChild();
 		ImGui::EndGroup();
 		
+		// note: checking complete.
+		ImGui::End();
+	}
+
+	void GuiModule::UpdateInstanceGeometry(const uint32_t primitive_unique_index, const uint32_t dst_geometry_index)
+	{
+		auto &m_scene = *m_module_scene;
+		if (m_scene.geometries.empty() || !(dst_geometry_index < m_scene.geometries.size())) {
+			return;
+		}
+		if (m_scene.primitive_index_to_index_map.find(primitive_unique_index) == m_scene.primitive_index_to_index_map.end()) {
+			return;
+		}
+
+		const uint32_t primitive_index = m_scene.primitive_index_to_index_map[primitive_unique_index];
+		auto& primitive_instance = m_scene.primitive_instances.at(primitive_index);
+		const uint32_t src_geometry_index = primitive_instance.geometry_idx;
+		if (src_geometry_index == dst_geometry_index) {
+			return;
+		}
+
+		uint32_t change_flag = SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_GEOMETRY_CHANGE;
+		if (primitive_instance.material_idx < m_scene.materials.size() && m_scene.materials.at(primitive_instance.material_idx).material_type == LIGHT_MTL) {
+			change_flag |= SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE;
+		}
+
+		primitive_instance.geometry_idx = glm::clamp(dst_geometry_index, 0u, (uint32_t)m_scene.geometries.size() - 1);
+
+		if ((uint32_t)src_geometry_index < m_scene.geometries.size() && (--m_scene.geometry_reference_primitive_indices[src_geometry_index][primitive_unique_index]) == 0) {
+			m_scene.geometry_reference_primitive_indices[src_geometry_index].erase(primitive_unique_index);
+		}
+		if ((uint32_t)dst_geometry_index < m_scene.geometries.size()) {
+			m_scene.geometry_reference_primitive_indices[dst_geometry_index][primitive_unique_index]++;
+		}
+
+		UpdateDeviceData([&]() {
+			m_scene.UpdatePrimitiveInstance(primitive_index);
+		});
+		m_scene.AddSceneFlag(change_flag);
+	}
+	
+	void GuiModule::UpdateInstanceTransform(const uint32_t primitive_unique_index, const uint32_t dst_transform_index)
+	{
+		auto& m_scene = *m_module_scene;
+		if (m_scene.transform_states.empty() || !(dst_transform_index < m_scene.transform_states.size())) {
+			return;
+		}
+		if (m_scene.primitive_index_to_index_map.find(primitive_unique_index) == m_scene.primitive_index_to_index_map.end()) {
+			return;
+		}
+
+		const uint32_t primitive_index = m_scene.primitive_index_to_index_map[primitive_unique_index];
+		auto& primitive_instance = m_scene.primitive_instances.at(primitive_index);
+		const uint32_t src_transform_index = primitive_instance.transform_idx;
+		if (src_transform_index == dst_transform_index) {
+			return;
+		}
+
+		uint32_t change_flag = SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_TRANSFORM_CHANGE;
+		if (primitive_instance.material_idx < m_scene.materials.size() && m_scene.materials.at(primitive_instance.material_idx).material_type == LIGHT_MTL) {
+			change_flag |= SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE;
+		}
+
+		primitive_instance.transform_idx = glm::clamp(dst_transform_index, 0u, (uint32_t)m_scene.transform_states.size() - 1);
+
+		if ((uint32_t)src_transform_index < m_scene.transform_states.size() && (--m_scene.transform_reference_primitive_indices[src_transform_index][primitive_unique_index]) == 0) {
+			m_scene.transform_reference_primitive_indices[src_transform_index].erase(primitive_unique_index);
+		}
+		if ((uint32_t)dst_transform_index < m_scene.transform_states.size()) {
+			m_scene.transform_reference_primitive_indices[dst_transform_index][primitive_unique_index]++;
+		}
+
+		UpdateDeviceData([&]() {
+			m_scene.UpdatePrimitiveInstance(primitive_index);
+		});
+		m_scene.AddSceneFlag(change_flag);
+	}
+	
+	void GuiModule::UpdateInstanceMaterial(const uint32_t primitive_unique_index, const uint32_t dst_material_index)
+	{
+		auto& m_scene = *m_module_scene;
+		if (m_scene.materials.empty() || !(dst_material_index < m_scene.materials.size())) {
+			return;
+		}
+		if (m_scene.primitive_index_to_index_map.find(primitive_unique_index) == m_scene.primitive_index_to_index_map.end()) {
+			return;
+		}
+
+		const uint32_t primitive_index = m_scene.primitive_index_to_index_map[primitive_unique_index];
+		auto& primitive_instance = m_scene.primitive_instances.at(primitive_index);
+		const uint32_t src_material_index = primitive_instance.material_idx;
+		if (src_material_index == dst_material_index) {
+			return;
+		}
+
+		uint32_t change_flag = SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_MATERIAL_CHANGE;
+		if (primitive_instance.material_idx < m_scene.materials.size() && m_scene.materials.at(primitive_instance.material_idx).material_type == LIGHT_MTL) {
+			change_flag |= SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE;
+		}
+		if (dst_material_index < m_scene.materials.size() && m_scene.materials.at(dst_material_index).material_type == LIGHT_MTL) {
+			change_flag |= SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE;
+		}
+
+		primitive_instance.material_idx = glm::clamp(dst_material_index, 0u, (uint32_t)m_scene.materials.size() - 1);
+
+		if ((uint32_t)src_material_index < m_scene.materials.size() && (--m_scene.material_reference_primitive_indices[src_material_index][primitive_unique_index]) == 0) {
+			m_scene.material_reference_primitive_indices[src_material_index].erase(primitive_unique_index);
+		}
+		if ((uint32_t)dst_material_index < m_scene.materials.size()) {
+			m_scene.material_reference_primitive_indices[dst_material_index][primitive_unique_index]++;
+		}
+
+		UpdateDeviceData([&]() {
+			m_scene.UpdatePrimitiveInstance(primitive_index);
+			});
+		m_scene.AddSceneFlag(change_flag);
+	}
+
+	void GuiModule::UpdateInstanceInnerMedia(const uint32_t primitive_unique_index, const int dst_inner_volume_index)
+	{
+		auto& m_scene = *m_module_scene;
+		if (m_scene.volumes.empty() || !((uint32_t)dst_inner_volume_index < m_scene.transform_states.size())) {
+			return;
+		}
+		if (m_scene.primitive_index_to_index_map.find(primitive_unique_index) == m_scene.primitive_index_to_index_map.end()) {
+			return;
+		}
+
+		const uint32_t primitive_index = m_scene.primitive_index_to_index_map[primitive_unique_index];
+		auto& primitive_instance = m_scene.primitive_instances.at(primitive_index);
+		const int src_inner_volume_index = primitive_instance.inner_volume_idx;
+		if (src_inner_volume_index == dst_inner_volume_index) {
+			return;
+		}
+
+		uint32_t change_flag = SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_VOLUME_CHANGE;
+		if (primitive_instance.material_idx < m_scene.materials.size() && m_scene.materials.at(primitive_instance.material_idx).material_type == LIGHT_MTL) {
+			change_flag |= SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE;
+		}
+
+		primitive_instance.inner_volume_idx = glm::clamp(dst_inner_volume_index, 0, (int)m_scene.volumes.size() - 1);
+
+		if ((uint32_t)src_inner_volume_index < m_scene.volumes.size() && (--m_scene.volume_reference_primitive_indices[src_inner_volume_index][primitive_unique_index]) == 0) {
+			m_scene.volume_reference_primitive_indices[src_inner_volume_index].erase(primitive_unique_index);
+		}
+		if ((uint32_t)dst_inner_volume_index < m_scene.volumes.size()) {
+			m_scene.volume_reference_primitive_indices[dst_inner_volume_index][primitive_unique_index]++;
+		}
+
+		UpdateDeviceData([&]() {
+			m_scene.UpdatePrimitiveInstance(primitive_index);
+		});
+		m_scene.AddSceneFlag(change_flag);
+	}
+
+	void GuiModule::RenderGeometryInstanceList()
+	{
+		if (!show_primitive_instance_list) {
+			return;
+		}
+
+		auto& m_scene = *m_module_scene;
+
+		ImGui::Begin("Geometry Instance list");
+
+		static uint32_t list_highlight_unique_index = EMPTY_UINT32;
+		static uint32_t clicked_instance_unique_index = EMPTY_UINT32;
+		
+		clicked_instance_unique_index = clicked_pixel_primitive_index;
+
+		ImVec2 button_size;
+		if (ImGui::BeginListBox("##instance_list_box", ImVec2(-1.0f, 0.0f))) {
+			button_size = ImGui::GetItemRectSize();
+			for (const auto& item : m_scene.primitive_index_to_index_map) 
+			{
+				bool press_button = false;
+				const auto unique_index = item.first;
+				if (unique_index == list_highlight_unique_index && unique_index == clicked_instance_unique_index)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Button, BUTTON_DOUBLE_SELECTED_COL);
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, BUTTON_DOUBLE_SELECTED_COL_HOVERED);
+					press_button = ImGui::Button(m_scene.primitive_index_to_name_map[unique_index].c_str(), button_size);
+					ImGui::PopStyleColor();
+					ImGui::PopStyleColor();
+				}
+				else if (unique_index == list_highlight_unique_index)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Button, BUTTON_HIGHLIGHT_COL);
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, BUTTON_HIGHLIGHT_COL_HOVERED);
+					press_button = ImGui::Button(m_scene.primitive_index_to_name_map[unique_index].c_str(), button_size);
+					ImGui::PopStyleColor();
+					ImGui::PopStyleColor();
+				}
+				else if (unique_index == clicked_instance_unique_index)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Button, BUTTON_SELECTED_COL);
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, BUTTON_SELECTED_COL_HOVERED);
+					press_button = ImGui::Button(m_scene.primitive_index_to_name_map[unique_index].c_str(), button_size);
+					ImGui::PopStyleColor();
+					ImGui::PopStyleColor();
+				}
+				else 
+				{
+					press_button = ImGui::Button(m_scene.primitive_index_to_name_map[unique_index].c_str(), button_size);
+				}
+
+				if (press_button) {
+					list_highlight_unique_index = unique_index;
+				}
+				// note: no extra menu item for instance.
+			}
+			ImGui::EndListBox();
+		}
+		button_size = ImGui::GetItemRectSize();
+		ImGui::Button("Create", ImVec2(button_size.x * 0.495f, 0.0f));
+		ImGui::SameLine();
+		ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f));
+
+		ImGui::Separator();
+		RenderPrimitiveAttributeEditor(list_highlight_unique_index);
+		ImGui::End();
+	}
+	
+	void GuiModule::RenderGeometryList() 
+	{
+		if (!show_geometry_list) {
+			return;
+		}
+
+		auto& m_scene = *m_module_scene;
+
+		ImGui::Begin("Geometry list");
+
+		static uint32_t list_highlight_geometry_index = EMPTY_UINT32;
+		static uint32_t clicked_instance_geometry_index = EMPTY_UINT32;
+		if (m_scene.primitive_index_to_index_map.find(clicked_pixel_primitive_index) != m_scene.primitive_index_to_index_map.end())
+		{
+			clicked_instance_geometry_index = m_scene.primitive_instances[m_scene.primitive_index_to_index_map[clicked_pixel_primitive_index]].geometry_idx;
+		}
+
+		ImVec2 button_size;
+		if (ImGui::BeginListBox("##geometry_list_box", ImVec2(-1.0f, 0.0f))) {
+			button_size = ImGui::GetItemRectSize();
+			for (uint32_t geometry_index = 0; geometry_index < m_scene.geometries.size(); ++geometry_index)
+			{
+				bool press_button = false;
+				const auto &geometry_name = m_scene.geometry_names.at(geometry_index);
+				if (geometry_index == list_highlight_geometry_index && geometry_index == clicked_instance_geometry_index)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Button, BUTTON_DOUBLE_SELECTED_COL);
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, BUTTON_DOUBLE_SELECTED_COL_HOVERED);
+					press_button = ImGui::Button(geometry_name.c_str(), button_size);
+					ImGui::PopStyleColor();
+					ImGui::PopStyleColor();
+				}
+				else if (geometry_index == list_highlight_geometry_index)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Button, BUTTON_HIGHLIGHT_COL);
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, BUTTON_HIGHLIGHT_COL_HOVERED);
+					press_button = ImGui::Button(geometry_name.c_str(), button_size);
+					ImGui::PopStyleColor();
+					ImGui::PopStyleColor();
+				}
+				else if (geometry_index == clicked_instance_geometry_index)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Button, BUTTON_SELECTED_COL);
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, BUTTON_SELECTED_COL_HOVERED);
+					press_button = ImGui::Button(geometry_name.c_str(), button_size);
+					ImGui::PopStyleColor();
+					ImGui::PopStyleColor();
+				}
+				else
+				{
+					press_button = ImGui::Button(geometry_name.c_str(), button_size);
+				}
+
+				if (press_button) {
+					list_highlight_geometry_index = geometry_index;
+				}
+				if (ImGui::BeginPopupContextItem())
+				{
+					if (ImGui::Button("Assign to instance")) {
+						UpdateInstanceGeometry(clicked_pixel_primitive_index, geometry_index);
+					}
+					if (ImGui::Button("Close")) {
+						ImGui::CloseCurrentPopup();
+					}
+					ImGui::EndPopup();
+				}
+			}
+			ImGui::EndListBox();
+		}
+		button_size = ImGui::GetItemRectSize();
+		ImGui::Button("Create", ImVec2(button_size.x * 0.495f, 0.0f));
+		ImGui::SameLine();
+		ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f));
+
+		ImGui::Separator();
+		// TODO: draw a geometry attribute editor;
+
+		ImGui::End();
+	}
+	
+	void GuiModule::RenderTransformList()
+	{
+		if (!show_transform_list) {
+			return;
+		}
+
+		auto& m_scene = *m_module_scene;
+
+		ImGui::Begin("Transform list");
+
+		static uint32_t list_highlight_transform_index = EMPTY_UINT32;
+		static uint32_t clicked_instance_transform_index = EMPTY_UINT32;
+		if (m_scene.primitive_index_to_index_map.find(clicked_pixel_primitive_index) != m_scene.primitive_index_to_index_map.end()) 
+		{
+			clicked_instance_transform_index = m_scene.primitive_instances[m_scene.primitive_index_to_index_map[clicked_pixel_primitive_index]].transform_idx;
+		}
+
+		ImVec2 button_size;
+		if (ImGui::BeginListBox("##transform_list_box", ImVec2(-1.0f, 0.0f))) {
+			button_size = ImGui::GetItemRectSize();
+			for (uint32_t transform_index = 0; transform_index < m_scene.transform_states.size(); ++transform_index)
+			{
+				bool press_button = false;
+				if (transform_index == list_highlight_transform_index && transform_index == clicked_instance_transform_index)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Button, BUTTON_DOUBLE_SELECTED_COL);
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, BUTTON_DOUBLE_SELECTED_COL_HOVERED);
+					press_button = ImGui::Button(m_scene.transform_names[transform_index].c_str(), button_size);
+					ImGui::PopStyleColor();
+					ImGui::PopStyleColor();
+				}
+				else if (transform_index == list_highlight_transform_index)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Button, BUTTON_HIGHLIGHT_COL);
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, BUTTON_HIGHLIGHT_COL_HOVERED);
+					press_button = ImGui::Button(m_scene.transform_names[transform_index].c_str(), button_size);
+					ImGui::PopStyleColor();
+					ImGui::PopStyleColor();
+				}
+				else if (transform_index == clicked_instance_transform_index)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Button, BUTTON_SELECTED_COL);
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, BUTTON_SELECTED_COL_HOVERED);
+					press_button = ImGui::Button(m_scene.transform_names[transform_index].c_str(), button_size);
+					ImGui::PopStyleColor();
+					ImGui::PopStyleColor();
+				}
+				else
+				{
+					press_button = ImGui::Button(m_scene.transform_names[transform_index].c_str(), button_size);
+				}
+
+				if (press_button) {
+					list_highlight_transform_index = transform_index;
+				}
+				if (ImGui::BeginPopupContextItem())
+				{
+					if (ImGui::Button("Assign to instance")) {
+						UpdateInstanceTransform(clicked_pixel_primitive_index, transform_index);
+					}
+					if (ImGui::Button("Close")) {
+						ImGui::CloseCurrentPopup();
+					}
+					ImGui::EndPopup();
+				}
+			}
+			ImGui::EndListBox();
+		}
+		button_size = ImGui::GetItemRectSize();
+		ImGui::Button("Create", ImVec2(button_size.x * 0.495f, 0.0f));
+		ImGui::SameLine();
+		ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f));
+
+		ImGui::Separator();
+		RenderTransformAttributeEditor(list_highlight_transform_index);
+		ImGui::End();
+	}
+	
+	void GuiModule::RenderMaterialList() 
+	{
+		if (!show_material_list) {
+			return;
+		}
+
+		auto& m_scene = *m_module_scene;
+
+		ImGui::Begin("Material list");
+
+		static uint32_t list_highlight_material_index = EMPTY_UINT32;
+		static uint32_t clicked_instance_material_index = EMPTY_UINT32;
+		if (m_scene.primitive_index_to_index_map.find(clicked_pixel_primitive_index) != m_scene.primitive_index_to_index_map.end())
+		{
+			clicked_instance_material_index = m_scene.primitive_instances[m_scene.primitive_index_to_index_map[clicked_pixel_primitive_index]].material_idx;
+		}
+
+		ImVec2 button_size;
+		if (ImGui::BeginListBox("##material_list_box", ImVec2(-1.0f, 0.0f))) {
+			button_size = ImGui::GetItemRectSize();
+			for (uint32_t material_index = 0; material_index < m_scene.materials.size(); ++material_index)
+			{
+				bool press_button = false;
+				const auto& material_name = m_scene.material_names.at(material_index);
+				if (material_index == list_highlight_material_index && material_index == clicked_instance_material_index)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Button, BUTTON_DOUBLE_SELECTED_COL);
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, BUTTON_DOUBLE_SELECTED_COL_HOVERED);
+					press_button = ImGui::Button(material_name.c_str(), button_size);
+					ImGui::PopStyleColor();
+					ImGui::PopStyleColor();
+				}
+				else if (material_index == list_highlight_material_index)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Button, BUTTON_HIGHLIGHT_COL);
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, BUTTON_HIGHLIGHT_COL_HOVERED);
+					press_button = ImGui::Button(material_name.c_str(), button_size);
+					ImGui::PopStyleColor();
+					ImGui::PopStyleColor();
+				}
+				else if (material_index == clicked_instance_material_index)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Button, BUTTON_SELECTED_COL);
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, BUTTON_SELECTED_COL_HOVERED);
+					press_button = ImGui::Button(material_name.c_str(), button_size);
+					ImGui::PopStyleColor();
+					ImGui::PopStyleColor();
+				}
+				else
+				{
+					press_button = ImGui::Button(material_name.c_str(), button_size);
+				}
+
+				if (press_button) {
+					list_highlight_material_index = material_index;
+				}
+				if (ImGui::BeginPopupContextItem())
+				{
+					if (ImGui::Button("Assign to instance")) {
+						UpdateInstanceMaterial(clicked_pixel_primitive_index, material_index);
+					}
+					if (ImGui::Button("Close")) {
+						ImGui::CloseCurrentPopup();
+					}
+					ImGui::EndPopup();
+				}
+			}
+			ImGui::EndListBox();
+		}
+		button_size = ImGui::GetItemRectSize();
+		ImGui::Button("Create", ImVec2(button_size.x * 0.495f, 0.0f));
+		ImGui::SameLine();
+		ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f));
+
+		ImGui::Separator();
+		RenderMaterialAttributeEditor(list_highlight_material_index);
+
+		ImGui::End();
+	}
+
+	void GuiModule::RenderVolumeList()
+	{
+		if (!show_volume_list) {
+			return;
+		}
+
+		auto& m_scene = *m_module_scene;
+
+		ImGui::Begin("Volume list");
+
+		static int list_highlight_volume_index = -1;
+		static int clicked_instance_volume_index = -1;
+		if (m_scene.primitive_index_to_index_map.find(clicked_pixel_primitive_index) != m_scene.primitive_index_to_index_map.end())
+		{
+			clicked_instance_volume_index = m_scene.primitive_instances[m_scene.primitive_index_to_index_map[clicked_pixel_primitive_index]].inner_volume_idx;
+		}
+
+		ImVec2 button_size;
+		if (ImGui::BeginListBox("##volume_list_box", ImVec2(-1.0f, 0.0f))) {
+			button_size = ImGui::GetItemRectSize();
+			for (int vol_index = 0; vol_index < (int)m_scene.volumes.size(); ++vol_index)
+			{
+				bool press_button = false;
+				const auto& vol_name = m_scene.volume_names.at(vol_index);
+				if (vol_index == list_highlight_volume_index && vol_index == clicked_instance_volume_index)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Button, BUTTON_DOUBLE_SELECTED_COL);
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, BUTTON_DOUBLE_SELECTED_COL_HOVERED);
+					press_button = ImGui::Button(vol_name.c_str(), button_size);
+					ImGui::PopStyleColor();
+					ImGui::PopStyleColor();
+				}
+				else if (vol_index == list_highlight_volume_index)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Button, BUTTON_HIGHLIGHT_COL);
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, BUTTON_HIGHLIGHT_COL_HOVERED);
+					press_button = ImGui::Button(vol_name.c_str(), button_size);
+					ImGui::PopStyleColor();
+					ImGui::PopStyleColor();
+				}
+				else if (vol_index == clicked_instance_volume_index)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Button, BUTTON_SELECTED_COL);
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, BUTTON_SELECTED_COL_HOVERED);
+					press_button = ImGui::Button(vol_name.c_str(), button_size);
+					ImGui::PopStyleColor();
+					ImGui::PopStyleColor();
+				}
+				else
+				{
+					press_button = ImGui::Button(vol_name.c_str(), button_size);
+				}
+
+				if (press_button) {
+					list_highlight_volume_index = vol_index;
+				}
+				if (ImGui::BeginPopupContextItem())
+				{
+					if (ImGui::Button("Assign to instance")) {
+						UpdateInstanceInnerMedia(clicked_pixel_primitive_index, vol_index);
+					}
+					if (ImGui::Button("Close")) {
+						ImGui::CloseCurrentPopup();
+					}
+					ImGui::EndPopup();
+				}
+			}
+			ImGui::EndListBox();
+		}
+		button_size = ImGui::GetItemRectSize();
+		ImGui::Button("Create", ImVec2(button_size.x * 0.495f, 0.0f));
+		ImGui::SameLine();
+		ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f));
+
+		ImGui::Separator();
+		RenderVolumeAttributeEditor(list_highlight_volume_index);
+
+		ImGui::End();
+	}
+
+	void GuiModule::RenderTextureList()
+	{
+		if (!show_texture_list) {
+			return;
+		}
+
+		auto& m_scene = *m_module_scene;
+
+		ImGui::Begin("Texture list");
+
+		static uint32_t list_highlight_texture_index = EMPTY_UINT32;
+
+		ImVec2 button_size;
+		if (ImGui::BeginListBox("##texture_list_box", ImVec2(-1.0f, 0.0f))) {
+			button_size = ImGui::GetItemRectSize();
+			for (uint32_t texture_index = 0; texture_index < (uint32_t)m_scene.textures.size(); ++texture_index)
+			{
+				bool press_button = false;
+				const auto& texture_name = m_scene.texture_names.at(texture_index);
+				if (texture_index == list_highlight_texture_index)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Button, BUTTON_HIGHLIGHT_COL);
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, BUTTON_HIGHLIGHT_COL_HOVERED);
+					press_button = ImGui::Button(texture_name.c_str(), button_size);
+					ImGui::PopStyleColor();
+					ImGui::PopStyleColor();
+				}
+				else
+				{
+					press_button = ImGui::Button(texture_name.c_str(), button_size);
+				}
+
+				if (press_button) {
+					list_highlight_texture_index = texture_index;
+				}
+
+				// TODO: implement some drag function?
+			}
+			ImGui::EndListBox();
+		}
+		button_size = ImGui::GetItemRectSize();
+		ImGui::Button("Create", ImVec2(button_size.x * 0.495f, 0.0f));
+		ImGui::SameLine();
+		ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f));
+
+		ImGui::Separator();
+		RenderTextureAttributeEditor(list_highlight_texture_index);
+		
 		ImGui::End();
 	}
 
@@ -2081,10 +2843,17 @@ namespace YumeRT {
 		ImGuiIO& io = ImGui::GetIO();
 		
 		RenderImages();
-		ImGui::ShowDemoWindow();
+		
 		RenderMainMenu();
 		RenderObjectList();
-		
+		RenderGeometryInstanceList();
+		RenderGeometryList();
+		RenderTransformList();
+		RenderMaterialList();
+		RenderVolumeList();
+		RenderTextureList();
+
+		// ImGui::ShowDemoWindow();
 
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

@@ -124,7 +124,12 @@ namespace YumeRT{
 		void DeleteGeometry(const uint32_t index);
 		void UpdateGeometry(const uint32_t index);
 
-		uint32_t CreatePrimitiveInstance(const uint32_t geometry_index, const uint32_t transform_index, const uint32_t material_index, const int inner_volume_index = -1, const bool treat_as_boundary = false);
+		uint32_t CreatePrimitiveInstance(const std::string &name,
+			const uint32_t geometry_index, 
+			const uint32_t transform_index, 
+			const uint32_t material_index, 
+			const int inner_volume_index = -1, 
+			const bool treat_as_boundary = false);
 		void DeletePrimitiveInstance(const uint32_t index);
 		void UpdatePrimitiveInstance(const uint32_t index);
 
@@ -206,7 +211,8 @@ namespace YumeRT{
 		void UpdateVolume(const uint32_t index);
 
 	private:
-		struct PrimitiveIndexGenerator{
+		struct PrimitiveIndexGenerator
+		{
 			uint32_t index_counter;
 			std::unordered_set<uint32_t> inused_index;
 
@@ -254,6 +260,7 @@ namespace YumeRT{
 		PrimitiveIndexGenerator primitive_index_generator;
 		std::vector<PrimitiveInstance> primitive_instances;
 		std::unordered_map<uint32_t, uint32_t> primitive_index_to_index_map;
+		std::unordered_map<uint32_t, std::string> primitive_index_to_name_map;
 
 		std::vector<TopNode> top_nodes;
 

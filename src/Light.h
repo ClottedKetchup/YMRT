@@ -46,18 +46,19 @@ namespace YumeRT
 																					float *t0,
 																					float *t1)
 	{
-		float a = ray_direction.x * ray_direction.x + ray_direction.y * ray_direction.y + ray_direction.z * ray_direction.z;
-		float b = 2.0f * (ray_direction.x * ray_origin.x + ray_direction.y * ray_origin.y + ray_direction.z * ray_origin.z);
-		float c = ray_origin.x * ray_origin.x + ray_origin.y * ray_origin.y + ray_origin.z * ray_origin.z - sphere_radius * sphere_radius;
-		float discriminator = b * b - 4.0f * a * c;
-		if (discriminator < 0) { 
+		const float a = ray_direction.x * ray_direction.x + ray_direction.y * ray_direction.y + ray_direction.z * ray_direction.z;
+		const float b = 2.0f * (ray_direction.x * ray_origin.x + ray_direction.y * ray_origin.y + ray_direction.z * ray_origin.z);
+		const float c = ray_origin.x * ray_origin.x + ray_origin.y * ray_origin.y + ray_origin.z * ray_origin.z - sphere_radius * sphere_radius;
+		const float discriminator = b * b - 4.0 * a * c;
+		if (discriminator < 0.0f) { 
 			return false; 
 		}
 
-		float sqrt_discriminator = glm::sqrt(discriminator);
-		*t0 = (-b - sqrt_discriminator) / (2.0 * a);
-		*t1 = (-b + sqrt_discriminator) / (2.0 * a);
-		if ((*t1) < TMIN) { 
+		const float sqrt_discriminator = glm::sqrt(discriminator);
+		const float i_a = 1.0f / a;
+		*t0 = (-b - sqrt_discriminator) * 0.5f * i_a;
+		*t1 = (-b + sqrt_discriminator) * 0.5f * i_a;
+		if ((*t1) < 1E-10f) { 
 			return false; 
 		}
 		return true;
@@ -188,7 +189,7 @@ namespace YumeRT
 
 				glm::vec3 intersect_pos = object_space_position + object_space_wi * t0;
 				float length_io = glm::length(intersect_pos);
-				intersect_pos = length_io > FLOAT_EPSILON ? (intersect_pos * radius / length_io) : glm::vec3(0.0f);
+				intersect_pos *= radius * SafeRcp(length_io);
 				glm::vec3 intersect_pos_error = ErrorGamma(5) * glm::abs(intersect_pos);
 
 				*light_sample_pos = TransformPosition(otw, intersect_pos, &intersect_pos_error);
@@ -294,6 +295,7 @@ namespace YumeRT
 
 				glm::vec3 cone_sample = SampleCone(u0, u1, cos_theta_max);
 				glm::vec3 w = -object_space_position, u, v;
+
 				OrthogonalBasis(w, u, v);
 				cone_sample = cone_sample.x * u + cone_sample.y * v + cone_sample.z * w;
 
@@ -301,7 +303,7 @@ namespace YumeRT
 				RayIntersectSphere(object_space_position, cone_sample, glm::vec3(0.0f), radius, &t0, &t1);
 				glm::vec3 intersect_pos = object_space_position + cone_sample * t0;
 				float length_io = glm::length(intersect_pos);
-				intersect_pos = length_io > FLOAT_EPSILON ? (intersect_pos * radius / length_io) : glm::vec3(0.0f);
+				intersect_pos *= radius * SafeRcp(length_io);
 				glm::vec3 intersect_pos_error = ErrorGamma(5) * glm::abs(intersect_pos);
 
 				*light_sample_pos = TransformPosition(otw, intersect_pos, &intersect_pos_error);

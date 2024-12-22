@@ -100,11 +100,21 @@ namespace YumeRT {
 
 	private:
 		bool draw_selected_effect;
+		
 		bool show_primitive_list;
+		bool show_primitive_instance_list;
+		bool show_geometry_list;
+		bool show_transform_list;
+		bool show_material_list;
+		bool show_volume_list;
+		bool show_texture_list;
+
 		int m_width, m_height;
+
 		float primitive_scale_upper;
 		float primitive_scale_lower;
 		float primitive_move_speed;
+
 		uint32_t clicked_pixel_primitive_index;
 
 		DuskTrackball trackball;
@@ -132,6 +142,18 @@ namespace YumeRT {
 		void RenderTransformHierarchy(const uint32_t transform_index);
 		void RenderPrimitiveAttributeEditor(const uint32_t selected_primitive_unique_index);
 		void RenderObjectList();
+
+		void UpdateInstanceGeometry(const uint32_t primitive_unique_index, const uint32_t dst_geometry_index);
+		void UpdateInstanceTransform(const uint32_t primitive_unique_index, const uint32_t dst_transform_index);
+		void UpdateInstanceMaterial(const uint32_t primitive_unique_index, const uint32_t dst_material_index);
+		void UpdateInstanceInnerMedia(const uint32_t primitive_unique_index, const int dst_inner_volume_index);
+
+		void RenderGeometryInstanceList();
+		void RenderGeometryList(); // note: try use layout and list box. the create and delete button arrange to the bottom.
+		void RenderTransformList();
+		void RenderMaterialList();
+		void RenderVolumeList();
+		void RenderTextureList();
 
 		void ExitGUI();
 
