@@ -259,6 +259,8 @@ namespace YumeRT {
 		const float coat_weight,
 		const float coat_thickness,
 		const float coat_ior,
+		const float coat_roughness_x,
+		const float coat_roughness_y,
 
 		const uint32_t diffuse_albedo_tex,
 		const uint32_t alpha_x_tex,
@@ -272,7 +274,9 @@ namespace YumeRT {
 		
 		const uint32_t coat_albedo_tex,
 		const uint32_t coat_weight_tex,
-		const uint32_t coat_thickness_tex)
+		const uint32_t coat_thickness_tex,
+		const uint32_t coat_roughness_x_tex,
+		const uint32_t coat_roughness_y_tex)
 	{
 		auto default_material = Material().InitDefaultMtl(diffuse_albedo,
 			specular_albedo,
@@ -288,6 +292,8 @@ namespace YumeRT {
 			coat_weight,
 			coat_thickness,
 			coat_ior,
+			coat_roughness_x,
+			coat_roughness_y,
 
 			diffuse_albedo_tex,
 			alpha_x_tex,
@@ -301,7 +307,9 @@ namespace YumeRT {
 			
 			coat_albedo_tex, 
 			coat_weight_tex, 
-			coat_thickness_tex);
+			coat_thickness_tex,
+			coat_roughness_x_tex,
+			coat_roughness_y_tex);
 
 		materials.emplace_back(default_material);
 		material_names.emplace_back(name);
@@ -1077,9 +1085,9 @@ namespace YumeRT {
 		bump_mapping_tex = get_ai_texture(material_name + std::string("_normal_texture"), aiTextureType_HEIGHT);
 
 		const auto material_index = scene_manager.CreateDefaultMaterial(material_name, diffuse_albedo, specular_albedo, roughness_x, roughness_y, ior_n, metalness, specular_weight, transmission_weight, ior_priority,
-			glm::vec3(1.f), 0.0f, 1.0f, 1.6f,
+			glm::vec3(1.f), 0.0f, 1.0f, 1.6f, 0.2f, 0.2f,
 			diffuse_albedo_tex, alpha_x_tex, specular_albedo_tex, alpha_y_tex, specular_weight_tex, metalness_tex, transmission_weight_tex, normal_mapping_tex, bump_mapping_tex,
-			EMPTY_UINT32, EMPTY_UINT32, EMPTY_UINT32);
+			EMPTY_UINT32, EMPTY_UINT32, EMPTY_UINT32, EMPTY_UINT32, EMPTY_UINT32);
 		material_map[ai_material_index] = material_index;
 		
 		return material_index;

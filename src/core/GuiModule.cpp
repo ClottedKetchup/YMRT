@@ -1063,6 +1063,36 @@ namespace YumeRT {
 				ImGui::EndPopup();
 			}
 
+			if (ImGui::SliderFloat("Coat roughness x", &selected_default_mtl.coat_roughness_x, 0.0f, 1.0f)) {
+				UpdateDeviceData([&]() {
+					m_scene.UpdateMaterial(material_index);
+					});
+				m_scene.AddSceneFlag(scene_material_change_flag);
+			}
+			ImGui::SameLine();
+			if (ImGui::ColorButton("Coat roughness x texture", ImVec4(1, 1, 1, 1))) {
+				ImGui::OpenPopup("Coat_roughness_x_popup");
+			}
+			if (ImGui::BeginPopup("Coat_roughness_x_popup")) {
+				draw_texture_selector("Coat roughness x texture selector", &selected_default_mtl.coat_roughness_x_tex);
+				ImGui::EndPopup();
+			}
+
+			if (ImGui::SliderFloat("Coat roughness y", &selected_default_mtl.coat_roughness_y, 0.0f, 1.0f)) {
+				UpdateDeviceData([&]() {
+					m_scene.UpdateMaterial(material_index);
+					});
+				m_scene.AddSceneFlag(scene_material_change_flag);
+			}
+			ImGui::SameLine();
+			if (ImGui::ColorButton("Coat roughness y texture", ImVec4(1, 1, 1, 1))) {
+				ImGui::OpenPopup("Coat_roughness_y_popup");
+			}
+			if (ImGui::BeginPopup("Coat_roughness_y_popup")) {
+				draw_texture_selector("Coat roughness y texture selector", &selected_default_mtl.coat_roughness_y_tex);
+				ImGui::EndPopup();
+			}
+
 			ImGui::Separator();
 			draw_texture_selector("Normal texture selector", &selected_default_mtl.normal_mapping_tex);
 			draw_texture_selector("Bump texture selector", &selected_default_mtl.bump_mapping_tex);
@@ -2090,6 +2120,26 @@ namespace YumeRT {
 			auto transmission_weight_texture = selected_default_mtl.transmission_weight_tex;
 			if (transmission_weight_texture != EMPTY_UINT32) {
 				RenderTextureNode(VAR_NAME(transmission_weight_texture), transmission_weight_texture);
+			}
+			auto coat_albedo_texture = selected_default_mtl.coat_albedo_tex;
+			if (coat_albedo_texture != EMPTY_UINT32) {
+				RenderTextureNode(VAR_NAME(coat_albedo_texture), coat_albedo_texture);
+			}
+			auto coat_weight_texture = selected_default_mtl.coat_weight_tex;
+			if (coat_weight_texture != EMPTY_UINT32) {
+				RenderTextureNode(VAR_NAME(coat_weight_texture), coat_weight_texture);
+			}
+			auto coat_thickness_texture = selected_default_mtl.coat_thickness_tex;
+			if (coat_thickness_texture != EMPTY_UINT32) {
+				RenderTextureNode(VAR_NAME(coat_thickness_texture), coat_thickness_texture);
+			}
+			auto coat_roughness_x_texture = selected_default_mtl.coat_roughness_x_tex;
+			if (coat_roughness_x_texture != EMPTY_UINT32) {
+				RenderTextureNode(VAR_NAME(coat_roughness_x_texture), coat_roughness_x_texture);
+			}
+			auto coat_roughness_y_texture = selected_default_mtl.coat_roughness_y_tex;
+			if (coat_roughness_y_texture != EMPTY_UINT32) {
+				RenderTextureNode(VAR_NAME(coat_roughness_y_texture), coat_roughness_y_texture);
 			}
 			auto normal_mapping_texture = selected_default_mtl.normal_mapping_tex;
 			if (normal_mapping_texture != EMPTY_UINT32) {
