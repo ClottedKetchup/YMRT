@@ -15,27 +15,37 @@ namespace YumeRT
 	struct DefaultMtl 
 	{
 		glm::vec3 diffuse_albedo = glm::vec3(0.5f);
-		uint32_t diffuse_albedo_tex;
+		uint32_t diffuse_albedo_tex = EMPTY_UINT32;
 		glm::vec3 specular_albedo = glm::vec3(1.0f);
-		uint32_t specular_albedo_tex;
+		uint32_t specular_albedo_tex = EMPTY_UINT32;
 
 		float alpha_x = 0.2f;
-		uint32_t alpha_x_tex;
+		uint32_t alpha_x_tex = EMPTY_UINT32;
 		float	alpha_y = 0.2f;
-		uint32_t	alpha_y_tex;
+		uint32_t	alpha_y_tex = EMPTY_UINT32;
 
 		float specular_weight = 1.0f;
-		uint32_t specular_weight_tex;
+		uint32_t specular_weight_tex = EMPTY_UINT32;
 		float metalness = 0.0f;
-		uint32_t metalness_tex;
+		uint32_t metalness_tex = EMPTY_UINT32;
 
 		float transmission_weight = 0.0f;
-		uint32_t transmission_weight_tex;
-		float	ior_n = 1.3f;
+		uint32_t transmission_weight_tex = EMPTY_UINT32;
+		float	ior_n = 1.33f;
 		uint32_t ior_priority = 0;
 
-		uint32_t normal_mapping_tex;
-		uint32_t bump_mapping_tex;
+		glm::vec3 coat_albedo = glm::vec3(1.0f);
+		uint32_t coat_albedo_tex = EMPTY_UINT32;
+
+		float coat_weight = 0.0f;
+		uint32_t coat_weight_tex = EMPTY_UINT32;
+		float coat_thickness = 1.0f;
+		uint32_t coat_thickness_tex = EMPTY_UINT32;
+		
+		float coat_ior = 1.6f;
+		uint32_t normal_mapping_tex = EMPTY_UINT32;
+		uint32_t bump_mapping_tex = EMPTY_UINT32;
+		uint32_t padding;
 
 		__device__ __host__ inline DefaultMtl(const glm::vec3 &diffuse_albedo,
 			const glm::vec3 &specular_albedo,
@@ -47,6 +57,11 @@ namespace YumeRT
 			float transmission_weight,
 			uint32_t ior_priority,
 
+			const glm::vec3& coat_albedo,
+			float coat_weight,
+			float coat_thickness,
+			float coat_ior,
+
 			uint32_t diffuse_albedo_tex,
 			uint32_t alpha_x_tex,
 			uint32_t specular_albedo_tex,
@@ -55,7 +70,11 @@ namespace YumeRT
 			uint32_t metalness_tex,
 			uint32_t transmission_weight_tex,
 			uint32_t normal_mapping_tex,
-			uint32_t bump_mapping_tex) :
+			uint32_t bump_mapping_tex,
+			
+			uint32_t coat_albedo_tex,
+			uint32_t coat_weight_tex,
+			uint32_t coat_thickness_tex) :
 
 			diffuse_albedo(diffuse_albedo), 
 			specular_albedo(specular_albedo), 
@@ -66,6 +85,12 @@ namespace YumeRT
 			metalness(metalness), 
 			specular_weight(specular_weight), 
 			transmission_weight(transmission_weight), 
+
+			coat_albedo(coat_albedo),
+			coat_weight(coat_weight),
+			coat_thickness(coat_thickness),
+			coat_ior(coat_ior),
+
 			diffuse_albedo_tex(diffuse_albedo_tex), 
 			alpha_x_tex(alpha_x_tex), 
 			specular_albedo_tex(specular_albedo_tex), 
@@ -74,7 +99,14 @@ namespace YumeRT
 			metalness_tex(metalness_tex), 
 			transmission_weight_tex(transmission_weight_tex),
 			normal_mapping_tex(normal_mapping_tex), 
-			bump_mapping_tex(bump_mapping_tex){}
+			bump_mapping_tex(bump_mapping_tex),
+
+			coat_albedo_tex(coat_albedo_tex),
+			coat_weight_tex(coat_weight_tex),
+			coat_thickness_tex(coat_thickness_tex)
+		{
+		
+		}
 
 		__device__ __host__ inline DefaultMtl& operator=(const DefaultMtl& other)
 		{
@@ -97,6 +129,16 @@ namespace YumeRT
 			metalness_tex = other.metalness_tex;
 			transmission_weight_tex = other.transmission_weight_tex;
 			normal_mapping_tex = other.normal_mapping_tex;
+
+			coat_albedo = other.coat_albedo;
+			coat_albedo_tex = other.coat_albedo_tex;
+
+			coat_weight = other.coat_weight;
+			coat_weight_tex = other.coat_weight_tex;
+			coat_thickness = other.coat_thickness;
+			coat_thickness_tex = other.coat_thickness_tex;
+
+			coat_ior = other.coat_ior;
 
 			bump_mapping_tex = other.bump_mapping_tex;
 			ior_priority = other.ior_priority;
@@ -195,6 +237,11 @@ namespace YumeRT
 																						  float transmission_weight = 0.0f,
 																						  uint32_t ior_priority = 0,
 
+																						  const glm::vec3& coat_albedo = glm::vec3(1.0f),
+																						  float coat_weight = 0.0f,
+																						  float coat_thickness = 1.0f,
+																						  float coat_ior = 1.6f,
+
 																						  uint32_t diffuse_albedo_tex = EMPTY_UINT32,
 																						  uint32_t alpha_x_tex = EMPTY_UINT32,
 																						  uint32_t specular_albedo_tex = EMPTY_UINT32,
@@ -203,7 +250,11 @@ namespace YumeRT
 																						  uint32_t metalness_tex = EMPTY_UINT32,
 																						  uint32_t transmission_weight_tex = EMPTY_UINT32, 
 																						  uint32_t normal_mapping_tex = EMPTY_UINT32,
-																						  uint32_t bump_mapping_tex = EMPTY_UINT32)
+																						  uint32_t bump_mapping_tex = EMPTY_UINT32,
+			
+																						  uint32_t coat_albedo_tex = EMPTY_UINT32,
+																						  uint32_t coat_weight_tex = EMPTY_UINT32,
+																						  uint32_t coat_thickness_tex = EMPTY_UINT32)
 		{
 			material_type = DEFAULT_MTL;
 			default_mtl = DefaultMtl(diffuse_albedo, 
@@ -215,6 +266,12 @@ namespace YumeRT
 				specular_weight, 
 				transmission_weight, 
 				ior_priority,
+
+				coat_albedo,
+				coat_weight,
+				coat_thickness,
+				coat_ior,
+
 				diffuse_albedo_tex, 
 				alpha_x_tex, 
 				specular_albedo_tex, 
@@ -223,7 +280,11 @@ namespace YumeRT
 				metalness_tex, 
 				transmission_weight_tex, 
 				normal_mapping_tex, 
-				bump_mapping_tex);
+				bump_mapping_tex,
+				
+				coat_albedo_tex,
+				coat_weight_tex,
+				coat_thickness_tex);
 			
 			return *this;
 		}

@@ -41,7 +41,9 @@ void TestScene_CornellBox(const std::string& exec_path, std::shared_ptr<YumeRT::
 	// bottom
 	scene_manager.CreatePrimitiveInstance("bottom_cube", cube_index,
 		scene_manager.CreateTransform("bottom_cube_transform", glm::vec3(0.0f, -5.025f, -5.0f), glm::vec3(10.0f, 0.05f, 10.0f)),
-		scene_manager.CreateDefaultMaterial("bottom_wall_material", glm::vec3(0.75f, 0.75f, 0.75f), glm::vec3(1.0f), 0.15, 0.15, 1.45, 0.0f, 1.0f, 0.0f, 0, tex_checkerboard),
+		scene_manager.CreateDefaultMaterial("bottom_wall_material", glm::vec3(0.75f, 0.75f, 0.75f), glm::vec3(1.0f), 0.15, 0.15, 1.45, 0.0f, 1.0f, 0.0f, 0,
+			glm::vec3(1.f), 0.0f, 1.0f, 1.6f,
+			tex_checkerboard),
 		-1);
 
 	const auto group_transform_index = scene_manager.CreateTransform("cube_group_transform", glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(1.0f), glm::vec3(0.0f, 0.0f, 0.0f));
@@ -82,6 +84,7 @@ void TestScene_CornellBox(const std::string& exec_path, std::shared_ptr<YumeRT::
 	scene_manager.CreatePrimitiveInstance("ground", cube_index,
 		scene_manager.CreateTransform("ground_transform", glm::vec3(0.0f, -5.55f, 0.0f), glm::vec3(135.0, 1.0f, 135.0f)),
 		scene_manager.CreateDefaultMaterial("ground_material", glm::vec3(0.55f, 0.55f, 0.55f), glm::vec3(0.0f), 0.2, 0.2, 1.3, 0.0f, 0.0f, 0.0f, 0,
+			glm::vec3(1.f), 0.0f, 1.0f, 1.6f,
 			ground_diffuse_tex_idx, ground_roughness_tex_idx, ground_diffuse_tex_idx, ground_roughness_tex_idx, EMPTY_UINT32, EMPTY_UINT32, EMPTY_UINT32, EMPTY_UINT32, ground_bump_tex_idx),
 		-1);
 

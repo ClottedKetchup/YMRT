@@ -1009,6 +1009,61 @@ namespace YumeRT {
 			}
 
 			ImGui::Separator();
+			if (ImGui::SliderFloat("Coat weight", &selected_default_mtl.coat_weight, 0.0f, 1.0f)) {
+				UpdateDeviceData([&]() {
+					m_scene.UpdateMaterial(material_index);
+				});
+				m_scene.AddSceneFlag(scene_material_change_flag);
+			}
+			ImGui::SameLine();
+			if (ImGui::ColorButton("Coat weight texture", ImVec4(1, 1, 1, 1))) {
+				ImGui::OpenPopup("Coat_weight_popup");
+			}
+			if (ImGui::BeginPopup("Coat_weight_popup")) {
+				draw_texture_selector("Coat weight texture selector", &selected_default_mtl.coat_weight_tex);
+				ImGui::EndPopup();
+			}
+
+			if (ImGui::ColorEdit3("Coat albedo", (float*)(&selected_default_mtl.coat_albedo), ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR)) {
+				UpdateDeviceData([&]() {
+					m_scene.UpdateMaterial(material_index);
+				});
+				m_scene.AddSceneFlag(scene_material_change_flag);
+			}
+			ImGui::SameLine();
+			if (ImGui::ColorButton("Coat albedo texture", ImVec4(1, 1, 1, 1))) {
+				ImGui::OpenPopup("Coat_albedo_popup");
+			}
+			if (ImGui::BeginPopup("Coat_albedo_popup")) {
+				draw_texture_selector("Coat albedo texture selector", &selected_default_mtl.coat_albedo_tex);
+				ImGui::EndPopup();
+			}
+
+			if (ImGui::InputFloat("Coat IOR", &selected_default_mtl.coat_ior)) {
+				selected_default_mtl.coat_ior = glm::max(0.0f, selected_default_mtl.coat_ior);
+				UpdateDeviceData([&]() {
+					m_scene.UpdateMaterial(material_index);
+				});
+				m_scene.AddSceneFlag(scene_material_change_flag);
+			}
+
+			if (ImGui::InputFloat("Coat thickness", &selected_default_mtl.coat_thickness)) {
+				selected_default_mtl.coat_thickness = glm::max(selected_default_mtl.coat_thickness, 0.0f);
+				UpdateDeviceData([&]() {
+					m_scene.UpdateMaterial(material_index);
+				});
+				m_scene.AddSceneFlag(scene_material_change_flag);
+			}
+			ImGui::SameLine();
+			if (ImGui::ColorButton("Coat thickness texture", ImVec4(1, 1, 1, 1))) {
+				ImGui::OpenPopup("Coat_thickness_popup");
+			}
+			if (ImGui::BeginPopup("Coat_thickness_popup")) {
+				draw_texture_selector("Coat thickness texture selector", &selected_default_mtl.coat_thickness_tex);
+				ImGui::EndPopup();
+			}
+
+			ImGui::Separator();
 			draw_texture_selector("Normal texture selector", &selected_default_mtl.normal_mapping_tex);
 			draw_texture_selector("Bump texture selector", &selected_default_mtl.bump_mapping_tex);
 		}

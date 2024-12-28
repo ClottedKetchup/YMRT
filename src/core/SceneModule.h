@@ -141,6 +141,11 @@ namespace YumeRT{
 			const float specular_weight = 1.0f, const float transmission_weight = 0.0f,
 			const uint32_t ior_priority = 0,
 
+			const glm::vec3& coat_albedo = glm::vec3(1.0f),
+			const float coat_weight = 0.0f,
+			const float coat_thickness = 1.0f,
+			const float coat_ior = 1.6f,
+
 			const uint32_t diffuse_albedo_tex = EMPTY_UINT32,
 			const uint32_t alpha_x_tex = EMPTY_UINT32,
 			const uint32_t specular_albedo_tex = EMPTY_UINT32,
@@ -149,7 +154,11 @@ namespace YumeRT{
 			const uint32_t metalness_tex = EMPTY_UINT32,
 			const uint32_t transmission_weight_tex = EMPTY_UINT32,
 			const uint32_t normal_mapping_tex = EMPTY_UINT32,
-			const uint32_t bump_mapping_tex = EMPTY_UINT32);
+			const uint32_t bump_mapping_tex = EMPTY_UINT32,
+			
+			const uint32_t coat_albedo_tex = EMPTY_UINT32,
+			const uint32_t coat_weight_tex = EMPTY_UINT32,
+			const uint32_t coat_thickness_tex = EMPTY_UINT32);
 		uint32_t CreateLightMaterial(const std::string& name, const glm::vec3& light_color = glm::vec3(1.0f), const float intensity = 1.0f);
 		void DeleteMaterial(const uint32_t index);
 		void UpdateMaterial(const uint32_t index);
