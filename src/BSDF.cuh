@@ -15,7 +15,7 @@
 
 namespace YumeRT
 {
-#define MAX_BSDF_COUNT 4
+#define MAX_BSDF_COUNT 6
 
 	__device__ __host__ inline float CosTheta2(const glm::vec3 &w) { return w.z * w.z; }
 	__device__ __host__ inline float CosTheta(const glm::vec3 &w) { return w.z; }
@@ -224,10 +224,14 @@ namespace YumeRT
 
 		__device__ __host__ inline float PDF(const glm::vec3 &wo, const glm::vec3 &wi)
 		{
-			if (!SameHemisphere(wo, wi) || wo.z < 0.f || wi.z < 0.f) { return 0.0f; }
+			if (!SameHemisphere(wo, wi) || wo.z < 0.f || wi.z < 0.f) { 
+				return 0.0f; 
+			}
 			glm::vec3 wh = wi + wo;
 			float len = glm::length(wh);
-			if (glm::abs(len) < 1E-8f) { return 0.0f; }
+			if (glm::abs(len) < 1E-8f) { 
+				return 0.0f; 
+			}
 			wh /= len;
 			return D(wh, alpha_x, alpha_y) * G1(wo, alpha_x, alpha_y) * 0.25f / glm::max(wo.z, 1E-8f);
 		}
@@ -441,11 +445,11 @@ namespace YumeRT
 
 	struct DefaultMtlBSDF 
 	{
-		BSDF bsdfs[4];
-		float weights[4];
+		BSDF bsdfs[MAX_BSDF_COUNT];
+		float weights[MAX_BSDF_COUNT];
 		int bsdf_count;
 
-		__device__ __host__ inline DefaultMtlBSDF() : weights{ 0.0f, 0.0f, 0.0f, 0.0f }, bsdf_count(0){}
+		__device__ __host__ inline DefaultMtlBSDF() : weights{ 0.0f }, bsdf_count(0){}
 		__device__ __host__ inline void InitBSDFSettings(const Material &mtl,
 			const Texture *textures,
 			const ImageTileCache &Image_tile_cache,
@@ -463,12 +467,22 @@ namespace YumeRT
 				return tex_idx != EMPTY_UINT32 ? TextureEval(textures[tex_idx], textures, Image_tile_cache, texture_coordinate).x : default_float;
 			};
 
+			constexpr float ior_min = 0.0001f;
 			const DefaultMtl& default_mtl = mtl.default_mtl;
+			
+			// note: init material attribute.
+			const float coat_weight = fetch_float(default_mtl.coat_weight_tex, default_mtl.coat_weight);
 
-			const float i_ior = glm::max(ray_ior, 0.0001f);
-			const float o_ior = glm::max(hit_back ? ex_ior : default_mtl.ior_n, 0.0001f);
-			const float eta = o_ior * SafeRcp(i_ior);
-			const float fr = FresnelDielectricDielectric(eta, glm::max(glm::dot(normal, -ray_in.direction), 0.0f));
+			const float ior_in = glm::max(ray_ior, ior_min);
+			const float ior_coat = glm::max(default_mtl.coat_ior, ior_min);
+			const float ior_out = glm::max(hit_back ? ex_ior : default_mtl.ior_n, ior_min);
+
+			const float eta_in_coat = ior_coat * SafeRcp(ior_in);
+			const float eta_in_out = ior_out * SafeRcp(ior_in);
+
+			const float cos_theta_in = glm::max(glm::dot(normal, -ray_in.direction), 0.0f);
+			const float fr_in_coat = coat_weight > 0.0f ? FresnelDielectricDielectric(eta_in_coat, cos_theta_in) : 1.0f;
+			const float fr_in_out = FresnelDielectricDielectric(eta_in_out, cos_theta_in);
 
 			const float metalness = fetch_float(default_mtl.metalness_tex, default_mtl.metalness);
 			const float alpha_x = Sqr(glm::clamp(fetch_float(default_mtl.alpha_x_tex, default_mtl.alpha_x), 0.001f, 0.999f));
@@ -477,75 +491,141 @@ namespace YumeRT
 			const float transmission_weight = fetch_float(default_mtl.transmission_weight_tex, default_mtl.transmission_weight);
 			const glm::vec3 diffuse_albedo = fetch_color(default_mtl.diffuse_albedo_tex, default_mtl.diffuse_albedo);
 			const glm::vec3 specular_albedo = fetch_color(default_mtl.specular_albedo_tex, default_mtl.specular_albedo);
+
+			const float coat_thickness = fetch_float(default_mtl.coat_thickness_tex, default_mtl.coat_thickness);
+			const float coat_roughness_x = Sqr(glm::clamp(fetch_float(default_mtl.coat_roughness_x_tex, default_mtl.coat_roughness_x), 0.001f, 0.999f));
+			const float coat_roughness_y = Sqr(glm::clamp(fetch_float(default_mtl.coat_roughness_y_tex, default_mtl.coat_roughness_y), 0.001f, 0.999f));
+			const glm::vec3 coat_albedo = fetch_color(default_mtl.coat_albedo_tex, default_mtl.coat_albedo);
+
+			// note: assume the white light perpendicular to the plane	will fall to coat albedo after traversing one thickness;
+			const glm::vec3 coat_sigma = -glm::log(glm::max(coat_albedo, glm::vec3(1E-8f))) * coat_thickness;
+			const glm::vec3 coat_transmittance = glm::exp(-coat_sigma * SafeRcp(cos_theta_in));
 			
+			// note: init the bsdf component.
+			float weight_sum = 0.0f;
 			bsdf_count = 0;
-			const float weight_0 = metalness;
-			if (weight_0 > 0.0f)
+			
+			// note: just a very rough coat effect, not physical!
+			const glm::vec3 coat_color = glm::vec3(coat_weight * fr_in_coat);
+			const float coat_luminance = RGBToLuminance(coat_color);
+			if (coat_luminance > 0.0f)
+			{
+				bsdfs[bsdf_count].bsdf_type = MICROFACET_REFLECTION;
+				bsdfs[bsdf_count].microfacet_reflect.specular_albedo = coat_color; // TODO: coat surface's color?
+				bsdfs[bsdf_count].microfacet_reflect.alpha_x = coat_roughness_x;
+				bsdfs[bsdf_count].microfacet_reflect.alpha_y = coat_roughness_y;
+				bsdfs[bsdf_count].microfacet_reflect.nt = glm::vec3(ior_coat);
+				bsdfs[bsdf_count].microfacet_reflect.kt = glm::vec3(0.0f);
+				bsdfs[bsdf_count].microfacet_reflect.ni = ior_in;
+				bsdfs[bsdf_count].microfacet_reflect.is_metal = (int)false;
+
+				weights[bsdf_count] = coat_luminance;
+
+				weight_sum += coat_luminance;
+				++bsdf_count;
+			}
+
+			// note: bsdf below the coat layer...
+			const glm::vec3 coated_color_tint = (1.0f - coat_weight * fr_in_coat) * LinearLerp(glm::vec3(1.0f), coat_transmittance, coat_weight);
+
+			const glm::vec3 metal_color = coated_color_tint * metalness;
+			const float metal_luminance = RGBToLuminance(metal_color);
+			if (metal_luminance > 0.0f)
 			{
 				glm::vec3 metal_n, metal_k;
 				EdgeTintToConductiveFresnel(diffuse_albedo, specular_albedo, &metal_n, &metal_k);
+
 				bsdfs[bsdf_count].bsdf_type = MICROFACET_REFLECTION;
-				bsdfs[bsdf_count].microfacet_reflect.specular_albedo = glm::vec3(1.0f);
+				bsdfs[bsdf_count].microfacet_reflect.specular_albedo = metal_color;
 				bsdfs[bsdf_count].microfacet_reflect.alpha_x = alpha_x;
 				bsdfs[bsdf_count].microfacet_reflect.alpha_y = alpha_y;
 				bsdfs[bsdf_count].microfacet_reflect.nt = metal_n;
 				bsdfs[bsdf_count].microfacet_reflect.kt = metal_k;
-				bsdfs[bsdf_count].microfacet_reflect.ni = i_ior;
+				bsdfs[bsdf_count].microfacet_reflect.ni =  ior_in;
 				bsdfs[bsdf_count].microfacet_reflect.is_metal = (int)true;
 				
-				weights[bsdf_count] = weight_0;
+				weights[bsdf_count] = metal_luminance;
+
+				weight_sum += metal_luminance;
 				++bsdf_count;
 			}
 
-			const float weight_1 = (1.0f - metalness) * fr * specular_weight;
-			if (weight_1 > 0.0f)
+			const float specular_fr = fr_in_out;
+
+			const glm::vec3 specular_color = coated_color_tint * (1.0f - metalness) * specular_fr * specular_weight * specular_albedo;
+			const float specular_luminance = RGBToLuminance(specular_color);
+			if (specular_luminance > 0.0f)
 			{
 				bsdfs[bsdf_count].bsdf_type = MICROFACET_REFLECTION;
-				bsdfs[bsdf_count].microfacet_reflect.specular_albedo = specular_albedo;
+				bsdfs[bsdf_count].microfacet_reflect.specular_albedo = specular_color;
 				bsdfs[bsdf_count].microfacet_reflect.alpha_x = alpha_x;
 				bsdfs[bsdf_count].microfacet_reflect.alpha_y = alpha_y;
-				bsdfs[bsdf_count].microfacet_reflect.nt = glm::vec3(o_ior);
+				bsdfs[bsdf_count].microfacet_reflect.nt = glm::vec3(ior_out);
 				bsdfs[bsdf_count].microfacet_reflect.kt = glm::vec3(0.0f);
-				bsdfs[bsdf_count].microfacet_reflect.ni = i_ior;
+				bsdfs[bsdf_count].microfacet_reflect.ni = ior_in;
 				bsdfs[bsdf_count].microfacet_reflect.is_metal = (int)false;
 
-				weights[bsdf_count] = weight_1;
+				weights[bsdf_count] = specular_luminance;
+
+				weight_sum += specular_luminance;
 				++bsdf_count;
 			}
 
-			const float weight_2 = (1.0f - metalness) * (1.0 - fr * specular_weight) * transmission_weight;
-			if (weight_2 > 0.0f) 
+			const glm::vec3 transmission_color = coated_color_tint * (1.0f - metalness) * (1.0f - specular_fr * specular_weight) * transmission_weight * specular_albedo;
+			const float transmission_luminance = RGBToLuminance(transmission_color);
+			if (transmission_luminance > 0.0f)
 			{
 				bsdfs[bsdf_count].bsdf_type = MICROFACET_TRANSMISSION;
-				bsdfs[bsdf_count].microfacet_transmit.transmission_albedo = specular_albedo;
+				bsdfs[bsdf_count].microfacet_transmit.transmission_albedo = transmission_color;
 				bsdfs[bsdf_count].microfacet_transmit.alpha_x = alpha_x;
 				bsdfs[bsdf_count].microfacet_transmit.alpha_y = alpha_y;
-				bsdfs[bsdf_count].microfacet_transmit.ni = i_ior;
-				bsdfs[bsdf_count].microfacet_transmit.nt = o_ior;
+				bsdfs[bsdf_count].microfacet_transmit.ni = ior_in;
+				bsdfs[bsdf_count].microfacet_transmit.nt = ior_out;
 
-				weights[bsdf_count] = weight_2;
+				weights[bsdf_count] = transmission_luminance;
+
+				weight_sum += transmission_luminance;
 				++bsdf_count;
 			}
 
-			const float weight_3 = (1.0f - metalness) * (1.0 - fr * specular_weight) *(1.0f - transmission_weight);
-			if (weight_3 > 0.0f)
-			{
-				bsdfs[bsdf_count].bsdf_type = LAMBERT;
-				bsdfs[bsdf_count].lambert.diffuse_albedo = diffuse_albedo;
+			const glm::vec3 diffuse_color = coated_color_tint * (1.0f - metalness) * (1.0f - specular_fr * specular_weight) *(1.0f - transmission_weight) * diffuse_albedo;
+			const float diffuse_luminance = RGBToLuminance(diffuse_color);
+			// note: we need at least a diffuse component.
+			bsdfs[bsdf_count].bsdf_type = LAMBERT;
+			bsdfs[bsdf_count].lambert.diffuse_albedo = diffuse_color;
 				
-				weights[bsdf_count] = weight_3;
-				++bsdf_count;
+			weights[bsdf_count] = diffuse_luminance;
+
+			weight_sum += diffuse_luminance;
+			++bsdf_count;
+			
+
+			if (weight_sum > 0.0f) 
+			{
+				// note: normalize.
+				const float i_weight_sum = SafeRcp(weight_sum);
+				for (int bsdf_index = 0; bsdf_index < bsdf_count; ++bsdf_index) {
+					weights[bsdf_index] *= i_weight_sum;
+				}
+			}
+			else 
+			{
+				const float i_bsdf_count = 1.0f / (float)bsdf_count;
+				for (int bsdf_index = 0; bsdf_index < bsdf_count; ++bsdf_index) {
+					weights[bsdf_index] = i_bsdf_count;
+				}
 			}
 		}
 		__device__ __host__ inline glm::vec3 EvalWi(const glm::vec3 &wo, const glm::vec3 &wi, float *pdf)
 		{
 			glm::vec3 mix_bsdf_weight(0.0f);
 			float mix_pdf = 0.0f;
-			for (int i = 0; i < bsdf_count; ++i) 
+			for (int bsdf_index = 0; bsdf_index < bsdf_count; ++bsdf_index)
 			{
+				// note: should account for the coat refraction for wi?
 				float sample_pdf = 0.0f;
-				mix_bsdf_weight += weights[i] * bsdfs[i].Eval(wo, wi, &sample_pdf);
-				mix_pdf += weights[i] * sample_pdf;
+				mix_bsdf_weight += bsdfs[bsdf_index].Eval(wo, wi, &sample_pdf);
+				mix_pdf += weights[bsdf_index] * sample_pdf;
 			}
 			*pdf = mix_pdf;
 			return mix_bsdf_weight;
@@ -557,32 +637,40 @@ namespace YumeRT
 			float u0, float u1, float u2)
 		{
 			float cdf = 0.0f;
-			int selected_bsdf_idx = -1;
-			for (int i = 0; i < bsdf_count; ++i)
+			int selected_bsdf_index = -1;
+			for (int bsdf_index = 0; bsdf_index < bsdf_count; ++bsdf_index)
 			{
-				if (u0 < cdf + weights[i])
+				if (u0 < cdf + weights[bsdf_index])
 				{
-					selected_bsdf_idx = i;
+					selected_bsdf_index = bsdf_index;
 					break;
 				}
-				cdf += weights[i];
+				cdf += weights[bsdf_index];
 			}
-			if (selected_bsdf_idx == -1) { selected_bsdf_idx = bsdf_count - 1; }
-			if (selected_bsdf_idx == -1) { return false; }
+			if (selected_bsdf_index == -1) { 
+				selected_bsdf_index = bsdf_count - 1;
+			}
+			if (selected_bsdf_index == -1) {
+				return false; 
+			}
 
 			float bsdf_wi_pdf = 0.0f;
-			bool sample_valid = bsdfs[selected_bsdf_idx].Sample(u1, u2, wo, weight, wi, &bsdf_wi_pdf);
-			if (!sample_valid) { return false; }
+			bool sample_valid = bsdfs[selected_bsdf_index].Sample(u1, u2, wo, weight, wi, &bsdf_wi_pdf);
+			if (!sample_valid) { 
+				return false; 
+			}
 
-			float mix_pdf = bsdf_wi_pdf * weights[selected_bsdf_idx];
-			glm::vec3 mix_bsdf = (*weight) * bsdf_wi_pdf * weights[selected_bsdf_idx];
-			for (int i = 0; i < bsdf_count; ++i)
+			float mix_pdf = bsdf_wi_pdf * weights[selected_bsdf_index];
+			glm::vec3 mix_bsdf = (*weight) * bsdf_wi_pdf;
+			for (int bsdf_index = 0; bsdf_index < bsdf_count; ++bsdf_index)
 			{
-				if (i == selected_bsdf_idx) { continue; }
-				BSDF &bsdf = bsdfs[i];
+				if (bsdf_index == selected_bsdf_index) { 
+					continue; 
+				}
+				BSDF &bsdf = bsdfs[bsdf_index];
 				float wi_pdf;
-				mix_bsdf += weights[i] * bsdf.Eval(wo, *wi, &wi_pdf);
-				mix_pdf += weights[i] * wi_pdf;
+				mix_bsdf += bsdf.Eval(wo, *wi, &wi_pdf);
+				mix_pdf += weights[bsdf_index] * wi_pdf;
 			}
 			
 			*pdf = mix_pdf;
@@ -720,7 +808,10 @@ namespace YumeRT
 		{
 			return glm::vec3(glm::dot(w, tangent), glm::dot(w, bitangent), glm::dot(w, normal));
 		}
-		__device__ __host__ inline glm::vec3 GetShadingNormal() const { return normal; }
+		__device__ __host__ inline glm::vec3 GetShadingNormal() const 
+		{ 
+			return normal; 
+		}
 		__device__ __host__ inline void InitBSDFSettings(const Material &mtl,
 			const Texture *textures,
 			const ImageTileCache &Image_tile_cache,

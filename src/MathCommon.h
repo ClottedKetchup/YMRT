@@ -56,6 +56,12 @@ namespace YumeRT
 		return x * x;
 	}
 
+	template<typename T>
+	__device__ __host__ inline T LinearLerp(const T& x, const T& y, float weight)
+	{
+		return (1.0f - weight) * x + y * weight;
+	}
+
 	__device__ __host__ inline int MaxDimension(const glm::vec3 &v)
 	{
 		int max_d = 0;
