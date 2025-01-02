@@ -712,11 +712,19 @@ namespace YumeRT
 			const uint32_t normal_mapping_tex = mtl.GetNormalMappingTex();
 			const uint32_t bump_mapping_tex = mtl.GetBumpMappingTex();
 
-			const bool weird_data_flip_flag = glm::dot(glm::cross(hit_dpdu, hit_dpdv), hit_geometry_normal) < 0.0f;
-
 			glm::vec3 shading_normal = hit_shading_normal;
-			glm::vec3 shading_dpdu = hit_dpdu - hit_shading_normal * glm::dot(hit_dpdu, hit_shading_normal);
-			glm::vec3 shading_dpdv = hit_dpdv - hit_shading_normal * glm::dot(hit_dpdv, hit_shading_normal);
+			if(glm::dot(hit_shading_normal, hit_geometry_normal) < 0.0f){
+				shading_normal = -hit_shading_normal;
+			}
+			glm::vec3 shading_dpdu = hit_dpdu;
+			if (glm::dot(glm::cross(hit_dpdu, hit_dpdv), hit_geometry_normal) < 0.0f) {
+				shading_dpdu = -hit_dpdu;
+			}
+			glm::vec3 shading_dpdv = hit_dpdv;
+
+			shading_dpdu = shading_dpdu - shading_normal * glm::dot(shading_dpdu, shading_normal);
+			shading_dpdv = shading_dpdv - shading_normal * glm::dot(shading_dpdv, shading_normal);
+			
 			if (normal_mapping_tex != EMPTY_UINT32) 
 			{
 				if (!hit_back) {
@@ -739,13 +747,13 @@ namespace YumeRT
 			else if (bump_mapping_tex != EMPTY_UINT32) 
 			{
 				TextureCoordinate bump_texture_coordinate = texture_coordinate;
-				const glm::vec3 object_space_dpdu = glm::mat3(wto) * shading_dpdu;
-				const glm::vec3 object_space_dpdv = glm::mat3(wto) * shading_dpdv;
+				const glm::vec3 object_space_dpdu = TransformVector(wto, shading_dpdu);
+				const glm::vec3 object_space_dpdv = TransformVector(wto, shading_dpdv);
 
 				// bump mapping should only access the mip0 texture
 				float delta_u = glm::max((glm::abs(texture_coordinate.dudx) + glm::abs(texture_coordinate.dudy)) * 0.5f, 0.0005f);
 				if (!(delta_u > 0.0f)) { 
-					delta_u = 0.001f; 
+					delta_u = 0.0005f;
 				}
 				bump_texture_coordinate.st = glm::vec2(texture_coordinate.st.x + delta_u, texture_coordinate.st.y);
 				bump_texture_coordinate.p_world = texture_coordinate.p_world + shading_dpdu * delta_u;
@@ -754,7 +762,7 @@ namespace YumeRT
 
 				float delta_v = glm::max((glm::abs(texture_coordinate.dvdx) + glm::abs(texture_coordinate.dvdy)) * 0.5f, 0.0005f);
 				if (!(delta_v > 0.0f)) { 
-					delta_v = 0.001f;
+					delta_v = 0.0005f;
 				}
 				bump_texture_coordinate.st = glm::vec2(texture_coordinate.st.x, texture_coordinate.st.y + delta_v);
 				bump_texture_coordinate.p_world = texture_coordinate.p_world + shading_dpdv * delta_v;
@@ -765,9 +773,6 @@ namespace YumeRT
 				shading_dpdu = shading_dpdu + (height_delta_u - height) * SafeRcp(delta_u) * shading_normal;
 				shading_dpdv = shading_dpdv + (height_delta_v - height) * SafeRcp(delta_v) * shading_normal;
 				shading_normal = glm::normalize(glm::cross(shading_dpdu, shading_dpdv));
-				if (weird_data_flip_flag) {
-					shading_normal = -shading_normal;
-				}
 
 				if (!hit_back) {
 					normal = shading_normal;

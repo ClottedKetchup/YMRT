@@ -2640,7 +2640,45 @@ namespace YumeRT {
 			ImGui::EndListBox();
 		}
 		button_size = ImGui::GetItemRectSize();
-		ImGui::Button("Create", ImVec2(button_size.x * 0.495f, 0.0f));
+		if (ImGui::Button("Create", ImVec2(button_size.x * 0.495f, 0.0f))) {
+			ImGui::OpenPopup("Geometry_create_popup");
+		}
+		if (ImGui::BeginPopup("Geometry_create_popup")) {
+			static char geometry_name_buf[64];
+			static const int basic_geometry_type_count = 2;
+			static const char* geometry_type_names[basic_geometry_type_count] =
+			{
+				"Cube", "Sphere"
+			};
+
+			static int selected_geometry_type = 0;
+			ImGui::InputText("Geometry name", geometry_name_buf, 64);
+			if (ImGui::BeginCombo("Geometry type", geometry_type_names[selected_geometry_type]))
+			{
+				for (int geo_type_index = 0; geo_type_index < basic_geometry_type_count; ++geo_type_index)
+				{
+					if (ImGui::Selectable(geometry_type_names[geo_type_index])) {
+						selected_geometry_type = geo_type_index;
+					}
+				}
+				ImGui::EndCombo();
+			}
+
+			if (selected_geometry_type == 0) {
+				if (ImGui::Button("Create cube", ImGui::GetItemRectSize())) {
+					list_highlight_geometry_index = m_scene.CreateCube(std::string(geometry_name_buf));
+				}
+			}
+			else if (selected_geometry_type == 1) {
+				if (ImGui::Button("Create sphere", ImGui::GetItemRectSize())) {
+					list_highlight_geometry_index = m_scene.CreateSphere(std::string(geometry_name_buf), 1.0f);
+				}
+			}
+			else {
+
+			}
+			ImGui::EndPopup();
+		}
 		ImGui::SameLine();
 		ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f));
 
@@ -2719,7 +2757,17 @@ namespace YumeRT {
 			ImGui::EndListBox();
 		}
 		button_size = ImGui::GetItemRectSize();
-		ImGui::Button("Create", ImVec2(button_size.x * 0.495f, 0.0f));
+		if (ImGui::Button("Create", ImVec2(button_size.x * 0.495f, 0.0f))) {
+			ImGui::OpenPopup("Transform_create_popup");
+		}
+		if (ImGui::BeginPopup("Transform_create_popup")) {
+			static char transform_name_buf[64];
+			ImGui::InputText("Transform name", transform_name_buf, 64);
+			if (ImGui::Button("Create transform", ImGui::GetItemRectSize())) {
+				list_highlight_transform_index = m_scene.CreateTransform(std::string(transform_name_buf));
+			}
+			ImGui::EndPopup();
+		}
 		ImGui::SameLine();
 		ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f));
 
@@ -2798,7 +2846,45 @@ namespace YumeRT {
 			ImGui::EndListBox();
 		}
 		button_size = ImGui::GetItemRectSize();
-		ImGui::Button("Create", ImVec2(button_size.x * 0.495f, 0.0f));
+		if (ImGui::Button("Create", ImVec2(button_size.x * 0.495f, 0.0f))) {
+			ImGui::OpenPopup("Material_create_popup");
+		}
+		if (ImGui::BeginPopup("Material_create_popup")) {
+			static char material_name_buf[64];
+			static const int basic_material_type_count = 2;
+			static const char* material_type_names[basic_material_type_count] =
+			{
+				"Default material", "Light material"
+			};
+
+			static int selected_material_type = 0;
+			ImGui::InputText("Material name", material_name_buf, 64);
+			if (ImGui::BeginCombo("Material type", material_type_names[selected_material_type]))
+			{
+				for (int material_type_index = 0; material_type_index < basic_material_type_count; ++material_type_index)
+				{
+					if (ImGui::Selectable(material_type_names[material_type_index])) {
+						selected_material_type = material_type_index;
+					}
+				}
+				ImGui::EndCombo();
+			}
+
+			if (selected_material_type == MATERIAL_TYPE::DEFAULT_MTL) {
+				if (ImGui::Button("Create default material", ImGui::GetItemRectSize())) {
+					list_highlight_material_index = m_scene.CreateDefaultMaterial(std::string(material_name_buf));
+				}
+			}
+			else if (selected_material_type == MATERIAL_TYPE::LIGHT_MTL) {
+				if (ImGui::Button("Create light material", ImGui::GetItemRectSize())) {
+					list_highlight_material_index = m_scene.CreateLightMaterial(std::string(material_name_buf));
+				}
+			}
+			else {
+
+			}
+			ImGui::EndPopup();
+		}
 		ImGui::SameLine();
 		ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f));
 
@@ -2878,7 +2964,18 @@ namespace YumeRT {
 			ImGui::EndListBox();
 		}
 		button_size = ImGui::GetItemRectSize();
-		ImGui::Button("Create", ImVec2(button_size.x * 0.495f, 0.0f));
+		if (ImGui::Button("Create", ImVec2(button_size.x * 0.495f, 0.0f))) {
+			ImGui::OpenPopup("Volume_create_popup");
+		}
+		if (ImGui::BeginPopup("Volume_create_popup")) {
+			static char volume_name_buf[64];
+			ImGui::InputText("Volume name", volume_name_buf, 64);
+			if (ImGui::Button("Create volume", ImGui::GetItemRectSize())) {
+				const uint32_t volume_transform_index = m_scene.CreateTransform(std::string(volume_name_buf) + std::string("_transform"));
+				list_highlight_volume_index = m_scene.CreateVolume(std::string(volume_name_buf), volume_transform_index);
+			}
+			ImGui::EndPopup();
+		}
 		ImGui::SameLine();
 		ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f));
 
@@ -2929,7 +3026,97 @@ namespace YumeRT {
 			ImGui::EndListBox();
 		}
 		button_size = ImGui::GetItemRectSize();
-		ImGui::Button("Create", ImVec2(button_size.x * 0.495f, 0.0f));
+		if (ImGui::Button("Create", ImVec2(button_size.x * 0.495f, 0.0f))) {
+			ImGui::OpenPopup("Texture_create_popup");
+		}
+		if (ImGui::BeginPopup("Texture_create_popup")) {
+			static char texture_name_buf[64];
+			static const int basic_texture_type_count = TEXTURE_TYPE::SOLID_TEXTURE_WAVE - TEXTURE_TYPE::IMAGE_TEXTURE + 1;
+			static const char * texture_type_names[basic_texture_type_count] =
+			{
+				"Image texture", 
+				"Constant texture float",
+				"Constant texture rgb",
+				"Solid texture checkerboard",
+				"Solid texture noise",
+				"Solid texture fbm",
+				"Solid texture turbulence",
+				"Solid texture marble",
+				"Solid texture wood",
+				"Solid texture polka dot",
+				"Solid texture wave"
+			};
+
+			static int selected_texture_type = 0;
+			ImGui::InputText("Texture name", texture_name_buf, 64);
+			if (ImGui::BeginCombo("Texture type", texture_type_names[selected_texture_type]))
+			{
+				for (int texture_type_index = TEXTURE_TYPE::IMAGE_TEXTURE; texture_type_index <= TEXTURE_TYPE::SOLID_TEXTURE_WAVE; ++texture_type_index)
+				{
+					if (ImGui::Selectable(texture_type_names[texture_type_index])) {
+						selected_texture_type = texture_type_index;
+					}
+				}
+				ImGui::EndCombo();
+			}
+
+			if (selected_texture_type == TEXTURE_TYPE::IMAGE_TEXTURE) {
+				if (ImGui::Button("Create image texture", ImGui::GetItemRectSize())) {
+					static char image_texture_path_buf[128];
+					ImGui::InputText("File path", image_texture_path_buf, 128);
+					list_highlight_texture_index = m_scene.CreateImageTexture(std::string(texture_name_buf), std::string(image_texture_path_buf));
+				}
+			}
+			else if (selected_texture_type == TEXTURE_TYPE::CONSTANT_TEXTURE_FLOAT) {
+				if (ImGui::Button("Create constant float texture", ImGui::GetItemRectSize())) {
+					list_highlight_texture_index = m_scene.CreateConstantTexture(std::string(texture_name_buf), 0.5f);
+				}
+			}
+			else if(selected_texture_type == TEXTURE_TYPE::SOLID_TEXTURE_CHECKERBOARD) {
+				if (ImGui::Button("Create constant rgb texture", ImGui::GetItemRectSize())) {
+					list_highlight_texture_index = m_scene.CreateConstantTexture(std::string(texture_name_buf), glm::vec3(0.5f));
+				}
+			}
+			else if (selected_texture_type == TEXTURE_TYPE::SOLID_TEXTURE_NOISE) {
+				if (ImGui::Button("Create perlin noise texture", ImGui::GetItemRectSize())) {
+					list_highlight_texture_index = m_scene.CreateNoiseTexture(std::string(texture_name_buf));
+				}
+			}
+			else if (selected_texture_type == TEXTURE_TYPE::SOLID_TEXTURE_FBM) {
+				if (ImGui::Button("Create fbm noise texture", ImGui::GetItemRectSize())) {
+					list_highlight_texture_index = m_scene.CreateNoiseTextureFBM(std::string(texture_name_buf));
+				}
+			}
+			else if (selected_texture_type == TEXTURE_TYPE::SOLID_TEXTURE_TURBULENCE) {
+				if (ImGui::Button("Create turbulence noise texture", ImGui::GetItemRectSize())) {
+					list_highlight_texture_index = m_scene.CreateNoiseTextureTurbulence(std::string(texture_name_buf));
+				}
+			}
+			else if (selected_texture_type == TEXTURE_TYPE::SOLID_TEXTURE_MARBLE) {
+				if (ImGui::Button("Create marble noise texture", ImGui::GetItemRectSize())) {
+					list_highlight_texture_index = m_scene.CreateNoiseTextureMarble(std::string(texture_name_buf));
+				}
+			}
+			else if (selected_texture_type == TEXTURE_TYPE::SOLID_TEXTURE_WOOD) {
+				if (ImGui::Button("Create wood noise texture", ImGui::GetItemRectSize())) {
+					list_highlight_texture_index = m_scene.CreateNoiseTextureWood(std::string(texture_name_buf));
+				}
+			}
+			else if (selected_texture_type == TEXTURE_TYPE::SOLID_TEXTURE_POLKA_DOT) {
+				if (ImGui::Button("Create polka dot noise texture", ImGui::GetItemRectSize())) {
+					list_highlight_texture_index = m_scene.CreateNoiseTexturePolkaDot(std::string(texture_name_buf));
+				}
+			}
+			else if (selected_texture_type == TEXTURE_TYPE::SOLID_TEXTURE_WAVE) {
+				if (ImGui::Button("Create wave noise texture", ImGui::GetItemRectSize())) {
+					list_highlight_texture_index = m_scene.CreateNoiseTextureWave(std::string(texture_name_buf));
+				}
+			}
+			else {
+			
+			}
+			ImGui::EndPopup();
+		}
 		ImGui::SameLine();
 		ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f));
 
