@@ -12,6 +12,12 @@ namespace YumeRT
 		LIGHT_MTL = 1
 	};
 
+	enum COAT_NORMAL_TEXTURE_TYPE 
+	{
+		NORMAL_TEX = 0,
+		BUMP_TEX = 1
+	};
+
 	struct DefaultMtl 
 	{
 		glm::vec3 diffuse_albedo = glm::vec3(0.5f);
@@ -22,7 +28,7 @@ namespace YumeRT
 		float alpha_x = 0.2f;
 		uint32_t alpha_x_tex = EMPTY_UINT32;
 		float	alpha_y = 0.2f;
-		uint32_t	alpha_y_tex = EMPTY_UINT32;
+		uint32_t alpha_y_tex = EMPTY_UINT32;
 
 		float specular_weight = 1.0f;
 		uint32_t specular_weight_tex = EMPTY_UINT32;
@@ -51,6 +57,9 @@ namespace YumeRT
 		uint32_t normal_mapping_tex = EMPTY_UINT32;
 		uint32_t bump_mapping_tex = EMPTY_UINT32;
 		uint32_t padding;
+
+		uint32_t coat_normal_tex = EMPTY_UINT32;
+		uint32_t coat_normal_tex_type = COAT_NORMAL_TEXTURE_TYPE::BUMP_TEX;
 
 		__device__ __host__ inline DefaultMtl(const glm::vec3 &diffuse_albedo,
 			const glm::vec3 &specular_albedo,
@@ -83,7 +92,10 @@ namespace YumeRT
 			uint32_t coat_weight_tex,
 			uint32_t coat_thickness_tex,
 			uint32_t coat_roughness_x_tex,
-			uint32_t coat_roughness_y_tex) :
+			uint32_t coat_roughness_y_tex,
+			
+			uint32_t coat_normal_tex,
+			uint32_t coat_normal_tex_type) :
 
 			diffuse_albedo(diffuse_albedo), 
 			specular_albedo(specular_albedo), 
@@ -116,7 +128,10 @@ namespace YumeRT
 			coat_weight_tex(coat_weight_tex),
 			coat_thickness_tex(coat_thickness_tex),
 			coat_roughness_x_tex(coat_roughness_x_tex),
-			coat_roughness_y_tex(coat_roughness_y_tex)
+			coat_roughness_y_tex(coat_roughness_y_tex),
+
+			coat_normal_tex(coat_normal_tex),
+			coat_normal_tex_type(coat_normal_tex_type)
 		{
 		
 		}
@@ -160,6 +175,9 @@ namespace YumeRT
 
 			bump_mapping_tex = other.bump_mapping_tex;
 			ior_priority = other.ior_priority;
+
+			coat_normal_tex = other.coat_normal_tex;
+			coat_normal_tex_type = other.coat_normal_tex_type;
 			
 			return *this;
 		}
@@ -229,6 +247,18 @@ namespace YumeRT
 				return EMPTY_UINT32;
 			}
 		}
+		__device__ __host__ inline uint32_t GetCoatNormalTex(uint32_t *type) const
+		{
+			if (material_type == DEFAULT_MTL)
+			{
+				*type = default_mtl.coat_normal_tex_type;
+				return default_mtl.coat_normal_tex;
+			}
+			else
+			{
+				return EMPTY_UINT32;
+			}
+		}
 		__device__ __host__ inline float FetchIOR(uint32_t *priority) const 
 		{
 			if (material_type == DEFAULT_MTL)
@@ -276,7 +306,10 @@ namespace YumeRT
 																						  uint32_t coat_weight_tex = EMPTY_UINT32,
 																						  uint32_t coat_thickness_tex = EMPTY_UINT32,
 																						  uint32_t coat_roughness_x_tex = EMPTY_UINT32,
-																						  uint32_t coat_roughness_y_tex = EMPTY_UINT32)
+																						  uint32_t coat_roughness_y_tex = EMPTY_UINT32,
+			
+																						  uint32_t coat_normal_tex = EMPTY_UINT32,
+																						  uint32_t coat_normal_tex_type = COAT_NORMAL_TEXTURE_TYPE::BUMP_TEX)
 		{
 			material_type = DEFAULT_MTL;
 			default_mtl = DefaultMtl(diffuse_albedo,
@@ -310,7 +343,10 @@ namespace YumeRT
 				coat_weight_tex,
 				coat_thickness_tex,
 				coat_roughness_x_tex,
-				coat_roughness_y_tex);
+				coat_roughness_y_tex,
+				
+				coat_normal_tex,
+				coat_normal_tex_type);
 			
 			return *this;
 		}

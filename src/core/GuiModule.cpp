@@ -1066,7 +1066,7 @@ namespace YumeRT {
 			if (ImGui::SliderFloat("Coat roughness x", &selected_default_mtl.coat_roughness_x, 0.0f, 1.0f)) {
 				UpdateDeviceData([&]() {
 					m_scene.UpdateMaterial(material_index);
-					});
+				});
 				m_scene.AddSceneFlag(scene_material_change_flag);
 			}
 			ImGui::SameLine();
@@ -1081,7 +1081,7 @@ namespace YumeRT {
 			if (ImGui::SliderFloat("Coat roughness y", &selected_default_mtl.coat_roughness_y, 0.0f, 1.0f)) {
 				UpdateDeviceData([&]() {
 					m_scene.UpdateMaterial(material_index);
-					});
+				});
 				m_scene.AddSceneFlag(scene_material_change_flag);
 			}
 			ImGui::SameLine();
@@ -1092,6 +1092,28 @@ namespace YumeRT {
 				draw_texture_selector("Coat roughness y texture selector", &selected_default_mtl.coat_roughness_y_tex);
 				ImGui::EndPopup();
 			}
+
+			ImGui::Separator();
+			static const char* coat_normal_texture_type_names[2] = { "normal texture", "bump texture" };
+			const uint32_t src_texture_type = glm::clamp(selected_default_mtl.coat_normal_tex_type, (uint32_t)COAT_NORMAL_TEXTURE_TYPE::NORMAL_TEX, (uint32_t)COAT_NORMAL_TEXTURE_TYPE::BUMP_TEX);
+			uint32_t dst_texture_type = src_texture_type;
+			if (ImGui::BeginCombo("Coat normal texture type", coat_normal_texture_type_names[src_texture_type])) {
+				if (ImGui::Selectable(coat_normal_texture_type_names[0])) {
+					dst_texture_type = (uint32_t)COAT_NORMAL_TEXTURE_TYPE::NORMAL_TEX;
+				}
+				if (ImGui::Selectable(coat_normal_texture_type_names[1])) {
+					dst_texture_type = (uint32_t)COAT_NORMAL_TEXTURE_TYPE::BUMP_TEX;
+				}
+				ImGui::EndCombo();
+			}
+			if (src_texture_type != dst_texture_type) {
+				selected_default_mtl.coat_normal_tex_type = dst_texture_type;
+				UpdateDeviceData([&]() {
+					m_scene.UpdateMaterial(material_index);
+				});
+				m_scene.AddSceneFlag(scene_material_change_flag);
+			}
+			draw_texture_selector("Coat normal texture selector", &selected_default_mtl.coat_normal_tex);
 
 			ImGui::Separator();
 			draw_texture_selector("Normal texture selector", &selected_default_mtl.normal_mapping_tex);

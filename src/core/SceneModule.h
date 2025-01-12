@@ -162,7 +162,10 @@ namespace YumeRT{
 			const uint32_t coat_weight_tex = EMPTY_UINT32,
 			const uint32_t coat_thickness_tex = EMPTY_UINT32,
 			const uint32_t coat_roughness_x_tex = EMPTY_UINT32, 
-			const uint32_t coat_roughness_y_tex = EMPTY_UINT32);
+			const uint32_t coat_roughness_y_tex = EMPTY_UINT32,
+			
+			const uint32_t coat_normal_tex = EMPTY_UINT32,
+			const uint32_t coat_normal_tex_type = COAT_NORMAL_TEXTURE_TYPE::BUMP_TEX);
 		uint32_t CreateLightMaterial(const std::string& name, const glm::vec3& light_color = glm::vec3(1.0f), const float intensity = 1.0f);
 		void DeleteMaterial(const uint32_t index);
 		void UpdateMaterial(const uint32_t index);
