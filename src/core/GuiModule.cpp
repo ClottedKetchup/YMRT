@@ -3083,9 +3083,9 @@ namespace YumeRT {
 			}
 
 			if (selected_texture_type == TEXTURE_TYPE::IMAGE_TEXTURE) {
+				static char image_texture_path_buf[128];
+				ImGui::InputText("File path", image_texture_path_buf, 128);
 				if (ImGui::Button("Create image texture", ImGui::GetItemRectSize())) {
-					static char image_texture_path_buf[128];
-					ImGui::InputText("File path", image_texture_path_buf, 128);
 					list_highlight_texture_index = m_scene.CreateImageTexture(std::string(texture_name_buf), std::string(image_texture_path_buf));
 				}
 			}
@@ -3094,9 +3094,14 @@ namespace YumeRT {
 					list_highlight_texture_index = m_scene.CreateConstantTexture(std::string(texture_name_buf), 0.5f);
 				}
 			}
-			else if(selected_texture_type == TEXTURE_TYPE::SOLID_TEXTURE_CHECKERBOARD) {
+			else if(selected_texture_type == TEXTURE_TYPE::CONSTANT_TEXTURE_RGB) {
 				if (ImGui::Button("Create constant rgb texture", ImGui::GetItemRectSize())) {
 					list_highlight_texture_index = m_scene.CreateConstantTexture(std::string(texture_name_buf), glm::vec3(0.5f));
+				}
+			}
+			else if (selected_texture_type == TEXTURE_TYPE::SOLID_TEXTURE_CHECKERBOARD) {
+				if (ImGui::Button("Create checker texture", ImGui::GetItemRectSize())) {
+					list_highlight_texture_index = m_scene.CreateCheckerBoardTexture(std::string(texture_name_buf));
 				}
 			}
 			else if (selected_texture_type == TEXTURE_TYPE::SOLID_TEXTURE_NOISE) {
