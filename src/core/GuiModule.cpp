@@ -1356,7 +1356,7 @@ namespace YumeRT {
 				}
 
 				UpdateDeviceData([&]() {
-					m_scene.UpdatePrimitiveInstance(selected_primitive_index);
+					m_scene.UpdatePrimitiveInstance(selected_primitive_unique_index);
 				});
 
 				const uint32_t change_flag = SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_GEOMETRY_CHANGE | (instance_is_light ? SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE : 0u);
@@ -1387,7 +1387,7 @@ namespace YumeRT {
 				}
 
 				UpdateDeviceData([&]() {
-					m_scene.UpdatePrimitiveInstance(selected_primitive_index);
+					m_scene.UpdatePrimitiveInstance(selected_primitive_unique_index);
 				});
 
 				const uint32_t change_flag = SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_TRANSFORM_CHANGE | (instance_is_light ? SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE : 0u);
@@ -1421,8 +1421,8 @@ namespace YumeRT {
 				}
 
 				UpdateDeviceData([&]() {
-					m_scene.UpdatePrimitiveInstance(selected_primitive_index);
-					});
+					m_scene.UpdatePrimitiveInstance(selected_primitive_unique_index);
+				});
 				m_scene.AddSceneFlag(SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_MATERIAL_CHANGE);
 				if ((original_material_index < m_scene.materials.size() && m_scene.materials[original_material_index].material_type == LIGHT_MTL) ||
 					(dest_material_index < m_scene.materials.size() && m_scene.materials[dest_material_index].material_type == LIGHT_MTL))
@@ -1458,7 +1458,7 @@ namespace YumeRT {
 				}
 
 				UpdateDeviceData([&]() {
-					m_scene.UpdatePrimitiveInstance(selected_primitive_index);
+					m_scene.UpdatePrimitiveInstance(selected_primitive_unique_index);
 				});
 				const uint32_t change_flag = SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_VOLUME_CHANGE | (instance_is_light ? SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE : 0u);
 				m_scene.AddSceneFlag(change_flag);
@@ -1471,7 +1471,7 @@ namespace YumeRT {
 		{
 			selected_primitive_instance.treat_as_boundary = treat_as_boundary;
 			UpdateDeviceData([&]() {
-				m_scene.UpdatePrimitiveInstance(selected_primitive_index);
+				m_scene.UpdatePrimitiveInstance(selected_primitive_unique_index);
 			});
 			const uint32_t change_flag = SceneModule::SCENE_CHANGE_FLAG::SCENE_INSTANCE_VOLUME_CHANGE | (instance_is_light ? SceneModule::SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE : 0u);
 			m_scene.AddSceneFlag(change_flag);
@@ -2405,7 +2405,7 @@ namespace YumeRT {
 		}
 
 		UpdateDeviceData([&]() {
-			m_scene.UpdatePrimitiveInstance(primitive_index);
+			m_scene.UpdatePrimitiveInstance(primitive_unique_index);
 		});
 		m_scene.AddSceneFlag(change_flag);
 	}
@@ -2442,7 +2442,7 @@ namespace YumeRT {
 		}
 
 		UpdateDeviceData([&]() {
-			m_scene.UpdatePrimitiveInstance(primitive_index);
+			m_scene.UpdatePrimitiveInstance(primitive_unique_index);
 		});
 		m_scene.AddSceneFlag(change_flag);
 	}
@@ -2482,7 +2482,7 @@ namespace YumeRT {
 		}
 
 		UpdateDeviceData([&]() {
-			m_scene.UpdatePrimitiveInstance(primitive_index);
+			m_scene.UpdatePrimitiveInstance(primitive_unique_index);
 			});
 		m_scene.AddSceneFlag(change_flag);
 	}
@@ -2519,7 +2519,7 @@ namespace YumeRT {
 		}
 
 		UpdateDeviceData([&]() {
-			m_scene.UpdatePrimitiveInstance(primitive_index);
+			m_scene.UpdatePrimitiveInstance(primitive_unique_index);
 		});
 		m_scene.AddSceneFlag(change_flag);
 	}

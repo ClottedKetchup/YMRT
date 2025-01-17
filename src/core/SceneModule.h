@@ -130,8 +130,8 @@ namespace YumeRT{
 			const uint32_t material_index, 
 			const int inner_volume_index = -1, 
 			const bool treat_as_boundary = false);
-		void DeletePrimitiveInstance(const uint32_t index);
-		void UpdatePrimitiveInstance(const uint32_t index);
+		void DeletePrimitiveInstance(const uint32_t unique_index);
+		void UpdatePrimitiveInstance(const uint32_t unique_index);
 
 		uint32_t CreateDefaultMaterial(const std::string& name,
 			const glm::vec3& diffuse_albedo = glm::vec3(0.5f), const glm::vec3& specular_albedo = glm::vec3(1.0f),
@@ -233,7 +233,8 @@ namespace YumeRT{
 			std::unordered_set<uint32_t> inused_index;
 
 			inline PrimitiveIndexGenerator() : index_counter(0), inused_index() {}
-			uint32_t GetNextIndex() {
+			
+			inline uint32_t GetNextIndex() {
 				while (inused_index.find(index_counter) != inused_index.end()) {
 					++index_counter;
 				}
@@ -241,7 +242,8 @@ namespace YumeRT{
 				inused_index.insert(result_index);
 				return result_index;
 			}
-			void ReleaseIndex(uint32_t index) {
+			
+			inline void ReleaseIndex(uint32_t index) {
 				auto iter = inused_index.find(index);
 				if (iter != inused_index.end()) {
 					inused_index.erase(iter);

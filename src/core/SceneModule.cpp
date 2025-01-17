@@ -230,21 +230,26 @@ namespace YumeRT {
 		if (material_index != EMPTY_UINT32 && materials[material_index].material_type == LIGHT_MTL) {
 			AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CREATE);
 		}
-		return primitive_instance_index;
+		return unique_index;
 	}
-	void SceneModule::DeletePrimitiveInstance(const uint32_t index)
+	void SceneModule::DeletePrimitiveInstance(const uint32_t unique_index)
 	{
 
 	}
-	void SceneModule::UpdatePrimitiveInstance(const uint32_t index)
+	void SceneModule::UpdatePrimitiveInstance(const uint32_t unique_index)
 	{
-		if (primitive_instances.empty() || !(index < primitive_instances.size())) {
+		const auto iter = primitive_index_to_index_map.find(unique_index);
+		if (iter == primitive_index_to_index_map.end() || primitive_instances.empty()) {
 			return;
 		}
-
+		const uint32_t offset = iter->second;
+		if (!(offset < primitive_instances.size())) {
+			return;
+		}
+		
 		auto& scene_device_data = scene_resource.scene;
 		assert(scene_device_data.primitive_instances != nullptr);
-		TRANSFER_TO_GPU(scene_device_data.primitive_instances + index, &primitive_instances[index], sizeof(PrimitiveInstance));
+		TRANSFER_TO_GPU(scene_device_data.primitive_instances + offset, &primitive_instances[offset], sizeof(PrimitiveInstance));
 	}
 
 	uint32_t SceneModule::CreateDefaultMaterial(const std::string& name,
