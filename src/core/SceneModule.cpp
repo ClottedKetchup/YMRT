@@ -226,15 +226,56 @@ namespace YumeRT {
 		primitive_index_to_index_map[unique_index] = primitive_instance_index;
 		primitive_index_to_name_map[unique_index] = name;
 
-		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_INSTANCE_CREATE);
-		if (material_index != EMPTY_UINT32 && materials[material_index].material_type == LIGHT_MTL) {
-			AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CREATE);
+		uint32_t change_flag = SCENE_CHANGE_FLAG::SCENE_INSTANCE_CREATE;
+		if ((uint32_t)material_index < materials.size() && materials.at(material_index).material_type == LIGHT_MTL) {
+			change_flag |= SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CREATE;
 		}
+		AddSceneFlag(change_flag);
+
 		return unique_index;
 	}
 	void SceneModule::DeletePrimitiveInstance(const uint32_t unique_index)
 	{
+		const auto iter = primitive_index_to_index_map.find(unique_index);
+		if (iter == primitive_index_to_index_map.end() || primitive_instances.empty()) {
+			return;
+		}
+		const uint32_t primitive_offset = iter->second;
+		if (!(primitive_offset < primitive_instances.size())) {
+			return;
+		}
 
+		auto& primitive_to_delete = primitive_instances.at(primitive_offset);
+		if ((uint32_t)primitive_to_delete.geometry_idx < geometries.size()) {
+			geometry_reference_primitive_indices[primitive_to_delete.geometry_idx].erase(unique_index);
+		}
+		if ((uint32_t)primitive_to_delete.transform_idx < transform_states.size()) {
+			transform_reference_primitive_indices[primitive_to_delete.transform_idx].erase(unique_index);
+		}
+		if ((uint32_t)primitive_to_delete.material_idx < materials.size()) {
+			material_reference_primitive_indices[primitive_to_delete.material_idx].erase(unique_index);
+		}
+		if ((uint32_t)primitive_to_delete.inner_volume_idx < volumes.size()) {
+			volume_reference_primitive_indices[primitive_to_delete.inner_volume_idx].erase(unique_index);
+		}
+
+		uint32_t change_flag = SCENE_CHANGE_FLAG::SCENE_INSTANCE_DELETE;
+		if ((uint32_t)primitive_to_delete.material_idx < materials.size() && materials.at(primitive_to_delete.material_idx).material_type == LIGHT_MTL) {
+			change_flag |= SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_DELETE;
+		}
+
+		primitive_index_to_name_map.erase(unique_index);
+		primitive_index_to_index_map.erase(unique_index);
+
+		const auto original_size = primitive_instances.size();
+		if (primitive_offset != (uint32_t)primitive_instances.size() - 1) {
+			auto& last_primitive = primitive_instances.at(primitive_instances.size() - 1);
+			primitive_index_to_index_map[last_primitive.unique_index] = primitive_offset;
+			Swap(primitive_to_delete, last_primitive);
+		}
+		primitive_instances.resize(original_size - 1);
+
+		AddSceneFlag(change_flag);
 	}
 	void SceneModule::UpdatePrimitiveInstance(const uint32_t unique_index)
 	{

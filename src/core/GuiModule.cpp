@@ -2583,9 +2583,63 @@ namespace YumeRT {
 			ImGui::EndListBox();
 		}
 		button_size = ImGui::GetItemRectSize();
-		ImGui::Button("Create", ImVec2(button_size.x * 0.495f, 0.0f));
+		if (ImGui::Button("Create", ImVec2(button_size.x * 0.495f, 0.0f))) {
+			ImGui::OpenPopup("Primitive_instance_create_popup");
+		}
+		if (ImGui::BeginPopup("Primitive_instance_create_popup")) {
+			static char primitive_instance_name_buf[64];
+			ImGui::InputText("Primitive instance name", primitive_instance_name_buf, 64);
+
+			static uint32_t geometry_index = EMPTY_UINT32;
+			if (ImGui::BeginCombo("Geometry index", geometry_index < m_scene.geometries.size() ?
+				m_scene.geometry_names[geometry_index].c_str() : "Null")) {
+				if (ImGui::Selectable("Null", !(geometry_index < m_scene.geometries.size()))) {
+					geometry_index = EMPTY_UINT32;
+				}
+				for (uint32_t index = 0; index < m_scene.geometries.size(); ++index) {
+					if (ImGui::Selectable(m_scene.geometry_names[index].c_str(), index == geometry_index)) {
+						geometry_index = index;
+					}
+				}
+				ImGui::EndCombo();
+			}
+
+			static bool show_warning = false;
+			if (show_warning) {
+				ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(250, 4, 4, 255));
+				ImGui::Text("Sorry, you have to specify a geometry to create a geometry instance :(");
+				ImGui::PopStyleColor();
+			}
+
+			if (ImGui::Button("Create primitive instance", ImGui::GetItemRectSize())) 
+			{
+				if (geometry_index < m_scene.geometries.size()) {
+					const std::string instance_name = std::string(primitive_instance_name_buf);
+					const uint32_t transform_index = m_scene.CreateTransform(instance_name + std::string("_transform"));
+					const uint32_t material_index = m_scene.CreateDefaultMaterial(instance_name + std::string("_material"));
+					const uint32_t new_unique_index = m_scene.CreatePrimitiveInstance(instance_name, geometry_index, transform_index, material_index);
+					
+					list_highlight_unique_index = new_unique_index;
+					clicked_instance_unique_index = new_unique_index;
+					show_warning = false;
+				}
+				else {
+					show_warning = true;
+				}
+			}
+			
+			ImGui::EndPopup();
+		}
 		ImGui::SameLine();
-		ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f));
+		if (ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f)))
+		{
+			m_scene.DeletePrimitiveInstance(list_highlight_unique_index);
+			const uint32_t new_unique_index = m_scene.primitive_index_to_index_map.empty()? EMPTY_UINT32 : (*m_scene.primitive_index_to_index_map.begin()).first;
+			if (clicked_instance_unique_index == list_highlight_unique_index) {
+				clicked_instance_unique_index = new_unique_index;
+			}
+			list_highlight_unique_index = new_unique_index;
+		}
 
 		ImGui::Separator();
 		RenderPrimitiveAttributeEditor(list_highlight_unique_index);
