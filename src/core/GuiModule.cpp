@@ -2621,6 +2621,7 @@ namespace YumeRT {
 					
 					list_highlight_unique_index = new_unique_index;
 					clicked_instance_unique_index = new_unique_index;
+					clicked_pixel_primitive_index = new_unique_index;
 					show_warning = false;
 				}
 				else {
@@ -2962,7 +2963,14 @@ namespace YumeRT {
 			ImGui::EndPopup();
 		}
 		ImGui::SameLine();
-		ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f));
+		if (ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f)))
+		{
+			m_scene.DeleteMaterial(list_highlight_material_index);
+			if (clicked_instance_material_index == list_highlight_material_index) {
+				clicked_instance_material_index = m_scene.materials.empty() ? EMPTY_UINT32 : 0u;
+			}
+			list_highlight_material_index = m_scene.materials.empty() ? EMPTY_UINT32 : 0u;
+		}
 
 		ImGui::Separator();
 		RenderMaterialAttributeEditor(list_highlight_material_index);
