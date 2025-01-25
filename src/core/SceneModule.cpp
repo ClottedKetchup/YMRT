@@ -190,49 +190,7 @@ namespace YumeRT {
 	}
 	void SceneModule::DeleteGeometry(const uint32_t index)
 	{
-		// TODO: optimize.
-		if (geometries.empty() || !(index < geometries.size())) {
-			return;
-		}
-
-		uint32_t change_flag = SCENE_CHANGE_FLAG::SCENE_GEOMETRY_DELETE;
-
-		std::vector< PrimitiveInstance> updated_primitive_instances;
-		updated_primitive_instances.reserve(primitive_instances.size());
-
-		for (const auto& old_primitive : primitive_instances)
-		{
-			if (old_primitive.geometry_idx == index) {
-				primitive_index_to_index_map.erase(old_primitive.unique_index);
-				primitive_index_to_name_map.erase(old_primitive.unique_index);
-				primitive_index_generator.ReleaseIndex(old_primitive.unique_index);
-
-				if (old_primitive.material_idx < materials.size() && materials.at(old_primitive.material_idx).material_type == LIGHT_MTL) {
-					change_flag |= SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_DELETE;
-				}
-				continue;
-			}
-
-			PrimitiveInstance updated_primitive_instance = old_primitive;
-			if (updated_primitive_instance.geometry_idx > index) {
-				updated_primitive_instance.geometry_idx -= 1;
-			}
-			updated_primitive_instances.push_back(updated_primitive_instance);
-			assert(primitive_index_to_index_map.find(updated_primitive_instance.unique_index) != primitive_index_to_index_map.end());
-			// note: update actual offset, name map don't need to update.
-			primitive_index_to_index_map[updated_primitive_instance.unique_index] = (uint32_t)updated_primitive_instances.size() - 1;
-		}
-		primitive_instances = std::move(updated_primitive_instances);
-
-		change_flag |= SCENE_CHANGE_FLAG::SCENE_INSTANCE_DELETE;
-
-		geometries.at(index).Destory();
-
-		geometry_reference_primitive_indices.erase(geometry_reference_primitive_indices.begin() + index);
-		geometry_names.erase(geometry_names.begin() + index);
-		geometries.erase(geometries.begin() + index);
-
-		AddSceneFlag(change_flag);
+		
 	}
 	void SceneModule::UpdateGeometry(const uint32_t index)
 	{
@@ -278,47 +236,7 @@ namespace YumeRT {
 	}
 	void SceneModule::DeletePrimitiveInstance(const uint32_t unique_index)
 	{
-		const auto iter = primitive_index_to_index_map.find(unique_index);
-		if (iter == primitive_index_to_index_map.end() || primitive_instances.empty()) {
-			return;
-		}
-		const uint32_t primitive_offset = iter->second;
-		if (!(primitive_offset < primitive_instances.size())) {
-			return;
-		}
-
-		auto& primitive_to_delete = primitive_instances.at(primitive_offset);
-		if ((uint32_t)primitive_to_delete.geometry_idx < geometries.size()) {
-			geometry_reference_primitive_indices[primitive_to_delete.geometry_idx].erase(unique_index);
-		}
-		if ((uint32_t)primitive_to_delete.transform_idx < transform_states.size()) {
-			transform_reference_primitive_indices[primitive_to_delete.transform_idx].erase(unique_index);
-		}
-		if ((uint32_t)primitive_to_delete.material_idx < materials.size()) {
-			material_reference_primitive_indices[primitive_to_delete.material_idx].erase(unique_index);
-		}
-		if ((uint32_t)primitive_to_delete.inner_volume_idx < volumes.size()) {
-			volume_reference_primitive_indices[primitive_to_delete.inner_volume_idx].erase(unique_index);
-		}
-
-		uint32_t change_flag = SCENE_CHANGE_FLAG::SCENE_INSTANCE_DELETE;
-		if ((uint32_t)primitive_to_delete.material_idx < materials.size() && materials.at(primitive_to_delete.material_idx).material_type == LIGHT_MTL) {
-			change_flag |= SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_DELETE;
-		}
-
-		primitive_index_to_name_map.erase(unique_index);
-		primitive_index_to_index_map.erase(unique_index);
-		primitive_index_generator.ReleaseIndex(unique_index);
-
-		const auto original_size = primitive_instances.size();
-		if (primitive_offset != (uint32_t)primitive_instances.size() - 1) {
-			auto& last_primitive = primitive_instances.at(primitive_instances.size() - 1);
-			primitive_index_to_index_map[last_primitive.unique_index] = primitive_offset;
-			Swap(primitive_to_delete, last_primitive);
-		}
-		primitive_instances.resize(original_size - 1);
-
-		AddSceneFlag(change_flag);
+		
 	}
 	void SceneModule::UpdatePrimitiveInstance(const uint32_t unique_index)
 	{
@@ -432,46 +350,7 @@ namespace YumeRT {
 	}
 	void SceneModule::DeleteMaterial(const uint32_t index)
 	{
-		// TODO: optimize.
-		if (materials.empty() || !(index < materials.size())) {
-			return;
-		}
-
-		uint32_t change_flag = SCENE_CHANGE_FLAG::SCENE_MATERIAL_DELETE;
 		
-		std::vector< PrimitiveInstance> updated_primitive_instances;
-		updated_primitive_instances.reserve(primitive_instances.size());
-
-		for (const auto& old_primitive : primitive_instances)
-		{
-			if (old_primitive.material_idx == index) {
-				primitive_index_to_index_map.erase(old_primitive.unique_index);
-				primitive_index_to_name_map.erase(old_primitive.unique_index);
-				primitive_index_generator.ReleaseIndex(old_primitive.unique_index);
-				continue;
-			}
-
-			PrimitiveInstance updated_primitive_instance = old_primitive;
-			if (updated_primitive_instance.material_idx > index) {
-				updated_primitive_instance.material_idx -= 1;
-			}
-			updated_primitive_instances.push_back(updated_primitive_instance);
-			assert(primitive_index_to_index_map.find(updated_primitive_instance.unique_index) != primitive_index_to_index_map.end());
-			// note: update actual offset, name map don't need to update.
-			primitive_index_to_index_map[updated_primitive_instance.unique_index] = (uint32_t)updated_primitive_instances.size() - 1;
-		}
-		primitive_instances = std::move(updated_primitive_instances);
-
-		change_flag |= SCENE_CHANGE_FLAG::SCENE_INSTANCE_DELETE;
-		if (materials.at(index).material_type == LIGHT_MTL) {
-			change_flag |= SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_DELETE;
-		}
-
-		material_reference_primitive_indices.erase(material_reference_primitive_indices.begin() + index);
-		material_names.erase(material_names.begin() + index);
-		materials.erase(materials.begin() + index);
-
-		AddSceneFlag(change_flag);
 	}
 	void SceneModule::UpdateMaterial(const uint32_t index)
 	{
