@@ -108,7 +108,7 @@ namespace YumeRT{
 		void LoadModelFromFile(const std::string& file_name, const uint32_t transform_index, const int inner_volume_index = -1, const bool treat_as_boundary = false);
 
 		uint32_t CreateTransform(const std::string& name, const glm::vec3& translate = glm::vec3(0.0f), const glm::vec3& scale = glm::vec3(1.0f), const glm::vec3& rotate = glm::vec3(0.0f), const int parent_transform_index = EMPTY_UINT32, const glm::vec3& pivot = glm::vec3(0.0f));
-		void DeleteTransform(const uint32_t index);
+		void DeleteTransform(const std::vector<uint32_t>& indices);
 		void UpdateTransform(const uint32_t index);
 
 		uint32_t CreateMesh(const std::string& name, 
@@ -121,7 +121,7 @@ namespace YumeRT{
 			std::vector<float>& mesh_texcoords);
 		uint32_t CreateCube(const std::string& name);
 		uint32_t CreateSphere(const std::string& name, const float radius);
-		void DeleteGeometry(const uint32_t index);
+		void DeleteGeometry(const std::vector<uint32_t>& indices);
 		void UpdateGeometry(const uint32_t index);
 
 		uint32_t CreatePrimitiveInstance(const std::string &name,
@@ -130,7 +130,7 @@ namespace YumeRT{
 			const uint32_t material_index, 
 			const int inner_volume_index = -1, 
 			const bool treat_as_boundary = false);
-		void DeletePrimitiveInstance(const uint32_t unique_index);
+		void DeletePrimitiveInstance(const std::vector<uint32_t>& unique_indices);
 		void UpdatePrimitiveInstance(const uint32_t unique_index);
 
 		uint32_t CreateDefaultMaterial(const std::string& name,
@@ -167,7 +167,7 @@ namespace YumeRT{
 			const uint32_t coat_normal_tex = EMPTY_UINT32,
 			const uint32_t coat_normal_tex_type = COAT_NORMAL_TEXTURE_TYPE::BUMP_TEX);
 		uint32_t CreateLightMaterial(const std::string& name, const glm::vec3& light_color = glm::vec3(1.0f), const float intensity = 1.0f);
-		void DeleteMaterial(const uint32_t index);
+		void DeleteMaterial(const std::vector<uint32_t>& indices);
 		void UpdateMaterial(const uint32_t index);
 
 		uint32_t CreateImageTexture(const std::string& name, const std::string& texture_file_name);
@@ -213,17 +213,17 @@ namespace YumeRT{
 			const float gain_0 = 0.5f, const int layer_count_0 = 2,
 			const float freq_1 = 2.0f, const float lacunarity_1 = 2.0f,
 			const float gain_1 = 0.5f, const int layer_count_1 = 4);
-		void DeleteTexture(const uint32_t index);
+		void DeleteTexture(const std::vector<uint32_t>& indices);
 		void UpdateTexture(const uint32_t index);
 
 		uint32_t CreateDistantLight(const std::string &name, const glm::vec3& light_color, const uint32_t transform_index, float intensity = 1.0f, float theta_max = 5.0f);
-		void DeleteDistantLight(const uint32_t index);
+		void DeleteDistantLight(const std::vector<uint32_t>& indices);
 		void UpdateDistantLight(const uint32_t index);
 
 		void LoadShapeLight();
 
 		uint32_t CreateVolume(const std::string& name, const uint32_t transform_index, const glm::vec3& sigma_t = glm::vec3(0.01f), const glm::vec3& albedo = glm::vec3(1.0f), const float g = 0.0f, const int density_texture_index = -1);
-		void DeleteVolume(const uint32_t index);
+		void DeleteVolume(const std::vector<uint32_t>& indices);
 		void UpdateVolume(const uint32_t index);
 
 	private:

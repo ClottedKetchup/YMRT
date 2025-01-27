@@ -2634,7 +2634,7 @@ namespace YumeRT {
 		ImGui::SameLine();
 		if (ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f)))
 		{
-			m_scene.DeletePrimitiveInstance(list_highlight_unique_index);
+			m_scene.DeletePrimitiveInstance({ list_highlight_unique_index });
 			const uint32_t new_unique_index = m_scene.primitive_index_to_index_map.empty()? EMPTY_UINT32 : (*m_scene.primitive_index_to_index_map.begin()).first;
 			if (clicked_instance_unique_index == list_highlight_unique_index) {
 				clicked_instance_unique_index = new_unique_index;
@@ -2760,7 +2760,7 @@ namespace YumeRT {
 		ImGui::SameLine();
 		if(ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f)))
 		{
-			m_scene.DeleteGeometry(list_highlight_geometry_index);
+			m_scene.DeleteGeometry({ list_highlight_geometry_index });
 			if (clicked_instance_geometry_index == list_highlight_geometry_index) {
 				clicked_pixel_primitive_index = m_scene.primitive_index_to_index_map.empty() ? EMPTY_UINT32 : (*m_scene.primitive_index_to_index_map.begin()).first;
 				clicked_instance_geometry_index = m_scene.primitive_index_to_index_map.find(clicked_pixel_primitive_index) == m_scene.primitive_index_to_index_map.end() ?
@@ -2975,7 +2975,7 @@ namespace YumeRT {
 		ImGui::SameLine();
 		if (ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f)))
 		{
-			m_scene.DeleteMaterial(list_highlight_material_index);
+			m_scene.DeleteMaterial({ list_highlight_material_index });
 			if (clicked_instance_material_index == list_highlight_material_index) {
 				clicked_pixel_primitive_index = m_scene.primitive_index_to_index_map.empty() ? EMPTY_UINT32 : (*m_scene.primitive_index_to_index_map.begin()).first;
 				clicked_instance_material_index = m_scene.primitive_index_to_index_map.find(clicked_pixel_primitive_index) == m_scene.primitive_index_to_index_map.end()?

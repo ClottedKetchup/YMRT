@@ -112,7 +112,7 @@ namespace YumeRT {
 		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TRANSFORM_CREATE);
 		return transform_index;
 	}
-	void SceneModule::DeleteTransform(const uint32_t index)
+	void SceneModule::DeleteTransform(const std::vector<uint32_t>& indices)
 	{
 	
 	}
@@ -188,7 +188,7 @@ namespace YumeRT {
 		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_GEOMETRY_CREATE);
 		return sphere_index;
 	}
-	void SceneModule::DeleteGeometry(const uint32_t index)
+	void SceneModule::DeleteGeometry(const std::vector<uint32_t>& indices)
 	{
 		
 	}
@@ -234,9 +234,66 @@ namespace YumeRT {
 
 		return unique_index;
 	}
-	void SceneModule::DeletePrimitiveInstance(const uint32_t unique_index)
+	void SceneModule::DeletePrimitiveInstance(const std::vector<uint32_t>& unique_indices)
 	{
-		
+		if (primitive_instances.empty()) {
+			return;
+		}
+
+		std::vector<uint32_t> primitive_offsets;
+		primitive_offsets.reserve(unique_indices.size());
+
+		uint32_t change_flag = SCENE_CHANGE_FLAG::SCENE_INSTANCE_DELETE;
+		for (const uint32_t unique_index : unique_indices) {
+			auto iter = primitive_index_to_index_map.find(unique_index);
+			if (iter != primitive_index_to_index_map.end()) {
+				const uint32_t offset = (*iter).second;
+				auto& primitive_to_delete = primitive_instances.at(offset);
+
+				if ((uint32_t)primitive_to_delete.geometry_idx < geometries.size() && (--geometry_reference_primitive_indices[primitive_to_delete.geometry_idx][unique_index]) == 0) {
+					geometry_reference_primitive_indices[primitive_to_delete.geometry_idx].erase(unique_index);
+				}
+				if ((uint32_t)primitive_to_delete.transform_idx < transform_states.size() && (--transform_reference_primitive_indices[primitive_to_delete.transform_idx][unique_index]) == 0) {
+					transform_reference_primitive_indices[primitive_to_delete.transform_idx].erase(unique_index);
+				}
+				if ((uint32_t)primitive_to_delete.material_idx < materials.size() && (--material_reference_primitive_indices[primitive_to_delete.material_idx][unique_index]) == 0) {
+					material_reference_primitive_indices[primitive_to_delete.material_idx].erase(unique_index);
+				}
+				if ((uint32_t)primitive_to_delete.inner_volume_idx < volumes.size() && (--volume_reference_primitive_indices[primitive_to_delete.inner_volume_idx][unique_index]) == 0) {
+					volume_reference_primitive_indices[primitive_to_delete.inner_volume_idx].erase(unique_index);
+				}
+
+				if ((uint32_t)primitive_to_delete.material_idx < materials.size() && materials.at(primitive_to_delete.material_idx).material_type == LIGHT_MTL) {
+					change_flag |= SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_DELETE;
+				}
+
+				primitive_index_to_name_map.erase(unique_index);
+				primitive_index_to_index_map.erase(unique_index);
+
+				primitive_index_generator.ReleaseIndex(unique_index);
+
+				primitive_offsets.push_back(offset);
+			}
+		}
+
+		const uint32_t original_size = (uint32_t)primitive_instances.size();
+		uint32_t end_offset = original_size - 1;
+		for (const auto offset : primitive_offsets)
+		{
+			if (offset == end_offset) {
+				end_offset--;
+				continue;
+			}
+			auto& end_primitive = primitive_instances.at(end_offset--);
+			auto& delete_primitive = primitive_instances.at(offset);
+			
+			primitive_index_to_index_map[end_primitive.unique_index] = offset;
+			Swap(delete_primitive, end_primitive);
+		}
+
+		primitive_instances.resize(original_size - (uint32_t)primitive_offsets.size());
+
+		AddSceneFlag(change_flag);
 	}
 	void SceneModule::UpdatePrimitiveInstance(const uint32_t unique_index)
 	{
@@ -348,7 +405,7 @@ namespace YumeRT {
 		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_MATERIAL_CREATE);
 		return light_material_index;
 	}
-	void SceneModule::DeleteMaterial(const uint32_t index)
+	void SceneModule::DeleteMaterial(const std::vector<uint32_t>& indices)
 	{
 		
 	}
@@ -653,7 +710,7 @@ namespace YumeRT {
 		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_TEXTURE_CREATE);
 		return texture_index;
 	}
-	void SceneModule::DeleteTexture(const uint32_t index)
+	void SceneModule::DeleteTexture(const std::vector<uint32_t>& indices)
 	{
 	
 	}
@@ -687,7 +744,7 @@ namespace YumeRT {
 		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_DISTANT_LIGHT_CREATE);
 		return distant_light_index;
 	}
-	void SceneModule::DeleteDistantLight(const uint32_t index)
+	void SceneModule::DeleteDistantLight(const std::vector<uint32_t>& indices)
 	{
 	
 	}
@@ -833,7 +890,7 @@ namespace YumeRT {
 		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_VOLUME_CREATE);
 		return volume_index;
 	}
-	void SceneModule::DeleteVolume(const uint32_t index)
+	void SceneModule::DeleteVolume(const std::vector<uint32_t>& indices)
 	{
 	
 	}
