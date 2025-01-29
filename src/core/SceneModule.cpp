@@ -190,7 +190,40 @@ namespace YumeRT {
 	}
 	void SceneModule::DeleteGeometry(const std::vector<uint32_t>& indices)
 	{
+		if (geometries.empty() || indices.empty()) {
+			return;
+		}
 		
+		uint32_t change_flag = SCENE_CHANGE_FLAG::SCENE_GEOMETRY_DELETE;
+		for (const uint32_t geometry_index : indices)
+		{
+			std::vector<uint32_t> primitives_to_delete;
+			primitives_to_delete.reserve(primitive_instances.size());
+
+			for (auto& old_prim : primitive_instances) 
+			{
+				if (old_prim.geometry_idx == geometry_index) {
+					primitives_to_delete.push_back(old_prim.unique_index);
+					if (old_prim.material_idx < materials.size() || materials.at(old_prim.material_idx).material_type == LIGHT_MTL) {
+						change_flag |= SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE;
+					}
+					continue;
+				}
+				if (old_prim.geometry_idx > geometry_index) {
+					old_prim.geometry_idx -= 1;
+				}
+			}
+
+			DeletePrimitiveInstance(primitives_to_delete);
+
+			geometry_reference_primitive_indices.erase(geometry_reference_primitive_indices.begin() + geometry_index);
+			geometry_names.erase(geometry_names.begin() + geometry_index);
+			geometries.erase(geometries.begin() + geometry_index);
+
+			change_flag |= SCENE_CHANGE_FLAG::SCENE_INSTANCE_DELETE;
+		}
+
+		AddSceneFlag(change_flag);
 	}
 	void SceneModule::UpdateGeometry(const uint32_t index)
 	{
@@ -236,12 +269,9 @@ namespace YumeRT {
 	}
 	void SceneModule::DeletePrimitiveInstance(const std::vector<uint32_t>& unique_indices)
 	{
-		if (primitive_instances.empty()) {
+		if (primitive_instances.empty() || unique_indices.empty()) {
 			return;
 		}
-
-		std::vector<uint32_t> primitive_offsets;
-		primitive_offsets.reserve(unique_indices.size());
 
 		uint32_t change_flag = SCENE_CHANGE_FLAG::SCENE_INSTANCE_DELETE;
 		for (const uint32_t unique_index : unique_indices) {
@@ -271,27 +301,22 @@ namespace YumeRT {
 				primitive_index_to_index_map.erase(unique_index);
 
 				primitive_index_generator.ReleaseIndex(unique_index);
-
-				primitive_offsets.push_back(offset);
 			}
 		}
 
-		const uint32_t original_size = (uint32_t)primitive_instances.size();
-		uint32_t end_offset = original_size - 1;
-		for (const auto offset : primitive_offsets)
+		std::vector<PrimitiveInstance> updated_primitive_instances;
+		updated_primitive_instances.reserve(primitive_instances.size());
+		for (auto &p : primitive_index_to_index_map) 
 		{
-			if (offset == end_offset) {
-				end_offset--;
-				continue;
+			const auto unique_index = p.first;
+			const auto offset = p.second;
+			if (!(offset < primitive_instances.size())) {
+				continue; // note: should never happen.
 			}
-			auto& end_primitive = primitive_instances.at(end_offset--);
-			auto& delete_primitive = primitive_instances.at(offset);
-			
-			primitive_index_to_index_map[end_primitive.unique_index] = offset;
-			Swap(delete_primitive, end_primitive);
+			updated_primitive_instances.push_back(primitive_instances.at(offset));
+			p.second = (uint32_t)updated_primitive_instances.size() - 1;
 		}
-
-		primitive_instances.resize(original_size - (uint32_t)primitive_offsets.size());
+		primitive_instances = std::move(updated_primitive_instances);
 
 		AddSceneFlag(change_flag);
 	}
@@ -386,7 +411,32 @@ namespace YumeRT {
 
 		material_reference_primitive_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
-		const auto default_material_index = (uint32_t)materials.size() - 1;
+		auto add_connection = [&](const uint32_t mtl_index, const uint32_t texture_index) {
+			if (texture_index < (uint32_t)textures.size()) {
+				texture_reference_material_indices[texture_index][mtl_index]++;
+			}
+		};
+
+		const uint32_t default_material_index = (uint32_t)materials.size() - 1;
+		const auto& material_to_delete = materials.at(default_material_index);
+
+		add_connection(default_material_index, material_to_delete.default_mtl.diffuse_albedo_tex);
+		add_connection(default_material_index, material_to_delete.default_mtl.alpha_x_tex);
+		add_connection(default_material_index, material_to_delete.default_mtl.specular_albedo_tex);
+		add_connection(default_material_index, material_to_delete.default_mtl.alpha_y_tex);
+		add_connection(default_material_index, material_to_delete.default_mtl.specular_weight_tex);
+		add_connection(default_material_index, material_to_delete.default_mtl.metalness_tex);
+		add_connection(default_material_index, material_to_delete.default_mtl.transmission_weight_tex);
+		add_connection(default_material_index, material_to_delete.default_mtl.normal_mapping_tex);
+		add_connection(default_material_index, material_to_delete.default_mtl.bump_mapping_tex);
+
+		add_connection(default_material_index, material_to_delete.default_mtl.coat_albedo_tex);
+		add_connection(default_material_index, material_to_delete.default_mtl.coat_weight_tex);
+		add_connection(default_material_index, material_to_delete.default_mtl.coat_thickness_tex);
+		add_connection(default_material_index, material_to_delete.default_mtl.coat_roughness_x_tex);
+		add_connection(default_material_index, material_to_delete.default_mtl.coat_roughness_y_tex);
+
+		add_connection(default_material_index, material_to_delete.default_mtl.coat_normal_tex);
 
 		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_MATERIAL_CREATE);
 		return default_material_index;
@@ -407,7 +457,91 @@ namespace YumeRT {
 	}
 	void SceneModule::DeleteMaterial(const std::vector<uint32_t>& indices)
 	{
-		
+		if (materials.empty() || indices.empty()) {
+			return;
+		}
+
+		uint32_t change_flag = SCENE_CHANGE_FLAG::SCENE_MATERIAL_DELETE;
+		for (const uint32_t material_index : indices) 
+		{
+			if (!(material_index < (uint32_t)materials.size())) {
+				continue;
+			}
+			
+			auto delete_connections = [&](const uint32_t mtl_index, const uint32_t texture_index) {
+				if (texture_index < textures.size() && (--texture_reference_material_indices[texture_index][mtl_index]) == 0) {
+					texture_reference_material_indices[texture_index].erase(mtl_index);
+				}
+			};
+
+			const auto& material_to_delete = materials.at(material_index);
+			if (material_to_delete.material_type == DEFAULT_MTL) 
+			{
+				delete_connections(material_index, material_to_delete.default_mtl.diffuse_albedo_tex);
+				delete_connections(material_index, material_to_delete.default_mtl.alpha_x_tex);
+				delete_connections(material_index, material_to_delete.default_mtl.specular_albedo_tex);
+				delete_connections(material_index, material_to_delete.default_mtl.alpha_y_tex);
+				delete_connections(material_index, material_to_delete.default_mtl.specular_weight_tex);
+				delete_connections(material_index, material_to_delete.default_mtl.metalness_tex);
+				delete_connections(material_index, material_to_delete.default_mtl.transmission_weight_tex);
+				delete_connections(material_index, material_to_delete.default_mtl.normal_mapping_tex);
+				delete_connections(material_index, material_to_delete.default_mtl.bump_mapping_tex);
+
+				delete_connections(material_index, material_to_delete.default_mtl.coat_albedo_tex);
+				delete_connections(material_index, material_to_delete.default_mtl.coat_weight_tex);
+				delete_connections(material_index, material_to_delete.default_mtl.coat_thickness_tex);
+				delete_connections(material_index, material_to_delete.default_mtl.coat_roughness_x_tex);
+				delete_connections(material_index, material_to_delete.default_mtl.coat_roughness_y_tex);
+
+				delete_connections(material_index, material_to_delete.default_mtl.coat_normal_tex);
+			}
+			else if (material_to_delete.material_type == LIGHT_MTL)
+			{
+			
+			}
+			else {
+			
+			}
+
+			for (auto& texture_reference_map : texture_reference_material_indices) 
+			{
+				std::unordered_map<uint32_t, uint32_t> new_reference_map;
+				for (auto reference_pair : texture_reference_map) 
+				{
+					const uint32_t reference_mtl_index = reference_pair.first;
+					const uint32_t reference_count = reference_pair.second;
+					new_reference_map.insert(std::make_pair(reference_mtl_index > material_index ? reference_mtl_index - 1 : reference_mtl_index, reference_count));
+				}
+
+				texture_reference_map = std::move(new_reference_map);
+			}
+
+			std::vector<uint32_t> deleted_primitives;
+			deleted_primitives.reserve(primitive_instances.size());
+			for (auto& old_prim : primitive_instances) 
+			{
+				if (old_prim.material_idx == material_index) {
+					deleted_primitives.push_back(old_prim.unique_index);
+					continue;
+				}
+				if (old_prim.material_idx > material_index) {
+					old_prim.material_idx -= 1;
+				}
+			}
+
+			DeletePrimitiveInstance(deleted_primitives);
+
+			change_flag |= SCENE_CHANGE_FLAG::SCENE_INSTANCE_DELETE;
+			if (material_to_delete.material_type == LIGHT_MTL) {
+				change_flag |= SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE;
+			}
+
+			material_reference_primitive_indices.erase(material_reference_primitive_indices.begin() + material_index);
+			material_names.erase(material_names.begin() + material_index);
+			materials.erase(materials.begin() + material_index);
+		}
+
+		AddSceneFlag(change_flag);
 	}
 	void SceneModule::UpdateMaterial(const uint32_t index)
 	{
