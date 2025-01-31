@@ -2856,7 +2856,16 @@ namespace YumeRT {
 			ImGui::EndPopup();
 		}
 		ImGui::SameLine();
-		ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f));
+		if (ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f))) 
+		{
+			m_scene.DeleteTransform({ list_highlight_transform_index });
+			if (clicked_instance_transform_index == list_highlight_transform_index) {
+				clicked_pixel_primitive_index = m_scene.primitive_index_to_index_map.empty() ? EMPTY_UINT32 : (*m_scene.primitive_index_to_index_map.begin()).first;
+				list_highlight_transform_index = m_scene.primitive_index_to_index_map.find(clicked_pixel_primitive_index) == m_scene.primitive_index_to_index_map.end() ?
+					EMPTY_UINT32 : m_scene.primitive_instances.at(m_scene.primitive_index_to_index_map[clicked_pixel_primitive_index]).transform_idx;
+			}
+			list_highlight_transform_index = m_scene.transforms.empty() ? EMPTY_UINT32 : 0u;
+		}
 
 		ImGui::Separator();
 		RenderTransformAttributeEditor(list_highlight_transform_index);
@@ -3073,7 +3082,15 @@ namespace YumeRT {
 			ImGui::EndPopup();
 		}
 		ImGui::SameLine();
-		ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f));
+		if(ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f)))
+		{
+			m_scene.DeleteVolume({ (uint32_t)list_highlight_volume_index });
+			if (clicked_instance_volume_index == list_highlight_volume_index) {
+				clicked_instance_volume_index = m_scene.primitive_index_to_index_map.find(clicked_pixel_primitive_index) == m_scene.primitive_index_to_index_map.end() ?
+					-1 : m_scene.primitive_instances.at(m_scene.primitive_index_to_index_map[clicked_pixel_primitive_index]).inner_volume_idx;
+			}
+			list_highlight_volume_index = m_scene.volumes.empty() ? -1 : 0u;
+		}
 
 		ImGui::Separator();
 		RenderVolumeAttributeEditor(list_highlight_volume_index);
@@ -3219,7 +3236,11 @@ namespace YumeRT {
 			ImGui::EndPopup();
 		}
 		ImGui::SameLine();
-		ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f));
+		if (ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f))) 
+		{
+			m_scene.DeleteTexture({ list_highlight_texture_index });
+			list_highlight_texture_index = m_scene.textures.empty() ? EMPTY_UINT32 : 0u;
+		}
 
 		ImGui::Separator();
 		RenderTextureAttributeEditor(list_highlight_texture_index);

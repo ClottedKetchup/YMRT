@@ -5,6 +5,9 @@
 #include <assimp/postprocess.h>
 
 namespace YumeRT {
+
+#define ERASE_STD_VECTOR(std_vector, index) std_vector.erase(std_vector.begin() + index)
+
 	SceneModule::SceneModule() :scene_resource{}, camera(),  render_setting{}, scene_change_flag(SCENE_INIT)
 	{
 		camera[EDITOR_CAMERA_INDEX].SetFov(glm::radians(45.0f));
@@ -89,6 +92,7 @@ namespace YumeRT {
 
 	uint32_t SceneModule::CreateTransform(const std::string& name, const glm::vec3& translate, const glm::vec3& scale, const glm::vec3& rotate, const int parent_transform_index, const glm::vec3& pivot)
 	{
+		// To fix.
 		TransformState transform_state(translate, scale, rotate, parent_transform_index);
 		const auto transform_matrix = transform_state.GetTransformMatrix(transform_states, transforms, i_transforms);
 		
@@ -114,7 +118,137 @@ namespace YumeRT {
 	}
 	void SceneModule::DeleteTransform(const std::vector<uint32_t>& indices)
 	{
-	
+		if (transforms.empty() || indices.empty()) {
+			return;
+		}
+
+		uint32_t change_flag = SCENE_CHANGE_FLAG::SCENE_TRANSFORM_DELETE;
+		for (const uint32_t transform_index : indices)
+		{
+			if (!(transform_index < transform_states.size())) {
+				continue;
+			}
+
+			auto& transform_state = transform_states.at(transform_index);
+			if ((uint32_t)transform_state.parent_transform_index < transform_states.size() && (--transform_reference_transform_indices[transform_state.parent_transform_index][transform_index]) == 0) {
+				transform_reference_transform_indices[transform_state.parent_transform_index].erase(transform_index);
+			}
+
+			for (auto& transform_refer_map : transform_reference_transform_indices) 
+			{
+				std::unordered_map<uint32_t, uint32_t> updated_map;
+				for (auto& p : transform_refer_map) {
+					assert(p.first != transform_index);
+					updated_map.insert(std::make_pair(p.first > transform_index ? p.first - 1 : p.first, p.second));
+				}
+				transform_refer_map = std::move(updated_map);
+			}
+
+			for (uint32_t transform_idx = 0; transform_idx < transform_states.size(); ++transform_idx) 
+			{
+				if (transform_idx == transform_index) {
+					continue;	
+				}
+
+				auto& current_transform = transform_states.at(transform_idx);
+				if (!((uint32_t)current_transform.parent_transform_index < transform_states.size())) {
+					continue;
+				}
+
+				if (current_transform.parent_transform_index == transform_index) {
+					current_transform.parent_transform_index = EMPTY_UINT32;
+				}
+				else if (current_transform.parent_transform_index > transform_index) {
+					current_transform.parent_transform_index -= 1;
+				}
+				else {
+				
+				}
+			}
+
+			std::vector<uint32_t> deleted_distant_lights;
+			deleted_distant_lights.reserve(distant_lights.size());
+			for (uint32_t distant_light_index = 0; distant_light_index < distant_lights.size(); ++distant_light_index) {
+				auto& distant_light = distant_lights.at(distant_light_index);
+				if (!(distant_light.transform_idx < transform_states.size())) {
+					continue;
+				}
+
+				if (distant_light.transform_idx == transform_index) {
+					deleted_distant_lights.push_back(distant_light_index);
+				}
+				else if (distant_light.transform_idx > transform_index) {
+					distant_light.transform_idx -= 1;
+				}
+				else {
+				
+				}
+			}
+			DeleteDistantLight(deleted_distant_lights);
+			change_flag |= SCENE_CHANGE_FLAG::SCENE_DISTANT_LIGHT_DELETE;
+
+			std::vector<uint32_t> deleted_volumes;
+			deleted_volumes.reserve(volumes.size());
+			for (uint32_t volume_index = 0; volume_index < volumes.size(); ++volume_index) 
+			{
+				auto& vol = volumes.at(volume_index);
+				if (!(vol.transform_idx < transform_states.size())) {
+					continue;
+				}
+
+				if (vol.transform_idx == transform_index) {
+					deleted_volumes.push_back(volume_index);
+				}
+				else if (vol.transform_idx > transform_index) {
+					vol.transform_idx -= 1;
+				}
+				else {
+				
+				}
+			}
+			DeleteVolume(deleted_volumes);
+			change_flag |= SCENE_CHANGE_FLAG::SCENE_VOLUME_DELETE;
+
+			std::vector<uint32_t> deleted_prims;
+			deleted_prims.reserve(primitive_instances.size());
+			for (auto& prim : primitive_instances) 
+			{
+				if (!(prim.transform_idx < transform_states.size())) {
+					continue;
+				}
+
+				if (prim.transform_idx == transform_index) {
+					deleted_prims.push_back(prim.unique_index);
+				}
+				else if (prim.transform_idx > transform_index) {
+					prim.transform_idx -= 1;
+				}
+				else {
+				
+				}
+			}
+			DeletePrimitiveInstance(deleted_prims);
+			change_flag |= SCENE_CHANGE_FLAG::SCENE_INSTANCE_DELETE;
+
+			
+			ERASE_STD_VECTOR(transform_reference_transform_indices, transform_index);
+			ERASE_STD_VECTOR(transform_reference_primitive_indices, transform_index);
+			ERASE_STD_VECTOR(transform_reference_light_indices, transform_index);
+			ERASE_STD_VECTOR(transform_reference_volume_indices, transform_index);
+			ERASE_STD_VECTOR(transform_names, transform_index);
+			ERASE_STD_VECTOR(transform_states, transform_index);
+			ERASE_STD_VECTOR(transforms, transform_index);
+			ERASE_STD_VECTOR(i_transforms, transform_index);
+
+			// To fix:
+			for (uint32_t transform_state_idx = 0; transform_state_idx < transform_states.size(); ++transform_state_idx) {
+				const auto transform_matrix = transform_states.at(transform_state_idx).GetTransformMatrix(transform_states, transforms, i_transforms);
+				transforms.at(transform_state_idx) = transform_matrix;
+				i_transforms.at(transform_state_idx) = glm::inverse(transform_matrix);
+			}
+		}
+
+		AddSceneFlag(change_flag);
 	}
 	void SceneModule::UpdateTransform(const uint32_t index)
 	{
@@ -846,7 +980,136 @@ namespace YumeRT {
 	}
 	void SceneModule::DeleteTexture(const std::vector<uint32_t>& indices)
 	{
-	
+		if (textures.empty() || indices.empty()) {
+			return;
+		}
+
+		uint32_t change_flag = SCENE_CHANGE_FLAG::SCENE_TEXTURE_DELETE;
+		for (const uint32_t texture_index : indices)
+		{
+			if (!(texture_index < textures.size())) {
+				continue;
+			}
+			
+			auto& texture = textures.at(texture_index);
+			const uint32_t child_texture_count = texture.GetChildCount();
+			for (uint32_t child_index = 0; child_index < child_texture_count; ++child_index) {
+				const uint32_t child_texture_index = texture.GetChildTextureIndex(child_index);
+				if (child_texture_index < textures.size() && (--texture_reference_texture_indices[child_texture_index][texture_index]) == 0) {
+					texture_reference_texture_indices[child_texture_index].erase(texture_index);
+				}
+			}
+
+			for (size_t texture_refer_map_index = 0; texture_refer_map_index < texture_reference_texture_indices.size(); ++texture_refer_map_index)
+			{
+				if (texture_refer_map_index == texture_index) {
+					continue;
+				}
+				auto& texture_refer_map = texture_reference_texture_indices.at(texture_refer_map_index);
+				std::unordered_map<uint32_t, uint32_t> updated_map;
+				for (auto& p : texture_refer_map) {
+					updated_map.insert(std::make_pair(p.first > texture_index ? p.first - 1 : p.first, p.second));
+				}
+				texture_refer_map = std::move(updated_map);
+			}
+
+			for (uint32_t texture_idx = 0; texture_idx < (uint32_t)textures.size(); ++texture_idx) 
+			{
+				if (texture_idx == texture_index) {
+					continue;
+				}
+
+				auto& current_texture = textures.at(texture_idx);
+				const uint32_t child_texture_count = current_texture.GetChildCount();
+				for (uint32_t child_index = 0; child_index < child_texture_count; ++child_index) {
+					const uint32_t child_texture_index = current_texture.GetChildTextureIndex(child_index);
+					if (child_texture_index < textures.size()) {
+						if (child_texture_index > texture_index) {
+							current_texture.SetChildTextureIndex(child_index, child_texture_index - 1);
+						}
+						else if (child_texture_index == texture_index) {
+							current_texture.SetChildTextureIndex(child_index, EMPTY_UINT32);
+						}
+						else {
+						
+						}
+					}
+				}
+			}
+
+			for (auto& mtl : materials) 
+			{
+				if (mtl.material_type == DEFAULT_MTL) {
+					auto& default_material = mtl.default_mtl;
+					auto update_texture_index = [&](uint32_t *old_texture_index) {
+						if (!((*old_texture_index) < textures.size())) {
+							return;
+						}
+
+						if ((*old_texture_index) == texture_index) {
+							*old_texture_index = EMPTY_UINT32;
+						}
+						else if ((*old_texture_index) > texture_index) {
+							*old_texture_index -= 1;
+						}
+						else {
+							
+						}
+					};
+
+					update_texture_index(&default_material.diffuse_albedo_tex);
+					update_texture_index(&default_material.alpha_x_tex);
+					update_texture_index(&default_material.specular_albedo_tex);
+					update_texture_index(&default_material.alpha_y_tex);
+					update_texture_index(&default_material.specular_weight_tex);
+					update_texture_index(&default_material.metalness_tex);
+					update_texture_index(&default_material.transmission_weight_tex);
+					update_texture_index(&default_material.normal_mapping_tex);
+					update_texture_index(&default_material.bump_mapping_tex);
+
+					update_texture_index(&default_material.coat_albedo_tex);
+					update_texture_index(&default_material.coat_weight_tex);
+					update_texture_index(&default_material.coat_thickness_tex);
+					update_texture_index(&default_material.coat_roughness_x_tex);
+					update_texture_index(&default_material.coat_roughness_y_tex);
+
+					update_texture_index(&default_material.coat_normal_tex);
+				}
+				else if (mtl.material_type == LIGHT_MTL) {
+				
+				}
+				else {
+				
+				}
+			}
+
+			change_flag |= SCENE_CHANGE_FLAG::SCENE_MATERIAL_DELETE;
+			
+			for (auto& vol : volumes) 
+			{
+				if ((uint32_t)vol.density_texture_idx < textures.size()) {
+					if (vol.density_texture_idx == texture_index) {
+						vol.density_texture_idx = -1;
+					}
+					else if (vol.density_texture_idx > texture_index) {
+						vol.density_texture_idx -= 1;
+					}
+					else {
+					
+					}
+				}
+			}
+
+			change_flag |= SCENE_CHANGE_FLAG::SCENE_VOLUME_DELETE;
+
+			ERASE_STD_VECTOR(texture_reference_material_indices, texture_index);
+			ERASE_STD_VECTOR(texture_reference_texture_indices, texture_index);
+			ERASE_STD_VECTOR(texture_reference_volume_indices, texture_index);
+			ERASE_STD_VECTOR(texture_names, texture_index);
+			ERASE_STD_VECTOR(textures, texture_index);
+		}
+
+		AddSceneFlag(change_flag);
 	}
 	void SceneModule::UpdateTexture(const uint32_t index)
 	{
@@ -880,7 +1143,35 @@ namespace YumeRT {
 	}
 	void SceneModule::DeleteDistantLight(const std::vector<uint32_t>& indices)
 	{
-	
+		if (distant_lights.empty() || indices.empty()) {
+			return;
+		}
+
+		uint32_t change_flag = SCENE_CHANGE_FLAG::SCENE_DISTANT_LIGHT_DELETE;
+		for (const uint32_t distant_light_index : indices) 
+		{
+			if (!(distant_light_index < distant_lights.size())) {
+				continue;
+			}
+			auto& distant_light = distant_lights.at(distant_light_index);
+			if (distant_light.transform_idx < transform_states.size() && (--transform_reference_light_indices[distant_light.transform_idx][distant_light_index]) == 0) {
+				transform_reference_light_indices[distant_light.transform_idx].erase(distant_light_index);
+			}
+			
+			for (auto& transform_refer_map : transform_reference_light_indices)
+			{
+				std::unordered_map<uint32_t, uint32_t> updated_map;
+				for (auto& p : transform_refer_map) {
+					updated_map.insert(std::make_pair(p.first > distant_light_index ? p.first - 1 : p.first, p.second));
+				}
+				transform_refer_map = std::move(updated_map);
+			}
+
+			ERASE_STD_VECTOR(distant_light_names, distant_light_index);
+			ERASE_STD_VECTOR(distant_lights, distant_light_index);
+		}
+
+		AddSceneFlag(change_flag);
 	}
 	void SceneModule::UpdateDistantLight(const uint32_t index)
 	{
@@ -1026,7 +1317,69 @@ namespace YumeRT {
 	}
 	void SceneModule::DeleteVolume(const std::vector<uint32_t>& indices)
 	{
-	
+		if (volumes.empty() || indices.empty()) {
+			return;
+		}
+
+		uint32_t change_flag = SCENE_CHANGE_FLAG::SCENE_VOLUME_DELETE;
+		for (const uint32_t vol_index : indices) 
+		{
+			if (!(vol_index < volumes.size())) {
+				continue;
+			}
+
+			auto& deleted_volume = volumes.at(vol_index);
+			if ((uint32_t)deleted_volume.transform_idx < transform_states.size() && (--transform_reference_volume_indices[deleted_volume.transform_idx][vol_index]) == 0) {
+				transform_reference_volume_indices[deleted_volume.transform_idx].erase(vol_index);
+			}
+			if ((uint32_t)deleted_volume.density_texture_idx < textures.size() && (--texture_reference_volume_indices[deleted_volume.density_texture_idx][vol_index]) == 0) {
+				texture_reference_volume_indices[deleted_volume.density_texture_idx].erase(vol_index);
+			}
+
+			for (auto& transform_refer_map : transform_reference_volume_indices) 
+			{
+				std::unordered_map<uint32_t, uint32_t> updated_map;
+				for (auto& p : transform_refer_map) {
+					updated_map.insert(std::make_pair(p.first > vol_index ? p.first - 1 : p.first, p.second));
+				}
+				transform_refer_map = std::move(updated_map);
+			}
+
+			for (auto& texture_refer_map : texture_reference_volume_indices) 
+			{
+				std::unordered_map<uint32_t, uint32_t> updated_map;
+				for (auto& p : texture_refer_map) {
+					updated_map.insert(std::make_pair(p.first > vol_index ? p.first - 1 : p.first, p.second));
+				}
+				texture_refer_map = std::move(updated_map);
+			}
+
+			for (auto& prim : primitive_instances)
+			{
+				if (!((uint32_t)prim.inner_volume_idx < volumes.size())) {
+					continue;
+				}
+
+				if (prim.inner_volume_idx == vol_index) {
+					prim.inner_volume_idx = -1;
+				}
+				else if (prim.inner_volume_idx > vol_index) {
+					prim.inner_volume_idx -= 1;
+				}
+				else {
+				
+				}
+			}
+
+			change_flag |= SCENE_CHANGE_FLAG::SCENE_INSTANCE_DELETE;
+			change_flag |= SCENE_CHANGE_FLAG::SCENE_INSTANCE_VOLUME_CHANGE;
+
+			ERASE_STD_VECTOR(volume_reference_primitive_indices, vol_index);
+			ERASE_STD_VECTOR(volume_names, vol_index);
+			ERASE_STD_VECTOR(volumes, vol_index);
+		}
+
+		AddSceneFlag(change_flag);
 	}
 	void SceneModule::UpdateVolume(const uint32_t index)
 	{

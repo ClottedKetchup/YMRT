@@ -919,6 +919,50 @@ namespace YumeRT
 			}
 		}
 
+		__device__ __host__ inline void SetChildTextureIndex(const int i, const uint32_t new_index) 
+		{
+			if (texture_type <= CONSTANT_TEXTURE_RGB)
+			{
+				
+			}
+			else if (texture_type == SOLID_TEXTURE_CHECKERBOARD)
+			{
+				checker_board_texture.indices[i] = new_index;
+			}
+			else if (texture_type == SOLID_TEXTURE_NOISE)
+			{
+				noise_texture.indices[i] = new_index;
+			}
+			else if (texture_type == SOLID_TEXTURE_FBM)
+			{
+				noise_texture_fbm.indices[i] = new_index;
+			}
+			else if (texture_type == SOLID_TEXTURE_TURBULENCE)
+			{
+				noise_texture_turbulence.indices[i] = new_index;
+			}
+			else if (texture_type == SOLID_TEXTURE_MARBLE)
+			{
+				noise_texture_marble.indices[i] = new_index;
+			}
+			else if (texture_type == SOLID_TEXTURE_WOOD)
+			{
+				noise_texture_wood.indices[i] = new_index;
+			}
+			else if (texture_type == SOLID_TEXTURE_POLKA_DOT)
+			{
+				noise_texture_polka_dot.indices[i] = new_index;
+			}
+			else if (texture_type == SOLID_TEXTURE_WAVE)
+			{
+				noise_texture_wave.indices[i] = new_index;
+			}
+			else
+			{
+				 
+			}
+		}
+
 		__device__ __host__ inline int16_t GetParentIndex() const 
 		{
 			if (texture_type == IMAGE_TEXTURE)
