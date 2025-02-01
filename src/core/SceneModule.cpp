@@ -92,17 +92,16 @@ namespace YumeRT {
 
 	uint32_t SceneModule::CreateTransform(const std::string& name, const glm::vec3& translate, const glm::vec3& scale, const glm::vec3& rotate, const int parent_transform_index, const glm::vec3& pivot)
 	{
-		// To fix.
 		TransformState transform_state(translate, scale, rotate, parent_transform_index);
-		const auto transform_matrix = transform_state.GetTransformMatrix(transform_states, transforms, i_transforms);
 		
-		transform_state.SetValid();
-
-		transforms.emplace_back(transform_matrix);
-		i_transforms.emplace_back(glm::inverse(transform_matrix));
 		transform_states.emplace_back(transform_state);
+		transforms.emplace_back(glm::mat4(1.0f));
+		i_transforms.emplace_back(glm::mat4(1.0f));
 		transform_names.emplace_back(name);
 
+		const uint32_t current_transform_index = (uint32_t)transform_states.size() - 1;
+		InitTransformMatrix(transform_states, transforms, i_transforms, current_transform_index);
+		
 		transform_reference_transform_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 		transform_reference_primitive_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 		transform_reference_light_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
@@ -130,6 +129,42 @@ namespace YumeRT {
 			}
 
 			auto& transform_state = transform_states.at(transform_index);
+
+			// note: first collect transforms that need to update.
+			std::vector<uint32_t> transforms_to_updated;
+			std::function<void(const uint32_t)> collect_transforms = [&](const uint32_t transform_index) {
+				if (!(transform_index < transform_states.size())) {
+					return;
+				}
+				transforms_to_updated.push_back(transform_index);
+				for (auto& child_transform_index : transform_reference_transform_indices.at(transform_index)) {
+					collect_transforms(child_transform_index.first);
+				}
+			};
+			for (uint32_t transform_idx = 0; transform_idx < transform_states.size(); ++transform_idx)
+			{
+				if (transform_idx == transform_index) {
+					continue;
+				}
+
+				auto& current_transform = transform_states.at(transform_idx);
+				if (!((uint32_t)current_transform.parent_transform_index < transform_states.size())) {
+					continue;
+				}
+
+				if (current_transform.parent_transform_index == transform_index) {
+					current_transform.parent_transform_index = EMPTY_UINT32;
+					collect_transforms(transform_idx > transform_index ? transform_idx - 1 : transform_idx);
+				}
+				else if (current_transform.parent_transform_index > transform_index) {
+					current_transform.parent_transform_index -= 1;
+				}
+				else {
+
+				}
+			}
+
+			// note: update connections.
 			if ((uint32_t)transform_state.parent_transform_index < transform_states.size() && (--transform_reference_transform_indices[transform_state.parent_transform_index][transform_index]) == 0) {
 				transform_reference_transform_indices[transform_state.parent_transform_index].erase(transform_index);
 			}
@@ -144,28 +179,7 @@ namespace YumeRT {
 				transform_refer_map = std::move(updated_map);
 			}
 
-			for (uint32_t transform_idx = 0; transform_idx < transform_states.size(); ++transform_idx) 
-			{
-				if (transform_idx == transform_index) {
-					continue;	
-				}
-
-				auto& current_transform = transform_states.at(transform_idx);
-				if (!((uint32_t)current_transform.parent_transform_index < transform_states.size())) {
-					continue;
-				}
-
-				if (current_transform.parent_transform_index == transform_index) {
-					current_transform.parent_transform_index = EMPTY_UINT32;
-				}
-				else if (current_transform.parent_transform_index > transform_index) {
-					current_transform.parent_transform_index -= 1;
-				}
-				else {
-				
-				}
-			}
-
+			// note: distant light update.
 			std::vector<uint32_t> deleted_distant_lights;
 			deleted_distant_lights.reserve(distant_lights.size());
 			for (uint32_t distant_light_index = 0; distant_light_index < distant_lights.size(); ++distant_light_index) {
@@ -187,6 +201,7 @@ namespace YumeRT {
 			DeleteDistantLight(deleted_distant_lights);
 			change_flag |= SCENE_CHANGE_FLAG::SCENE_DISTANT_LIGHT_DELETE;
 
+			// note: volume updates.
 			std::vector<uint32_t> deleted_volumes;
 			deleted_volumes.reserve(volumes.size());
 			for (uint32_t volume_index = 0; volume_index < volumes.size(); ++volume_index) 
@@ -209,6 +224,7 @@ namespace YumeRT {
 			DeleteVolume(deleted_volumes);
 			change_flag |= SCENE_CHANGE_FLAG::SCENE_VOLUME_DELETE;
 
+			// note: prim updates.
 			std::vector<uint32_t> deleted_prims;
 			deleted_prims.reserve(primitive_instances.size());
 			for (auto& prim : primitive_instances) 
@@ -240,11 +256,32 @@ namespace YumeRT {
 			ERASE_STD_VECTOR(transforms, transform_index);
 			ERASE_STD_VECTOR(i_transforms, transform_index);
 
-			// To fix:
-			for (uint32_t transform_state_idx = 0; transform_state_idx < transform_states.size(); ++transform_state_idx) {
-				const auto transform_matrix = transform_states.at(transform_state_idx).GetTransformMatrix(transform_states, transforms, i_transforms);
-				transforms.at(transform_state_idx) = transform_matrix;
-				i_transforms.at(transform_state_idx) = glm::inverse(transform_matrix);
+			std::function<void(const uint32_t)> reset_transforms = [&](const uint32_t transform_index) {
+				if (!(transform_index < transform_states.size())) {
+					return;
+				}
+				transform_states.at(transform_index).SetInvalid();
+				for (auto& child_transform_index : transform_reference_transform_indices.at(transform_index)) {
+					reset_transforms(child_transform_index.first);
+				}
+			};
+
+			std::function<void(const uint32_t)> update_transforms = [&](const uint32_t transform_index)
+			{
+				if (!(transform_index < transform_states.size())) {
+					return;
+				}
+				InitTransformMatrix(transform_states, transforms, i_transforms, transform_index);
+				for (auto& child_transform_index : transform_reference_transform_indices.at(transform_index)) {
+					update_transforms(child_transform_index.first);
+				}
+			};
+
+			for (const auto transform_idx : transforms_to_updated) {
+				reset_transforms(transform_idx);
+			}
+			for (const auto transform_idx : transforms_to_updated) {
+				update_transforms(transform_idx);
 			}
 		}
 
@@ -257,10 +294,7 @@ namespace YumeRT {
 		}
 
 		auto& scene_device_data = scene_resource.scene;
-		transforms[index] = transform_states[index].GetTransformMatrix(transform_states, transforms, i_transforms);
-		i_transforms[index] = glm::inverse(transforms[index]);
-		
-		transform_states[index].SetValid();
+		InitTransformMatrix(transform_states, transforms, i_transforms, index);
 
 		assert(scene_device_data.transforms != nullptr && scene_device_data.i_transforms != nullptr);
 		TRANSFER_TO_GPU(scene_device_data.transforms + index, &transforms[index], sizeof(glm::mat4));

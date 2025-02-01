@@ -25,47 +25,39 @@ namespace YumeRT {
 			valid = false;
 		}
 
-		inline bool Valid() {
+		inline bool IsValid() const {
 			return valid;
 		}
 
 		// this function have to specify a pivot.
-		inline glm::mat4 GetTransformMatrix(const glm::vec3 &pivot)
-		{
-			auto matrix = Matrix_T(translate_xyz) *
-				Matrix_T(pivot) *
-				Matrix_R(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(rotate_xyz.z)) *
-				Matrix_R(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(rotate_xyz.y)) *
-				Matrix_R(glm::vec3(1.0f, 0.0f, 0.0f), glm::radians(rotate_xyz.x)) *
-				Matrix_S(scale_xyz) *
-				Matrix_T(-pivot);
-
-			return matrix;
-		}
-
-		// always scale and rotate around origin.
-		inline glm::mat4 GetTransformMatrix(std::vector<TransformState> &transform_states, std::vector<glm::mat4>& transforms, std::vector<glm::mat4>& i_transforms) const
-		{
-			assert(transform_states.size() == transforms.size());
-			
-			auto matrix = Matrix_T(translate_xyz) *
-				Matrix_R(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(rotate_xyz.z)) *
-				Matrix_R(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(rotate_xyz.y)) *
-				Matrix_R(glm::vec3(1.0f, 0.0f, 0.0f), glm::radians(rotate_xyz.x)) *
-				Matrix_S(scale_xyz);
-
-			auto parent_index = parent_transform_index;
-			while (parent_index != EMPTY_UINT32) {
-				const auto& parent_transform_state = transform_states[parent_index];
-				assert(parent_transform_state.valid);
-				const auto& parent_matrix = transforms[parent_index];
-				matrix = parent_matrix * matrix;
-
-				parent_index = parent_transform_state.parent_transform_index;
-			}
-			return matrix;
-		}
 	};
 	
+	// always scale and rotate around origin.
+	inline void InitTransformMatrix(std::vector<TransformState>& transform_states, std::vector<glm::mat4>& transforms, std::vector<glm::mat4>& i_transforms, const uint32_t current_transform_index)
+	{
+		assert(transform_states.size() == transforms.size());
+		assert(current_transform_index < transform_states.size());
 
+		auto& current_transform_state = transform_states.at(current_transform_index);
+
+		auto matrix = Matrix_T(current_transform_state.translate_xyz) *
+			Matrix_R(glm::vec3(0.0f, 0.0f, 1.0f), glm::radians(current_transform_state.rotate_xyz.z)) *
+			Matrix_R(glm::vec3(0.0f, 1.0f, 0.0f), glm::radians(current_transform_state.rotate_xyz.y)) *
+			Matrix_R(glm::vec3(1.0f, 0.0f, 0.0f), glm::radians(current_transform_state.rotate_xyz.x)) *
+			Matrix_S(current_transform_state.scale_xyz);
+
+		if ((uint32_t)current_transform_state.parent_transform_index < transform_states.size())
+		{
+			const auto& parent_transform_state = transform_states[current_transform_state.parent_transform_index];
+			if (!parent_transform_state.IsValid()) {
+				InitTransformMatrix(transform_states, transforms, i_transforms, current_transform_state.parent_transform_index);
+			}
+			const auto& parent_matrix = transforms[current_transform_state.parent_transform_index];
+			matrix = parent_matrix * matrix;
+		}
+
+		transforms.at(current_transform_index) = matrix;
+		i_transforms.at(current_transform_index) = glm::inverse(matrix);
+		transform_states.at(current_transform_index).SetValid();
+	}
 };
