@@ -226,6 +226,8 @@ namespace YumeRT{
 		void DeleteVolume(const std::vector<uint32_t>& indices);
 		void UpdateVolume(const uint32_t index);
 
+		void ReleaseSceneData();
+
 	private:
 		struct PrimitiveIndexGenerator
 		{
@@ -248,6 +250,11 @@ namespace YumeRT{
 				if (iter != inused_index.end()) {
 					inused_index.erase(iter);
 				}
+			}
+
+			inline void ResetState() {
+				index_counter = 0;
+				inused_index = {};
 			}
 		};
 
@@ -312,7 +319,10 @@ namespace YumeRT{
 			return camera[index];
 		}
 
+		
+
 		void InitHaltonPermuteTable();
+
 		Scene GetHostSceneDataPointer();
 	};
 }

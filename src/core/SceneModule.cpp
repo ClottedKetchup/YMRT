@@ -6,7 +6,8 @@
 
 namespace YumeRT {
 
-#define ERASE_STD_VECTOR(std_vector, index) std_vector.erase(std_vector.begin() + index)
+#define ERASE_STD_VECTOR(std_vector, index) {std_vector.erase(std_vector.begin() + index);}
+#define CLEAR_STD_CONTAINER(container) {container = {};}
 
 	SceneModule::SceneModule() :scene_resource{}, camera(),  render_setting{}, scene_change_flag(SCENE_INIT)
 	{
@@ -17,77 +18,7 @@ namespace YumeRT {
 
 	SceneModule::~SceneModule()
 	{
-		auto &scene = scene_resource.scene;
-
-		FREE_GPU_RESOURCE(scene.camera);
-		scene.camera_count = 0;
-		scene.camera = nullptr;
-
-		FREE_GPU_RESOURCE(scene.top_nodes);
-		scene.top_node_count = 0;
-		scene.top_nodes = nullptr;
-
-		FREE_GPU_RESOURCE(scene.primitive_instances);
-		scene.primitive_instance_count = 0;
-		scene.primitive_instances = nullptr;
-
-		FREE_GPU_RESOURCE(scene.geometries);
-		scene.geometry_count = 0;
-		scene.geometries = nullptr;
-
-		FREE_GPU_RESOURCE(scene.transforms);
-		FREE_GPU_RESOURCE(scene.i_transforms);
-		scene.transform_count = 0;
-		scene.transforms = nullptr;
-		scene.i_transforms = nullptr;
-
-		FREE_GPU_RESOURCE(scene.materials);
-		scene.material_count = 0;
-		scene.materials = nullptr;
-
-		FREE_GPU_RESOURCE(scene.textures);
-		scene.texture_count = 0;
-		scene.textures = nullptr;
-
-		FREE_GPU_RESOURCE(scene.distant_lights);
-		scene.distant_light_count = 0;
-		scene.distant_lights = nullptr;
-
-		FREE_GPU_RESOURCE(scene.shape_lights);
-		FREE_GPU_RESOURCE(scene.shape_light_sample_table);
-		scene.shape_light_count = 0;
-		scene.shape_lights = nullptr;
-		scene.shape_light_sample_table = nullptr;
-
-		FREE_GPU_RESOURCE(scene.volumes);
-		scene.volume_count = 0;
-		scene.volumes = nullptr;
-
-		FREE_GPU_RESOURCE(scene.image_tile_cache);
-		 // free tile device.
-		FREE_GPU_RESOURCE(image_tile_cache.image_tiles_device);
-		// free tile host.
-		image_tile_cache.image_tiles_host = nullptr;
-		for (auto& image_tile : image_texture_tiles) {
-			FREE_GPU_RESOURCE(image_tile.device_data);
-			if (image_tile.host_data != nullptr) {
-				free(image_tile.host_data);
-			}
-		}
-
-		FREE_GPU_RESOURCE(scene.sampler_data.halton_permute_table);
-		scene.sampler_data.halton_permute_table = nullptr;
-		FREE_GPU_RESOURCE(scene.sampler_data.sobol_matrices);
-		scene.sampler_data.sobol_matrices = nullptr;
-
-		FREE_GPU_RESOURCE(scene.render_setting);
-		scene.render_setting = nullptr;
-
-		for (auto& geometry : geometries) {
-			geometry.Destory();
-		}
-
-		ResetSceneFlag(SCENE_INIT);
+		ReleaseSceneData();
 	}
 
 	uint32_t SceneModule::CreateTransform(const std::string& name, const glm::vec3& translate, const glm::vec3& scale, const glm::vec3& rotate, const int parent_transform_index, const glm::vec3& pivot)
@@ -1477,6 +1408,118 @@ namespace YumeRT {
 		scene_host.camera_count = CAMERA_COUNT;
 		scene_host.camera = camera;
 		return scene_host;
+	}
+
+	void SceneModule::ReleaseSceneData()
+	{
+		auto& scene = scene_resource.scene;
+
+		FREE_GPU_RESOURCE(scene.camera);
+		scene.camera_count = 0;
+		scene.camera = nullptr;
+		camera[EDITOR_CAMERA_INDEX].SetFov(glm::radians(45.0f));
+		camera[EDITOR_CAMERA_INDEX].SetPosition(glm::vec3(0.0f, 0.0f, 10.0f));
+		camera[EDITOR_CAMERA_INDEX].SetDir(glm::vec3(0.0f, 0.0f, 10.0f) - glm::vec3(0.0f, 0.0f, 4.0f));
+
+		FREE_GPU_RESOURCE(scene.top_nodes);
+		scene.top_node_count = 0;
+		scene.top_nodes = nullptr;
+		CLEAR_STD_CONTAINER(top_nodes);
+
+		FREE_GPU_RESOURCE(scene.primitive_instances);
+		scene.primitive_instance_count = 0;
+		scene.primitive_instances = nullptr;
+		CLEAR_STD_CONTAINER(primitive_instances);
+		CLEAR_STD_CONTAINER(primitive_index_to_index_map);
+		CLEAR_STD_CONTAINER(primitive_index_to_name_map);
+		primitive_index_generator.ResetState();
+
+		FREE_GPU_RESOURCE(scene.geometries);
+		scene.geometry_count = 0;
+		scene.geometries = nullptr;
+		for (auto& geometry : geometries) {
+			geometry.Destory();
+		}
+		CLEAR_STD_CONTAINER(geometries);
+		CLEAR_STD_CONTAINER(geometry_reference_primitive_indices);
+		CLEAR_STD_CONTAINER(geometry_names);
+
+		FREE_GPU_RESOURCE(scene.transforms);
+		FREE_GPU_RESOURCE(scene.i_transforms);
+		scene.transform_count = 0;
+		scene.transforms = nullptr;
+		scene.i_transforms = nullptr;
+		CLEAR_STD_CONTAINER(transform_states);
+		CLEAR_STD_CONTAINER(transforms);
+		CLEAR_STD_CONTAINER(i_transforms);
+		CLEAR_STD_CONTAINER(transform_names);
+		CLEAR_STD_CONTAINER(transform_reference_light_indices);
+		CLEAR_STD_CONTAINER(transform_reference_primitive_indices);
+		CLEAR_STD_CONTAINER(transform_reference_transform_indices);
+		CLEAR_STD_CONTAINER(transform_reference_volume_indices);
+
+		FREE_GPU_RESOURCE(scene.materials);
+		scene.material_count = 0;
+		scene.materials = nullptr;
+		CLEAR_STD_CONTAINER(materials);
+		CLEAR_STD_CONTAINER(material_names);
+		CLEAR_STD_CONTAINER(material_reference_primitive_indices);
+
+		FREE_GPU_RESOURCE(scene.textures);
+		scene.texture_count = 0;
+		scene.textures = nullptr;
+		CLEAR_STD_CONTAINER(textures);
+		CLEAR_STD_CONTAINER(texture_reference_material_indices);
+		CLEAR_STD_CONTAINER(texture_reference_texture_indices);
+		CLEAR_STD_CONTAINER(texture_reference_volume_indices);
+		CLEAR_STD_CONTAINER(texture_names);
+
+		FREE_GPU_RESOURCE(scene.distant_lights);
+		scene.distant_light_count = 0;
+		scene.distant_lights = nullptr;
+		CLEAR_STD_CONTAINER(distant_lights);
+		CLEAR_STD_CONTAINER(distant_light_names);
+
+		FREE_GPU_RESOURCE(scene.shape_lights);
+		FREE_GPU_RESOURCE(scene.shape_light_sample_table);
+		scene.shape_light_count = 0;
+		scene.shape_lights = nullptr;
+		scene.shape_light_sample_table = nullptr;
+		CLEAR_STD_CONTAINER(shape_lights);
+		CLEAR_STD_CONTAINER(shape_light_sample_table);
+
+		FREE_GPU_RESOURCE(scene.volumes);
+		scene.volume_count = 0;
+		scene.volumes = nullptr;
+		CLEAR_STD_CONTAINER(volumes);
+		CLEAR_STD_CONTAINER(volume_reference_primitive_indices);
+		CLEAR_STD_CONTAINER(volume_names);
+
+		FREE_GPU_RESOURCE(scene.image_tile_cache);
+		// free tile device.
+		FREE_GPU_RESOURCE(image_tile_cache.image_tiles_device);
+		// free tile host.
+		image_tile_cache.image_tiles_host = nullptr;
+		for (auto& image_tile : image_texture_tiles) {
+			FREE_GPU_RESOURCE(image_tile.device_data);
+			if (image_tile.host_data != nullptr) {
+				free(image_tile.host_data);
+			}
+		}
+		CLEAR_STD_CONTAINER(image_texture_files);
+		CLEAR_STD_CONTAINER(image_texture_tiles);
+
+		FREE_GPU_RESOURCE(scene.sampler_data.halton_permute_table);
+		scene.sampler_data.halton_permute_table = nullptr;
+		FREE_GPU_RESOURCE(scene.sampler_data.sobol_matrices);
+		scene.sampler_data.sobol_matrices = nullptr;
+		CLEAR_STD_CONTAINER(permute_table);
+
+		FREE_GPU_RESOURCE(scene.render_setting);
+		scene.render_setting = nullptr;
+		render_setting = RenderSetting();
+
+		ResetSceneFlag(SCENE_INIT);
 	}
 
 	static bool ReadMeshData(const aiMesh *mesh, 

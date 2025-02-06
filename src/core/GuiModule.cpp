@@ -406,6 +406,19 @@ namespace YumeRT {
 		auto& m_renderer = *m_module_render;
 		auto& m_scene = *m_module_scene;
 
+		if (ImGui::CollapsingHeader("Load scene")) 
+		{
+			static char file_path_buf[128];
+			ImGui::InputText("File path", file_path_buf, 128);
+			if (ImGui::Button("Import scene")) {
+				UpdateDeviceData([&]() {
+					m_scene.ReleaseSceneData();
+					m_scene.LoadModelFromFile(std::string(file_path_buf), m_scene.CreateTransform("scene_root_transform"));
+					m_scene.CreateDistantLight("default distant light", glm::vec3(1.0f), m_scene.CreateTransform("default_distant_light_transform", glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(180.0f, 0.0f, 30.0f)), 1.0f);
+				});
+			}
+		}
+
 		if (ImGui::CollapsingHeader("Render setting"))
 		{
 			auto& render_setting = m_scene.render_setting;
@@ -2618,10 +2631,8 @@ namespace YumeRT {
 					const uint32_t transform_index = m_scene.CreateTransform(instance_name + std::string("_transform"));
 					const uint32_t material_index = m_scene.CreateDefaultMaterial(instance_name + std::string("_material"));
 					const uint32_t new_unique_index = m_scene.CreatePrimitiveInstance(instance_name, geometry_index, transform_index, material_index);
-					
-					list_highlight_unique_index = new_unique_index;
-					clicked_instance_unique_index = new_unique_index;
-					clicked_pixel_primitive_index = new_unique_index;
+
+					list_highlight_unique_index = clicked_instance_unique_index = clicked_pixel_primitive_index = new_unique_index;
 					show_warning = false;
 				}
 				else {
@@ -2641,6 +2652,17 @@ namespace YumeRT {
 				clicked_pixel_primitive_index = new_unique_index;
 			}
 			list_highlight_unique_index = new_unique_index;
+		}
+
+		ImGui::Separator();
+		static char model_file_path_buf[128];
+		ImGui::InputText("File path", model_file_path_buf, 128);
+		if (ImGui::Button("Create from file", ImVec2(button_size.x, 0.0f))) {
+			const std::string file_path_str(model_file_path_buf);
+			const std::string model_name = file_path_str.substr(file_path_str.rfind("\\") + 1);
+			m_scene.LoadModelFromFile(file_path_str, m_scene.CreateTransform(model_name + std::string("_root_transform")));
+
+			list_highlight_unique_index = clicked_instance_unique_index = clicked_pixel_primitive_index = m_scene.primitive_instances.back().unique_index;
 		}
 
 		ImGui::Separator();
