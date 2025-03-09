@@ -1779,15 +1779,23 @@ namespace YumeRT {
 	void SceneModule::LoadModelFromFile(const std::string& file_name, const uint32_t transform_index, const int inner_volume_index, const bool treat_as_boundary)
 	{
 		Assimp::Importer importer;
-		const aiScene* scene = importer.ReadFile(file_name, aiProcess_GenSmoothNormals | aiProcess_Triangulate);
+
+		std::string _own_file_name = file_name;
+		for (auto& c : _own_file_name) {
+			if (c == '\\') {
+				c = '/';
+			}
+		}
+
+		const aiScene* scene = importer.ReadFile(_own_file_name, aiProcess_GenSmoothNormals | aiProcess_Triangulate);
 		if (scene == nullptr || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) || scene->mRootNode == nullptr) {
-			printf("Fail to load model from path:\t %s.\n", file_name.c_str());
+			printf("Fail to load model from path:\t %s.\n", _own_file_name.c_str());
 			importer.FreeScene();
 			return;
 		}
 
 		std::unordered_map<uint32_t, uint32_t> material_map;
-		ReadNodeData(file_name.substr(0, file_name.rfind("\\") + 1), scene->mRootNode, scene, this, material_map, transform_index, inner_volume_index, treat_as_boundary);
+		ReadNodeData(_own_file_name.substr(0, _own_file_name.rfind("/") + 1), scene->mRootNode, scene, this, material_map, transform_index, inner_volume_index, treat_as_boundary);
 		importer.FreeScene();
 	}
 };

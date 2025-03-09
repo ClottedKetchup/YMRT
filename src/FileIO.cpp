@@ -13,6 +13,13 @@ namespace YumeRT
 		std::vector<ImageFile> &image_texture_files, 
 		std::vector<ImageTile> &image_texture_tiles)
 	{
+		std::string _own_file_name = file_name;
+		for (auto& c : _own_file_name) {
+			if (c == '\\') {
+				c = '/';
+			}
+		}
+
 		// load tex file
 		ImageTexture image_texture;
 		image_texture.tile_offset = -1;
@@ -33,9 +40,9 @@ namespace YumeRT
 			int image_width = 0, image_height = 0, image_channel = 0;
 			// TODO: put the filp switch to texture attribute.
 			stbi_set_flip_vertically_on_load(true);
-			image_handle = stbi_load(file_name.c_str(), &image_width, &image_height, &image_channel, 0);
+			image_handle = stbi_load(_own_file_name.c_str(), &image_width, &image_height, &image_channel, 0);
 			if (image_width == 0 || image_height == 0 || image_channel == 0 || image_handle == nullptr) {
-				printf("Image file %s load fail.\n", file_name.c_str());
+				printf("Image file %s load fail.\n", _own_file_name.c_str());
 				if (image_handle != nullptr) { 
 					stbi_image_free(image_handle); 
 				}
@@ -47,7 +54,7 @@ namespace YumeRT
 			for (size_t i = 0; i < image_buffer.size(); ++i) {
 				image_buffer[i] = SRGBToLinear(float((int)(image_handle[i])) * inv_255);
 			}
-			printf("Image file %s load success.\n", file_name.c_str());
+			printf("Image file %s load success.\n", _own_file_name.c_str());
 			stbi_image_free(image_handle);
 
 			image_texture.width = image_width;
@@ -56,7 +63,7 @@ namespace YumeRT
 		}
 
 		image_texture.file_offset = (int)image_texture_files.size();
-		image_texture_files.push_back(ImageFile(file_name));
+		image_texture_files.push_back(ImageFile(_own_file_name));
 
 		image_texture.mipmap_count = 1;
 		image_texture.mipmap_tile_offsets[0] = 0;

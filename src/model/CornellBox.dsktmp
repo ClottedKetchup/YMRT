@@ -1,0 +1,149 @@
+Begin(Cube);
+	name = "Geo_Cube";
+End(Cube);
+
+Begin(Sphere);
+	name = "Geo_sphere";
+	radius = 1.0f;
+End(Sphere);
+
+Begin(Camera);
+	from = <0.0f, 0.0f, 10.0f>;
+	look = <0.0f, 0.0f, 4.0f>;
+	fov = 45.0f;
+End(Camera);
+
+Begin(Transform);
+	name = "ground_transform";
+	translate = <0.0f, -5.55f, 0.0f>;
+	scale = <135.0, 1.0f, 135.0f>;
+End(Transform);
+
+Begin(DefaultMaterial);
+	name = "ground_material";
+End(DefaultMaterial);
+
+Begin(PrimitiveInstance);
+	name = "ground";
+	geometry_index = "Geo_Cube";
+	transform_index = "ground_transform";
+	material_index = "ground_material";
+End(PrimitiveInstance);
+
+Begin(Transform);
+	name = "cornellbox_transform";
+	translate = <0.0f, 0.0f, 0.0f>;
+	scale = <1.0, 1.0f, 1.0f>;
+End(Transform);
+
+#bottom wall
+Begin(Transform);
+	name = "bottom_wall_transform";
+	translate = <0.0f, -5.025f, -5.0f>;
+	scale = <10.0f, 0.05f, 10.0f>;
+	parent_transform_index = "cornellbox_transform";
+End(Transform);
+
+Begin(DefaultMaterial);
+	name = "bottom_wall_material";
+	diffuse_albedo = <0.75f, 0.75f, 0.75f>;
+End(DefaultMaterial);
+
+Begin(PrimitiveInstance);
+	name = "bottom_wall";
+	geometry_index = "Geo_Cube";
+	transform_index = "bottom_wall_transform";
+	material_index = "bottom_wall_material";
+End(PrimitiveInstance);
+
+#top wall
+Begin(Transform);
+	name = "top_wall_transform";
+	translate = <0.0f, 5.025f, -5.0f>;
+	scale = <10.0f, 0.05f, 10.0f>;
+	parent_transform_index = "cornellbox_transform";
+End(Transform);
+
+Begin(DefaultMaterial);
+	name = "top_wall_material";
+	diffuse_albedo = <0.75f, 0.75f, 0.75f>;
+End(DefaultMaterial);
+
+Begin(PrimitiveInstance);
+	name = "top_wall";
+	geometry_index = "Geo_Cube";
+	transform_index = "top_wall_transform";
+	material_index = "top_wall_material";
+End(PrimitiveInstance);
+
+#back wall
+Begin(Transform);
+	name = "back_wall_transform";
+	translate = <0.0f, 0.0f, -10.025f>;
+	scale = <10.0f, 10.0f, 0.05f>;
+	parent_transform_index = "cornellbox_transform";
+End(Transform);
+
+Begin(DefaultMaterial);
+	name = "back_wall_material";
+	diffuse_albedo = <0.75f, 0.75f, 0.75f>;
+End(DefaultMaterial);
+
+Begin(PrimitiveInstance);
+	name = "back_wall";
+	geometry_index = "Geo_Cube";
+	transform_index = "back_wall_transform";
+	material_index = "back_wall_material";
+End(PrimitiveInstance);
+
+#left wall
+Begin(Transform);
+	name = "left_wall_transform";
+	translate = <-5.025f, 0.0f, -5.0f>;
+	scale = <0.05f, 10.0f, 10.0f>;
+	parent_transform_index = "cornellbox_transform";
+End(Transform);
+
+Begin(DefaultMaterial);
+	name = "left_wall_material";
+	diffuse_albedo = <0.65f, 0.05f, 0.05f>;
+End(DefaultMaterial);
+
+Begin(PrimitiveInstance);
+	name = "left_wall";
+	geometry_index = "Geo_Cube";
+	transform_index = "left_wall_transform";
+	material_index = "left_wall_material";
+End(PrimitiveInstance);
+
+#right wall
+Begin(Transform);
+	name = "right_wall_transform";
+	translate = <5.025f, 0.0f, -5.0f>;
+	scale = <0.05f, 10.0f, 10.0f>;
+	parent_transform_index = "cornellbox_transform";
+End(Transform);
+
+Begin(DefaultMaterial);
+	name = "right_wall_material";
+	diffuse_albedo = <0.15f, 0.55f, 0.15f>;
+End(DefaultMaterial);
+
+Begin(PrimitiveInstance);
+	name = "right_wall";
+	geometry_index = "Geo_Cube";
+	transform_index = "right_wall_transform";
+	material_index = "right_wall_material";
+End(PrimitiveInstance);
+
+#distant light
+Begin(Transform);
+	name = "distant_light_transform";
+	rotate = <45.0f, 180.0f, 45.0f>;
+End(Transform);
+
+Begin(DistantLight);
+	name = "default_distant_light";
+	transform_index = "distant_light_transform";
+	intensity = 2.0f;
+End(DistantLight);

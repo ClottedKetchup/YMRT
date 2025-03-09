@@ -417,6 +417,16 @@ namespace YumeRT {
 					m_scene.CreateDistantLight("default distant light", glm::vec3(1.0f), m_scene.CreateTransform("default_distant_light_transform", glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(180.0f, 0.0f, 30.0f)), 1.0f);
 				});
 			}
+
+			ImGui::Separator();
+			static char dsk_tmp_file_path_buf[128];
+			ImGui::InputText("Scene temp file path", dsk_tmp_file_path_buf, 128);
+			if (ImGui::Button("Import temp file")) {
+				UpdateDeviceData([&]() {
+					m_scene.ReleaseSceneData();
+					parsing_scene(std::string(dsk_tmp_file_path_buf), m_module_scene);
+				});
+			}
 		}
 
 		if (ImGui::CollapsingHeader("Render setting"))
