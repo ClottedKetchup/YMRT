@@ -419,13 +419,23 @@ namespace YumeRT {
 			}
 
 			ImGui::Separator();
-			static char dsk_tmp_file_path_buf[128];
-			ImGui::InputText("Scene temp file path", dsk_tmp_file_path_buf, 128);
+			static char open_tmp_file_path_buf[128];
+			ImGui::InputText("Scene temp file path", open_tmp_file_path_buf, 128);
 			if (ImGui::Button("Import temp file")) {
 				UpdateDeviceData([&]() {
 					m_scene.ReleaseSceneData();
-					parsing_scene(std::string(dsk_tmp_file_path_buf), m_module_scene);
+
+					SceneParser parser;
+					parser.parsing_scene(std::string(open_tmp_file_path_buf), m_module_scene);
 				});
+			}
+
+			ImGui::Separator();
+			static char save_tmp_file_path_buf[128];
+			ImGui::InputText("save temp file path", save_tmp_file_path_buf, 128);
+			if (ImGui::Button("Save temp file")) {
+				SceneParser parser;
+				parser.save_scene(std::string(save_tmp_file_path_buf), m_module_scene);
 			}
 		}
 

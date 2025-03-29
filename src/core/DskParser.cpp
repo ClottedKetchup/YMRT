@@ -37,7 +37,7 @@ namespace YumeRT
 
 	bool is_valid_character(const char c) 
 	{
-		return std::isalpha(c) || std::isdigit(c) || c == '=' || c == '<' || c == '>' || c == ',' || c == '.' || c == '\"' || c == '(' || c == ')' || c == '#' || c == '_' || c == ';' || c =='[' || c == ']' || c == '+' || c == '-';
+		return std::isalpha(c) || std::isdigit(c) || c == '=' || c == '<' || c == '>' || c == ',' || c == '.' || c == '\"' || c == '(' || c == ')' || c == '#' || c == '_' || c == ';' || c == '[' || c == ']' || c == '+' || c == '-' || c == '\\' || c == '/' || c == ':';
 	}
 
 	bool is_valid_data_type(const std::string &data_type)
@@ -561,7 +561,26 @@ namespace YumeRT
 		}
 
 		for (int i = 1; i < (int)value.size() - 1; ++i) {
-			if (!(std::isalpha(value[i]) || std::isdigit(value[i]) || value[i] == '_')) {
+			if (!(std::isalpha(value[i]) || std::isdigit(value[i]) || value[i] == '_' || value[i] == '.')) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	bool is_file_path(const std::string& value)
+	{
+		if (value.size() < 2) {
+			return false;
+		}
+
+		if (!(value.front() == '\"' && value.back() == '\"')) {
+			return false;
+		}
+
+		for (int i = 1; i < (int)value.size() - 1; ++i) {
+			if (!(std::isalpha(value[i]) || std::isdigit(value[i]) || value[i] == '_' || value[i] == '.' || value[i] == '\\' || value[i] == '/' || value[i] == ':')) {
 				return false;
 			}
 		}
@@ -675,6 +694,7 @@ namespace YumeRT
 		if (!(is_numeric_float(value) || 
 			is_numeric_vector(value) ||
 			is_var_name(value) || 
+			is_file_path(value) ||
 			is_numeric_boolean(value) || 
 			is_numeric_int(value) || 
 			is_data_array(value))) 
@@ -2251,7 +2271,7 @@ namespace YumeRT
 		}
 	}
 
-	bool parsing_scene(const std::string& file_path, std::shared_ptr<YumeRT::SceneModule> scene_module)
+	bool SceneParser::parsing_scene(const std::string& file_path, std::shared_ptr<YumeRT::SceneModule> scene_module)
 	{
 		std::string _own_file_path = file_path;
 		for (auto& c : _own_file_path) {
@@ -2332,6 +2352,967 @@ namespace YumeRT
 
 		load_scene_asset(statement_tokens, scene_module);
 
+		return true;
+	}
+
+	
+	void save_attribute_vector(std::ofstream& os, const std::string& attribute_name, const glm::vec3 value) {
+		os << "\t" << attribute_name << " = ";
+		os << "<" << value.x << "," << value.y << "," << value.z << ">" << ";" << std::endl;
+	}
+
+	void save_attribute_float(std::ofstream& os, const std::string& attribute_name, const float value) {
+		os << "\t" << attribute_name << " = " << value <<  ";" << std::endl;
+	}
+
+	void save_attribute_int(std::ofstream& os, const std::string& attribute_name, const int value) {
+		os << "\t" << attribute_name << " = " << value << ";" << std::endl;
+	}
+
+	void save_attribute_triangle_array(std::ofstream& os, const std::string& attribute_name, const Triangle* triangles, const size_t size)
+	{
+		os << "\t" << attribute_name << " = " << "\n";
+		os << "[";
+		for (size_t index = 0; index < size; ++index) {
+			const Triangle& tri = triangles[index];
+			os << tri.id0 << ",";
+			os << tri.id1 << ",";
+			os << tri.id2;
+			if (index != size - 1) {
+				os << ",";
+				os << "\n";
+			}
+		}
+		os << "]";
+		os << ";" << std::endl;
+	}
+
+	void save_attribute_float_array(std::ofstream& os, const std::string& attribute_name, const float* data, const size_t size, const size_t per_line_element_count)
+	{
+		os << "\t" << attribute_name << " = " << "\n";
+		os << "[";
+		for (size_t index = 0; index < size; index += per_line_element_count) {
+			for (size_t line_i = 0; line_i < per_line_element_count - 1; ++line_i) {
+				os << data[index + line_i] << ",";
+			}
+			os << data[index + per_line_element_count - 1];
+			if (index + per_line_element_count - 1 != size - 1) {
+				os << ",";
+				os << "\n";
+			}
+		}
+		os << "]";
+		os << ";" << std::endl;
+	}
+
+	void save_attribute_int_array(std::ofstream& os, const std::string& attribute_name, const uint32_t* data, const size_t size, const size_t per_line_element_count)
+	{
+		os << "\t" << attribute_name << " = " << "\n";
+		os << "[";
+		for (size_t index = 0; index < size; index += 3) {
+			for (size_t line_i = 0; line_i < per_line_element_count - 1; ++line_i) {
+				os << data[index + line_i] << ",";
+			}
+			os << data[index + per_line_element_count - 1];
+			if (index + per_line_element_count - 1 != size - 1) {
+				os << ",";
+				os << "\n";
+			}
+		}
+		os << "]";
+		os << ";" << std::endl;
+	}
+
+	void save_attribute_boolean(std::ofstream& os, const std::string &attribute_name, const bool value) {
+		os << "\t" << attribute_name << " = " << (value ? "true" : "false") << ";" << std::endl;
+	}
+
+	void save_attribute_name(std::ofstream& os, const std::string& attribute_name, const std::string value) {
+		os << "\t" << attribute_name << " = " << "\"" << value << "\"" << ";" << std::endl;
+	}
+
+	bool SceneParser::save_camera(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager)
+	{
+		const auto& camera = scene_asset_manager.GetSceneCamera();
+		float fov = glm::degrees(camera.GetFov());
+		glm::vec3 from = camera.GetPosition();
+		glm::vec3 look = from - camera.GetW();
+
+		os << "Begin(Camera);" << std::endl;
+		save_attribute_float(os, "fov", fov);
+		save_attribute_vector(os, "from", from);
+		save_attribute_vector(os, "look", look);
+		os << "End(Camera);" << "\n" << std::endl;
+
+		return true;
+	}
+
+	bool SceneParser::save_mesh(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	{
+		if (!(index < scene_asset_manager.geometries.size())) {
+			return false;
+		}
+		
+		const auto& mesh = scene_asset_manager.geometries.at(index).triangle_mesh;
+		const auto& name = scene_asset_manager.geometry_names.at(index);
+
+		if (processed_name_set.find(name) != processed_name_set.end()) {
+			return false;
+		}
+
+		const Triangle* mesh_triangles = mesh.GetTrianglesHost();
+		const size_t triangle_count = mesh.triangle_count;
+
+		const uint32_t* mesh_position_indices = mesh.GetPositionIndicesHost();
+		const glm::vec3* mesh_positions = mesh.GetPositionsHost();
+		const size_t position_array_size = mesh.position_array_size;
+
+		const uint32_t* mesh_normal_indices = mesh.GetNormalIndicesHost();
+		const glm::vec3* mesh_normals = mesh.GetNormalsHost();
+		const size_t normal_array_size = mesh.normal_array_size;
+
+		const uint32_t* mesh_texcoord_indices = mesh.GetTexcoordIndicesHost();
+		const glm::vec2* mesh_texcoords = mesh.GetTexcoordsHost();
+		const size_t texcoord_array_size = mesh.texcoord_array_size;
+
+		os << "Begin(Mesh);" << std::endl;
+		save_attribute_name(os, "name", name);
+		save_attribute_triangle_array(os, "mesh_triangles", mesh_triangles, triangle_count);
+		save_attribute_int_array(os, "mesh_position_indices", mesh_position_indices, triangle_count * 3, 3);
+		save_attribute_float_array(os, "mesh_positions", (float*)mesh_positions, position_array_size, 3);
+		save_attribute_int_array(os, "mesh_normal_indices", mesh_normal_indices, triangle_count * 3, 3);
+		save_attribute_float_array(os, "mesh_normals", (float*)mesh_normals, normal_array_size, 3);
+		if (mesh_texcoord_indices != nullptr) {
+			save_attribute_int_array(os, "mesh_texcoord_indices", mesh_texcoord_indices, triangle_count * 3, 3);
+		}
+		if (mesh_texcoords != nullptr) {
+			save_attribute_float_array(os, "mesh_texcoords", (float*)mesh_texcoords, texcoord_array_size, 2);
+		}
+		os << "End(Mesh);" << "\n" << std::endl;
+
+		processed_name_set.insert(name);
+
+		return true;
+	}
+	bool SceneParser::save_sphere(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	{
+		if (!(index < scene_asset_manager.geometries.size())) {
+			return false;
+		}
+
+		const auto& sphere = scene_asset_manager.geometries.at(index).sphere;
+		const auto& name = scene_asset_manager.geometry_names.at(index);
+
+		if (processed_name_set.find(name) != processed_name_set.end()) {
+			return false;
+		}
+
+		os << "Begin(Sphere);" << std::endl;
+		save_attribute_name(os, "name", name);
+		save_attribute_float(os, "radius", sphere.radius);
+		os << "End(Sphere);" << "\n" << std::endl;
+
+		processed_name_set.insert(name);
+
+		return true;
+	}
+	bool SceneParser::save_geometry(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	{
+		const auto& geometry = scene_asset_manager.geometries.at(index);
+		if (geometry.geometry_type == GEOMETRY_TYPE::TRIANGLE_MESH) {
+			return save_mesh(os, processed_name_set, scene_asset_manager, index);
+		}
+		else if (geometry.geometry_type == GEOMETRY_TYPE::SPHERE) {
+			return save_sphere(os, processed_name_set, scene_asset_manager, index);
+		}
+		else {
+			return false;
+		}
+	}
+
+	bool SceneParser::save_transform(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	{
+		if (!(index < scene_asset_manager.transform_states.size())) {
+			return false;
+		}
+
+		const auto& transform_state = scene_asset_manager.transform_states.at(index);
+		const auto& name = scene_asset_manager.transform_names.at(index);
+		if (processed_name_set.find(name) != processed_name_set.end()) {
+			return false;
+		}
+
+		if ((uint32_t)transform_state.parent_transform_index < (uint32_t)scene_asset_manager.transform_states.size()) {
+			save_transform(os, processed_name_set, scene_asset_manager, transform_state.parent_transform_index);
+		}
+
+		os << "Begin(Transform);" << std::endl;
+		save_attribute_name(os, "name", name);
+		save_attribute_vector(os, "translate", transform_state.translate_xyz);
+		save_attribute_vector(os, "scale", transform_state.scale_xyz);
+		save_attribute_vector(os, "rotate", transform_state.rotate_xyz);
+		if ((uint32_t)transform_state.parent_transform_index < (uint32_t)scene_asset_manager.transform_states.size()) {
+			save_attribute_name(os, "parent_transform_index", scene_asset_manager.transform_names.at(transform_state.parent_transform_index));
+		}
+		os << "End(Transform);" << "\n" << std::endl;
+
+		processed_name_set.insert(name);
+
+		return true;
+	}
+
+	bool SceneParser::save_default_material(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	{
+		if (!(index < scene_asset_manager.materials.size())) {
+			return false;
+		}
+
+		const auto& default_material = scene_asset_manager.materials.at(index).default_mtl;
+		const auto& name = scene_asset_manager.material_names.at(index);
+
+		if (processed_name_set.find(name) != processed_name_set.end()) {
+			return false;
+		}
+
+		if ((uint32_t)default_material.diffuse_albedo_tex < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.diffuse_albedo_tex);
+		}
+		if ((uint32_t)default_material.alpha_x_tex < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.alpha_x_tex);
+		}
+		if ((uint32_t)default_material.specular_albedo_tex < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.specular_albedo_tex);
+		}
+		if ((uint32_t)default_material.alpha_y_tex < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.alpha_y_tex);
+		}
+		if ((uint32_t)default_material.specular_weight_tex < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.specular_weight_tex);
+		}
+		if ((uint32_t)default_material.metalness_tex < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.metalness_tex);
+		}
+		if ((uint32_t)default_material.transmission_weight_tex < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.transmission_weight_tex);
+		}
+		if ((uint32_t)default_material.normal_mapping_tex < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.normal_mapping_tex);
+		}
+		if ((uint32_t)default_material.bump_mapping_tex < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.bump_mapping_tex);
+		}
+
+		if ((uint32_t)default_material.coat_albedo_tex < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.coat_albedo_tex);
+		}
+		if ((uint32_t)default_material.coat_weight_tex < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.coat_weight_tex);
+		}
+		if ((uint32_t)default_material.coat_thickness_tex < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.coat_thickness_tex);
+		}
+		if ((uint32_t)default_material.coat_roughness_x_tex < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.coat_roughness_x_tex);
+		}
+		if ((uint32_t)default_material.coat_roughness_y_tex < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.coat_roughness_y_tex);
+		}
+
+		if ((uint32_t)default_material.coat_normal_tex < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.coat_normal_tex);
+		}
+
+		os << "Begin(DefaultMaterial);" << std::endl;
+		save_attribute_name(os, "name", name);
+		save_attribute_vector(os, "diffuse_albedo", default_material.diffuse_albedo);
+		save_attribute_vector(os, "specular_albedo", default_material.specular_albedo);
+		save_attribute_float(os, "roughness_x", default_material.alpha_x);
+		save_attribute_float(os, "roughness_y", default_material.alpha_y);
+		save_attribute_float(os, "ior_n", default_material.ior_n);
+		save_attribute_float(os, "metalness", default_material.metalness);
+		save_attribute_float(os, "specular_weight", default_material.specular_weight);
+		save_attribute_float(os, "transmission_weight", default_material.transmission_weight);
+
+		save_attribute_int(os, "ior_priority", default_material.ior_priority);
+
+		save_attribute_vector(os, "coat_albedo", default_material.coat_albedo);
+		save_attribute_float(os, "coat_weight", default_material.coat_weight);
+		save_attribute_float(os, "coat_thickness", default_material.coat_thickness);
+		save_attribute_float(os, "coat_ior", default_material.coat_ior);
+		save_attribute_float(os, "coat_roughness_x", default_material.coat_roughness_x);
+		save_attribute_float(os, "coat_roughness_y", default_material.coat_roughness_y);
+
+		if ((uint32_t)default_material.diffuse_albedo_tex < scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "diffuse_albedo_tex", scene_asset_manager.texture_names.at(default_material.diffuse_albedo_tex));
+		}
+		if ((uint32_t)default_material.alpha_x_tex < scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "alpha_x_tex", scene_asset_manager.texture_names.at(default_material.alpha_x_tex));
+		}
+		if ((uint32_t)default_material.specular_albedo_tex < scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "specular_albedo_tex", scene_asset_manager.texture_names.at(default_material.specular_albedo_tex));
+		}
+		if ((uint32_t)default_material.alpha_y_tex < scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "alpha_y_tex", scene_asset_manager.texture_names.at(default_material.alpha_y_tex));
+		}
+		if ((uint32_t)default_material.specular_weight_tex < scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "specular_weight_tex", scene_asset_manager.texture_names.at(default_material.specular_weight_tex));
+		}
+		if ((uint32_t)default_material.metalness_tex < scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "metalness_tex", scene_asset_manager.texture_names.at(default_material.metalness_tex));
+		}
+		if ((uint32_t)default_material.transmission_weight_tex < scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "transmission_weight_tex", scene_asset_manager.texture_names.at(default_material.transmission_weight_tex));
+		}
+
+		if ((uint32_t)default_material.normal_mapping_tex < scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "normal_mapping_tex", scene_asset_manager.texture_names.at(default_material.normal_mapping_tex));
+		}
+		if ((uint32_t)default_material.bump_mapping_tex < scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "bump_mapping_tex", scene_asset_manager.texture_names.at(default_material.bump_mapping_tex));
+		}
+
+		if ((uint32_t)default_material.coat_albedo_tex < scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "coat_albedo_tex", scene_asset_manager.texture_names.at(default_material.coat_albedo_tex));
+		}
+		if ((uint32_t)default_material.coat_weight_tex < scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "coat_weight_tex", scene_asset_manager.texture_names.at(default_material.coat_weight_tex));
+		}
+		if ((uint32_t)default_material.coat_thickness_tex < scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "coat_thickness_tex", scene_asset_manager.texture_names.at(default_material.coat_thickness_tex));
+		}
+		if ((uint32_t)default_material.coat_roughness_x_tex < scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "coat_roughness_x_tex", scene_asset_manager.texture_names.at(default_material.coat_roughness_x_tex));
+		}
+		if ((uint32_t)default_material.coat_roughness_y_tex < scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "coat_roughness_y_tex", scene_asset_manager.texture_names.at(default_material.coat_roughness_y_tex));
+		}
+
+		if ((uint32_t)default_material.coat_normal_tex < scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "coat_normal_tex", scene_asset_manager.texture_names.at(default_material.coat_normal_tex));
+			save_attribute_name(os, "coat_normal_tex_type", default_material.coat_normal_tex_type == COAT_NORMAL_TEXTURE_TYPE::NORMAL_TEX ? "normal_map" : "bump_map");
+		}
+
+		os << "End(DefaultMaterial);" << "\n" << std::endl;
+
+		processed_name_set.insert(name);
+
+		return true;
+	}
+	bool SceneParser::save_light_material(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	{
+		if (!(index < scene_asset_manager.materials.size())) {
+			return false;
+		}
+
+		const auto& light_material = scene_asset_manager.materials.at(index).light_mtl;
+		const auto& name = scene_asset_manager.material_names.at(index);
+
+		if (processed_name_set.find(name) != processed_name_set.end()) {
+			return false;
+		}
+
+		os << "Begin(LightMaterial);" << std::endl;
+		save_attribute_name(os, "name", name);
+		save_attribute_vector(os, "light_color", light_material.light_color);
+		save_attribute_float(os, "intensity", light_material.intensity);
+		os << "End(LightMaterial);" << "\n" << std::endl;
+
+		processed_name_set.insert(name);
+
+		return true;
+	}
+	bool SceneParser::save_material(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	{
+		const auto& material = scene_asset_manager.materials.at(index);
+		if (material.material_type == MATERIAL_TYPE::DEFAULT_MTL) {
+			return save_default_material(os, processed_name_set, scene_asset_manager, index);
+		}
+		else if (material.material_type == MATERIAL_TYPE::LIGHT_MTL) {
+			return save_light_material(os, processed_name_set, scene_asset_manager, index);
+		}
+		else {
+			return false;
+		}
+	}
+
+	bool SceneParser::save_primitive_instance(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t unique_index)
+	{
+		auto iter = scene_asset_manager.primitive_index_to_name_map.find(unique_index);
+		if (iter == scene_asset_manager.primitive_index_to_name_map.end()) {
+			return false;
+		}
+		
+		const std::string &name = (*iter).second;
+		if (processed_name_set.find(name) != processed_name_set.end()) {
+			return false;
+		}
+
+		const auto& primitive_instance = scene_asset_manager.primitive_instances.at(scene_asset_manager.primitive_index_to_index_map[unique_index]);
+		save_geometry(os, processed_name_set, scene_asset_manager, primitive_instance.geometry_idx);
+		save_transform(os, processed_name_set, scene_asset_manager, primitive_instance.transform_idx);
+		if ((uint32_t)primitive_instance.material_idx < (uint32_t)scene_asset_manager.materials.size()) {
+			save_material(os, processed_name_set, scene_asset_manager, primitive_instance.material_idx);
+		}
+		if ((uint32_t)primitive_instance.inner_volume_idx < (uint32_t)scene_asset_manager.volumes.size()) {
+			save_volume(os, processed_name_set, scene_asset_manager, primitive_instance.inner_volume_idx);
+		}
+
+		os << "Begin(PrimitiveInstance);" << std::endl;
+		save_attribute_name(os, "name", name);
+		save_attribute_name(os, "geometry_index", scene_asset_manager.geometry_names.at(primitive_instance.geometry_idx));
+		save_attribute_name(os, "transform_index", scene_asset_manager.transform_names.at(primitive_instance.transform_idx));
+		if ((uint32_t)primitive_instance.material_idx < (uint32_t)scene_asset_manager.materials.size()) {
+			save_attribute_name(os, "material_index", scene_asset_manager.material_names.at(primitive_instance.material_idx));
+		}
+		if ((uint32_t)primitive_instance.inner_volume_idx < (uint32_t)scene_asset_manager.volumes.size()) {
+			save_attribute_name(os, "inner_volume_index", scene_asset_manager.volume_names.at(primitive_instance.inner_volume_idx));
+		}
+		save_attribute_boolean(os, "treat_as_boundary", primitive_instance.treat_as_boundary);
+		os << "End(PrimitiveInstance);" << "\n" << std::endl;
+
+		processed_name_set.insert(name);
+
+		return true;
+	}
+
+	bool SceneParser::save_image_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	{
+		if (!(index < scene_asset_manager.textures.size())) {
+			return false;
+		}
+
+		const auto& image_texture = scene_asset_manager.textures.at(index).image_texture;
+		const auto& name = scene_asset_manager.texture_names.at(index);
+
+		if (processed_name_set.find(name) != processed_name_set.end()) {
+			return false;
+		}
+
+		const std::string &file_name = scene_asset_manager.image_texture_files.at(image_texture.file_offset).file_name;
+		os << "Begin(ImageTexture);" << std::endl;
+		save_attribute_name(os, "name", name);
+		save_attribute_name(os, "texture_file_name", file_name);
+		os << "End(ImageTexture);" << "\n" << std::endl;
+
+		processed_name_set.insert(name);
+
+		return true;
+	}
+	bool SceneParser::save_constant_float_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	{
+		if (!(index < scene_asset_manager.textures.size())) {
+			return false;
+		}
+
+		const auto& const_texture_float = scene_asset_manager.textures.at(index).constant_texture_float;
+		const auto& name = scene_asset_manager.texture_names.at(index);
+
+		if (processed_name_set.find(name) != processed_name_set.end()) {
+			return false;
+		}
+
+		os << "Begin(ConstantTextureFloat);" << std::endl;
+		save_attribute_name(os, "name", name);
+		save_attribute_float(os, "value", const_texture_float.value);
+		os << "End(ConstantTextureFloat);" << "\n" << std::endl;
+
+		processed_name_set.insert(name);
+
+		return true;
+	}
+	bool SceneParser::save_constant_rgb_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	{
+		if (!(index < scene_asset_manager.textures.size())) {
+			return false;
+		}
+
+		const auto& const_texture_rgb = scene_asset_manager.textures.at(index).constant_texture_rgb;
+		const auto& name = scene_asset_manager.texture_names.at(index);
+
+		if (processed_name_set.find(name) != processed_name_set.end()) {
+			return false;
+		}
+	
+		os << "Begin(ConstantTextureRgb);" << std::endl;
+		save_attribute_name(os, "name", name);
+		save_attribute_vector(os, "color", const_texture_rgb.color);
+		os << "End(ConstantTextureRgb);" << "\n" << std::endl;
+
+		processed_name_set.insert(name);
+
+		return true;
+	}
+	bool SceneParser::save_checker_board_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	{
+		if (!(index < scene_asset_manager.textures.size())) {
+			return false;
+		}
+
+		const auto& checker_board_texture = scene_asset_manager.textures.at(index).checker_board_texture;
+		const auto& name = scene_asset_manager.texture_names.at(index);
+
+		if (processed_name_set.find(name) != processed_name_set.end()) {
+			return false;
+		}
+
+		if ((uint32_t)checker_board_texture.child_texture_indices.texture_black < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, checker_board_texture.child_texture_indices.texture_black);
+		}
+		if ((uint32_t)checker_board_texture.child_texture_indices.texture_white < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, checker_board_texture.child_texture_indices.texture_white);
+		}
+
+		os << "Begin(CheckerBoardTexture);" << std::endl;
+		save_attribute_name(os, "name", name);
+		if ((uint32_t)checker_board_texture.child_texture_indices.texture_black < (uint32_t)scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "texture_black_idx", scene_asset_manager.texture_names.at(checker_board_texture.child_texture_indices.texture_black));
+		}
+		if ((uint32_t)checker_board_texture.child_texture_indices.texture_white < (uint32_t)scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "texture_white_idx", scene_asset_manager.texture_names.at(checker_board_texture.child_texture_indices.texture_white));
+		}
+		save_attribute_float(os, "frequency", checker_board_texture.frequency);
+		os << "End(CheckerBoardTexture);" << "\n" << std::endl;
+
+		processed_name_set.insert(name);
+
+		return true;
+	}
+	bool SceneParser::save_noise_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	{
+		if (!(index < scene_asset_manager.textures.size())) {
+			return false;
+		}
+
+		const auto& noise_texture = scene_asset_manager.textures.at(index).noise_texture;
+		const auto& name = scene_asset_manager.texture_names.at(index);
+
+		if (processed_name_set.find(name) != processed_name_set.end()) {
+			return false;
+		}
+
+		if ((uint32_t)noise_texture.child_texture_indices.texture_black < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture.child_texture_indices.texture_black);
+		}
+		if ((uint32_t)noise_texture.child_texture_indices.texture_white < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture.child_texture_indices.texture_white);
+		}
+
+		os << "Begin(NoiseTexture);" << std::endl;
+		save_attribute_name(os, "name", name);
+		if ((uint32_t)noise_texture.child_texture_indices.texture_black < (uint32_t)scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "texture_black_idx", scene_asset_manager.texture_names.at(noise_texture.child_texture_indices.texture_black));
+		}
+		if ((uint32_t)noise_texture.child_texture_indices.texture_white < (uint32_t)scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "texture_white_idx", scene_asset_manager.texture_names.at(noise_texture.child_texture_indices.texture_white));
+		}
+		save_attribute_float(os, "frequency", noise_texture.frequency);
+		save_attribute_boolean(os, "normalized", noise_texture.normalized);
+		os << "End(NoiseTexture);" << "\n" << std::endl;
+
+		processed_name_set.insert(name);
+
+		return true;
+	}
+	bool SceneParser::save_noise_fbm_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	{
+		if (!(index < scene_asset_manager.textures.size())) {
+			return false;
+		}
+
+		const auto& noise_texture_fbm = scene_asset_manager.textures.at(index).noise_texture_fbm;
+		const auto& name = scene_asset_manager.texture_names.at(index);
+
+		if (processed_name_set.find(name) != processed_name_set.end()) {
+			return false;
+		}
+
+		if ((uint32_t)noise_texture_fbm.child_texture_indices.texture_black < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_fbm.child_texture_indices.texture_black);
+		}
+		if ((uint32_t)noise_texture_fbm.child_texture_indices.texture_white < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_fbm.child_texture_indices.texture_white);
+		}
+
+		os << "Begin(NoiseTextureFBM);" << std::endl;
+		save_attribute_name(os, "name", name);
+		if ((uint32_t)noise_texture_fbm.child_texture_indices.texture_black < (uint32_t)scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "texture_black_idx", scene_asset_manager.texture_names.at(noise_texture_fbm.child_texture_indices.texture_black));
+		}
+		if ((uint32_t)noise_texture_fbm.child_texture_indices.texture_white < (uint32_t)scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "texture_white_idx", scene_asset_manager.texture_names.at(noise_texture_fbm.child_texture_indices.texture_white));
+		}
+		save_attribute_float(os, "frequency", noise_texture_fbm.frequency);
+		save_attribute_float(os, "lacunarity", noise_texture_fbm.lacunarity);
+		save_attribute_float(os, "gain", noise_texture_fbm.gain);
+		save_attribute_int(os, "layer_count", noise_texture_fbm.layer_count);
+		save_attribute_float(os, "amplitude", noise_texture_fbm.amplitude);
+		save_attribute_float(os, "offset", noise_texture_fbm.offset);
+		os << "End(NoiseTextureFBM);" << "\n" << std::endl;
+
+		processed_name_set.insert(name);
+
+		return true;
+	}
+	bool SceneParser::save_noise_turbulence_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	{
+		if (!(index < scene_asset_manager.textures.size())) {
+			return false;
+		}
+
+		const auto& noise_texture_turbulence = scene_asset_manager.textures.at(index).noise_texture_turbulence;
+		const auto& name = scene_asset_manager.texture_names.at(index);
+
+		if (processed_name_set.find(name) != processed_name_set.end()) {
+			return false;
+		}
+
+		if ((uint32_t)noise_texture_turbulence.child_texture_indices.texture_black < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_turbulence.child_texture_indices.texture_black);
+		}
+		if ((uint32_t)noise_texture_turbulence.child_texture_indices.texture_white < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_turbulence.child_texture_indices.texture_white);
+		}
+
+		os << "Begin(NoiseTextureTurbulence);" << std::endl;
+		save_attribute_name(os, "name", name);
+		if ((uint32_t)noise_texture_turbulence.child_texture_indices.texture_black < (uint32_t)scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "texture_black_idx", scene_asset_manager.texture_names.at(noise_texture_turbulence.child_texture_indices.texture_black));
+		}
+		if ((uint32_t)noise_texture_turbulence.child_texture_indices.texture_white < (uint32_t)scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "texture_white_idx", scene_asset_manager.texture_names.at(noise_texture_turbulence.child_texture_indices.texture_white));
+		}
+		save_attribute_float(os, "frequency", noise_texture_turbulence.frequency);
+		save_attribute_float(os, "lacunarity", noise_texture_turbulence.lacunarity);
+		save_attribute_float(os, "gain", noise_texture_turbulence.gain);
+		save_attribute_int(os, "layer_count", noise_texture_turbulence.layer_count);
+		save_attribute_float(os, "amplitude", noise_texture_turbulence.amplitude);
+		save_attribute_float(os, "offset", noise_texture_turbulence.offset);
+		os << "End(NoiseTextureTurbulence);" << "\n" << std::endl;
+
+		processed_name_set.insert(name);
+
+		return true;
+	}
+	bool SceneParser::save_noise_marble_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	{
+		if (!(index < scene_asset_manager.textures.size())) {
+			return false;
+		}
+
+		const auto& noise_texture_marble = scene_asset_manager.textures.at(index).noise_texture_marble;
+		const auto& name = scene_asset_manager.texture_names.at(index);
+
+		if (processed_name_set.find(name) != processed_name_set.end()) {
+			return false;
+		}
+
+		if ((uint32_t)noise_texture_marble.child_texture_indices.texture_black < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_marble.child_texture_indices.texture_black);
+		}
+		if ((uint32_t)noise_texture_marble.child_texture_indices.texture_white < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_marble.child_texture_indices.texture_white);
+		}
+
+		os << "Begin(NoiseTextureMarble);" << std::endl;
+		save_attribute_name(os, "name", name);
+		if ((uint32_t)noise_texture_marble.child_texture_indices.texture_black < (uint32_t)scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "texture_black_idx", scene_asset_manager.texture_names.at(noise_texture_marble.child_texture_indices.texture_black));
+		}
+		if ((uint32_t)noise_texture_marble.child_texture_indices.texture_white < (uint32_t)scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "texture_white_idx", scene_asset_manager.texture_names.at(noise_texture_marble.child_texture_indices.texture_white));
+		}
+		save_attribute_float(os, "frequency", noise_texture_marble.frequency);
+		save_attribute_float(os, "lacunarity", noise_texture_marble.lacunarity);
+		save_attribute_float(os, "gain", noise_texture_marble.gain);
+		save_attribute_int(os, "layer_count", noise_texture_marble.layer_count);
+		save_attribute_float(os, "variation", noise_texture_marble.variation);
+		save_attribute_boolean(os, "x_turb", noise_texture_marble.x_turb);
+		save_attribute_boolean(os, "y_turb", noise_texture_marble.y_turb);
+		save_attribute_boolean(os, "z_turb", noise_texture_marble.z_turb);
+		os << "End(NoiseTextureMarble);" << "\n" << std::endl;
+
+		processed_name_set.insert(name);
+
+		return true;
+	}
+	bool SceneParser::save_noise_wood_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	{
+		if (!(index < scene_asset_manager.textures.size())) {
+			return false;
+		}
+
+		const auto& noise_texture_wood = scene_asset_manager.textures.at(index).noise_texture_wood;
+		const auto& name = scene_asset_manager.texture_names.at(index);
+
+		if (processed_name_set.find(name) != processed_name_set.end()) {
+			return false;
+		}
+
+		if ((uint32_t)noise_texture_wood.child_texture_indices.texture_black < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_wood.child_texture_indices.texture_black);
+		}
+		if ((uint32_t)noise_texture_wood.child_texture_indices.texture_white < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_wood.child_texture_indices.texture_white);
+		}
+
+		os << "Begin(NoiseTextureWood);" << std::endl;
+		save_attribute_name(os, "name", name);
+		if ((uint32_t)noise_texture_wood.child_texture_indices.texture_black < (uint32_t)scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "texture_black_idx", scene_asset_manager.texture_names.at(noise_texture_wood.child_texture_indices.texture_black));
+		}
+		if ((uint32_t)noise_texture_wood.child_texture_indices.texture_white < (uint32_t)scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "texture_white_idx", scene_asset_manager.texture_names.at(noise_texture_wood.child_texture_indices.texture_white));
+		}
+		save_attribute_float(os, "frequency", noise_texture_wood.frequency);
+		save_attribute_float(os, "variation", noise_texture_wood.variation);
+		os << "End(NoiseTextureWood);" << "\n" << std::endl;
+
+		processed_name_set.insert(name);
+
+		return true;
+	}
+	bool SceneParser::save_noise_polka_dot_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	{
+		if (!(index < scene_asset_manager.textures.size())) {
+			return false;
+		}
+
+		const auto& noise_texture_polka_dot = scene_asset_manager.textures.at(index).noise_texture_polka_dot;
+		const auto& name = scene_asset_manager.texture_names.at(index);
+
+		if (processed_name_set.find(name) != processed_name_set.end()) {
+			return false;
+		}
+
+		if ((uint32_t)noise_texture_polka_dot.child_texture_indices.texture_black < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_polka_dot.child_texture_indices.texture_black);
+		}
+		if ((uint32_t)noise_texture_polka_dot.child_texture_indices.texture_white < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_polka_dot.child_texture_indices.texture_white);
+		}
+
+		os << "Begin(NoiseTexturePolkaDot);" << std::endl;
+		save_attribute_name(os, "name", name);
+		if ((uint32_t)noise_texture_polka_dot.child_texture_indices.texture_black < (uint32_t)scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "texture_black_idx", scene_asset_manager.texture_names.at(noise_texture_polka_dot.child_texture_indices.texture_black));
+		}
+		if ((uint32_t)noise_texture_polka_dot.child_texture_indices.texture_white < (uint32_t)scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "texture_white_idx", scene_asset_manager.texture_names.at(noise_texture_polka_dot.child_texture_indices.texture_white));
+		}
+		save_attribute_float(os, "frequency", noise_texture_polka_dot.frequency);
+		save_attribute_float(os, "radius", noise_texture_polka_dot.radius);
+		os << "End(NoiseTexturePolkaDot);" << "\n" << std::endl;
+
+		processed_name_set.insert(name);
+
+		return true;
+	}
+	bool SceneParser::save_noise_wave_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	{
+		if (!(index < scene_asset_manager.textures.size())) {
+			return false;
+		}
+
+		const auto& noise_texture_wave = scene_asset_manager.textures.at(index).noise_texture_wave;
+		const auto& name = scene_asset_manager.texture_names.at(index);
+
+		if (processed_name_set.find(name) != processed_name_set.end()) {
+			return false;
+		}
+
+		if ((uint32_t)noise_texture_wave.child_texture_indices.texture_black < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_wave.child_texture_indices.texture_black);
+		}
+		if ((uint32_t)noise_texture_wave.child_texture_indices.texture_white < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_wave.child_texture_indices.texture_white);
+		}
+
+		os << "Begin(NoiseTextureWave);" << std::endl;
+		save_attribute_name(os, "name", name);
+		if ((uint32_t)noise_texture_wave.child_texture_indices.texture_black < (uint32_t)scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "texture_black_idx", scene_asset_manager.texture_names.at(noise_texture_wave.child_texture_indices.texture_black));
+		}
+		if ((uint32_t)noise_texture_wave.child_texture_indices.texture_white < (uint32_t)scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "texture_white_idx", scene_asset_manager.texture_names.at(noise_texture_wave.child_texture_indices.texture_white));
+		}
+		save_attribute_float(os, "freq_0", noise_texture_wave.freq_0);
+		save_attribute_float(os, "lacunarity_0", noise_texture_wave.lacunarity_0);
+		save_attribute_float(os, "gain_0", noise_texture_wave.gain_0);
+		save_attribute_int(os, "layer_count_0", noise_texture_wave.layer_count_0);
+		save_attribute_float(os, "freq_1", noise_texture_wave.freq_1);
+		save_attribute_float(os, "lacunarity_1", noise_texture_wave.lacunarity_1);
+		save_attribute_float(os, "gain_1", noise_texture_wave.gain_1);
+		save_attribute_int(os, "layer_count_1", noise_texture_wave.layer_count_1);
+		os << "End(NoiseTextureWave);" << "\n" << std::endl;
+
+		processed_name_set.insert(name);
+
+		return true;
+	}
+	bool SceneParser::save_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	{
+		const auto& texture = scene_asset_manager.textures.at(index);
+		if (texture.texture_type == TEXTURE_TYPE::IMAGE_TEXTURE) {
+			return save_image_texture(os, processed_name_set, scene_asset_manager, index);
+		}
+		else if (texture.texture_type == TEXTURE_TYPE::CONSTANT_TEXTURE_FLOAT) {
+			return save_constant_float_texture(os, processed_name_set, scene_asset_manager, index);
+		}
+		else if (texture.texture_type == TEXTURE_TYPE::CONSTANT_TEXTURE_RGB) {
+			return save_constant_rgb_texture(os, processed_name_set, scene_asset_manager, index);
+		}
+		else if (texture.texture_type == TEXTURE_TYPE::SOLID_TEXTURE_CHECKERBOARD) {
+			return save_checker_board_texture(os, processed_name_set, scene_asset_manager, index);
+		}
+		else if (texture.texture_type == TEXTURE_TYPE::SOLID_TEXTURE_NOISE) {
+			return save_noise_texture(os, processed_name_set, scene_asset_manager, index);
+		}
+		else if (texture.texture_type == TEXTURE_TYPE::SOLID_TEXTURE_FBM) {
+			return save_noise_fbm_texture(os, processed_name_set, scene_asset_manager, index);
+		}
+		else if (texture.texture_type == TEXTURE_TYPE::SOLID_TEXTURE_TURBULENCE) {
+			return save_noise_turbulence_texture(os, processed_name_set, scene_asset_manager, index);
+		}
+		else if (texture.texture_type == TEXTURE_TYPE::SOLID_TEXTURE_MARBLE) {
+			return save_noise_marble_texture(os, processed_name_set, scene_asset_manager, index);
+		}
+		else if (texture.texture_type == TEXTURE_TYPE::SOLID_TEXTURE_WOOD) {
+			return save_noise_wood_texture(os, processed_name_set, scene_asset_manager, index);
+		}
+		else if (texture.texture_type == TEXTURE_TYPE::SOLID_TEXTURE_POLKA_DOT) {
+			return save_noise_polka_dot_texture(os, processed_name_set, scene_asset_manager, index);
+		}
+		else if (texture.texture_type == TEXTURE_TYPE::SOLID_TEXTURE_WAVE) {
+			return save_noise_wave_texture(os, processed_name_set, scene_asset_manager, index);
+		}
+		else {
+			return false;
+		}
+	}
+
+	bool SceneParser::save_distant_light(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	{
+		if (!(index < scene_asset_manager.distant_lights.size())) {
+			return false;
+		}
+
+		const auto& distant_light = scene_asset_manager.distant_lights.at(index);
+		const auto& name = scene_asset_manager.distant_light_names.at(index);
+
+		if (processed_name_set.find(name) != processed_name_set.end()) {
+			return false;
+		}
+
+		save_transform(os, processed_name_set, scene_asset_manager, distant_light.transform_idx);
+
+		os << "Begin(DistantLight);" << std::endl;
+		save_attribute_name(os, "name", name);
+		save_attribute_name(os, "transform_index", scene_asset_manager.transform_names.at(distant_light.transform_idx));
+		save_attribute_vector(os, "light_color", distant_light.light_color);
+		save_attribute_float(os, "intensity", distant_light.intensity);
+		save_attribute_float(os, "theta_max", distant_light.theta_max);
+		os << "End(DistantLight);" << "\n" << std::endl;
+
+		processed_name_set.insert(name);
+
+		return true;
+	}
+
+	bool SceneParser::save_volume(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	{
+		if (!(index < scene_asset_manager.volumes.size())) {
+			return false;
+		}
+
+		const auto& volume = scene_asset_manager.volumes.at(index);
+		const auto& name = scene_asset_manager.volume_names.at(index);
+
+		if (processed_name_set.find(name) != processed_name_set.end()) {
+			return false;
+		}
+
+		save_transform(os, processed_name_set, scene_asset_manager, volume.transform_idx);
+		if ((uint32_t)volume.density_texture_idx < (uint32_t)scene_asset_manager.textures.size()) {
+			save_texture(os, processed_name_set, scene_asset_manager, volume.density_texture_idx);
+		}
+
+		os << "Begin(Volume);" << std::endl;
+		save_attribute_name(os, "name", name);
+		save_attribute_name(os, "transform_index", scene_asset_manager.transform_names.at(volume.transform_idx));
+		save_attribute_vector(os, "sigma_t", volume.sigma_t);
+		save_attribute_vector(os, "albedo", volume.albedo);
+		save_attribute_float(os, "g", volume.g);
+		if ((uint32_t)volume.density_texture_idx < (uint32_t)scene_asset_manager.textures.size()) {
+			save_attribute_name(os, "density_texture_index", scene_asset_manager.texture_names.at(volume.density_texture_idx));
+		}
+		os << "End(Volume);" << "\n" << std::endl;
+
+		processed_name_set.insert(name);
+
+		return true;
+	}
+
+	
+
+	bool SceneParser::save_scene(const std::string& file_path, std::shared_ptr<YumeRT::SceneModule> scene_module) 
+	{
+		std::string _own_file_name = file_path;
+		for (auto& c : _own_file_name) {
+			if (c == '\\') {
+				c = '/';
+			}
+		}
+
+		const size_t dot_pos = _own_file_name.find('.');
+		if (dot_pos == std::string::npos) {
+			std::cerr << "Error: invalid file type!" << std::endl;
+			return false;
+		}
+
+		const std::string postfix(_own_file_name.begin() + dot_pos, _own_file_name.end());
+		if (postfix != dsk_file_postfix) {
+			std::cerr << "Error: invalid file type!" << std::endl;
+			return false;
+		}
+
+		std::ofstream ofs;
+		ofs << std::fixed;
+		ofs.open(_own_file_name);
+		if (!ofs.is_open()) {
+			std::cerr << "Error: Fail to save file, please check your path!" << std::endl;
+			return false;
+		}
+
+		std::unordered_set<std::string> processed_name_set;
+		auto& scene_asset_manager = *scene_module;
+
+		save_camera(ofs, processed_name_set, scene_asset_manager);
+
+		for (const auto& prim : scene_asset_manager.primitive_instances) {
+			auto unique_index = prim.unique_index;
+			save_primitive_instance(ofs, processed_name_set, scene_asset_manager, unique_index);
+		}
+
+		for (size_t index = 0; index < scene_asset_manager.geometries.size(); ++index) {
+			save_geometry(ofs, processed_name_set, scene_asset_manager, index);
+		}
+		for (size_t index = 0; index < scene_asset_manager.transform_states.size(); ++index) {
+			save_transform(ofs, processed_name_set, scene_asset_manager, index);
+		}
+		for (size_t index = 0; index < scene_asset_manager.materials.size(); ++index) {
+			save_material(ofs, processed_name_set, scene_asset_manager, index);
+		}
+		for (size_t index = 0; index < scene_asset_manager.textures.size(); ++index) {
+			save_texture(ofs, processed_name_set, scene_asset_manager, index);
+		}
+		for (size_t index = 0; index < scene_asset_manager.distant_lights.size(); ++index) {
+			save_distant_light(ofs, processed_name_set, scene_asset_manager, index);
+		}
+		for (size_t index = 0; index < scene_asset_manager.volumes.size(); ++index) {
+			save_volume(ofs, processed_name_set, scene_asset_manager, index);
+		}
+
+		ofs.close();
 		return true;
 	}
 };

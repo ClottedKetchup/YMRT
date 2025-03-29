@@ -13,6 +13,57 @@ Begin(Camera);
 	fov = 45.0f;
 End(Camera);
 
+Begin(ConstantTextureRgb);
+	name = "ground_diffuse_tex_black";
+	color = <0.05f, 0.05f, 0.05f>;
+End(ConstantTextureRgb);
+
+Begin(ConstantTextureRgb);
+	name = "ground_diffuse_tex_white";
+	color = <0.95f, 0.95f, 0.95f>;
+End(ConstantTextureRgb);
+
+Begin(CheckerBoardTexture);
+	name = "ground_diffuse_albedo_tex";
+	texture_black_idx = "ground_diffuse_tex_black";
+	texture_white_idx = "ground_diffuse_tex_white";
+	frequency = 63.0f;
+End(CheckerBoardTexture);
+
+Begin(ConstantTextureFloat);
+	name = "ground_metalness_tex_black";
+	value = 0.0f;
+End(ConstantTextureFloat);
+
+Begin(ConstantTextureFloat);
+	name = "ground_metalness_tex_white";
+	value = 0.75f;
+End(ConstantTextureFloat);
+
+Begin(CheckerBoardTexture);
+	name = "ground_metalness_tex";
+	texture_black_idx = "ground_metalness_tex_black";
+	texture_white_idx = "ground_metalness_tex_white";
+	frequency = 63.0f;
+End(CheckerBoardTexture);
+
+Begin(ConstantTextureFloat);
+	name = "ground_bump_tex_black";
+	value = 0.15f;
+End(ConstantTextureFloat);
+
+Begin(ConstantTextureFloat);
+	name = "ground_bump_tex_white";
+	value = 0.35f;
+End(ConstantTextureFloat);
+
+Begin(CheckerBoardTexture);
+	name = "ground_bump_tex";
+	texture_black_idx = "ground_bump_tex_black";
+	texture_white_idx = "ground_bump_tex_white";
+	frequency = 63.0f;
+End(CheckerBoardTexture);
+
 Begin(Transform);
 	name = "ground_transform";
 	translate = <0.0f, -5.55f, 0.0f>;
@@ -21,6 +72,10 @@ End(Transform);
 
 Begin(DefaultMaterial);
 	name = "ground_material";
+	diffuse_albedo_tex = "ground_diffuse_albedo_tex";
+	ior_n = 1.65f;
+	metalness_tex = "ground_metalness_tex";
+	bump_mapping_tex = "ground_bump_tex";
 End(DefaultMaterial);
 
 Begin(PrimitiveInstance);
@@ -139,7 +194,7 @@ End(PrimitiveInstance);
 #distant light
 Begin(Transform);
 	name = "distant_light_transform";
-	rotate = <45.0f, 180.0f, 45.0f>;
+	rotate = <135.0f, 180.0f, 45.0f>;
 End(Transform);
 
 Begin(DistantLight);

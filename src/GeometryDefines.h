@@ -29,6 +29,10 @@ namespace YumeRT
 		int64_t texcoord_offset; // vec2
 		int64_t node_offset; // node
 		int64_t boundingbox_offset;
+
+		int64_t position_array_size; // in terms of float.
+		int64_t normal_array_size;
+		int64_t texcoord_array_size;
 		
 		__device__ __host__ inline TriangleMesh() : device_data_ptr(nullptr), host_data_ptr(nullptr),
 			data_size(0),
@@ -40,8 +44,13 @@ namespace YumeRT
 			normal_offset(-1),
 			texcoord_idx_offset(-1),
 			texcoord_offset(-1),
-			node_offset(-1), 
-			boundingbox_offset(-1){}
+			node_offset(-1),
+			boundingbox_offset(-1),
+
+			position_array_size(0),
+			normal_array_size(0),
+			texcoord_array_size(0)
+		{}
 		__device__ __host__ inline Triangle* GetTrianglesDevice() const 
 		{
 #ifdef __CUDA_ARCH__
@@ -194,6 +203,10 @@ namespace YumeRT
 			assert(!mesh_triangles.empty());
 			geometry_type = GEOMETRY_TYPE::TRIANGLE_MESH;
 
+			assert(mesh_triangles.size() * 3 == mesh_position_idxs.size());
+			assert(mesh_triangles.size() * 3 == mesh_normal_idxs.size());
+			assert(mesh_triangles.size() * 3 == mesh_texcoord_idxs.size());
+
 			triangle_mesh.device_data_ptr = nullptr;
 			triangle_mesh.host_data_ptr = nullptr;
 			triangle_mesh.data_size = 0;
@@ -208,6 +221,10 @@ namespace YumeRT
 			triangle_mesh.node_offset = -1;
 			triangle_mesh.boundingbox_offset = -1;
 
+			triangle_mesh.position_array_size = 0;
+			triangle_mesh.normal_array_size = 0;
+			triangle_mesh.texcoord_array_size = 0;
+
 			std::vector<uint8_t> geometry_data_buffer;
 			auto append_to_buffer = [&](const void* data, size_t data_size)->size_t {
 				if (data_size == 0) {
@@ -221,14 +238,20 @@ namespace YumeRT
 				return data_offset;
 			};
 
+
 			triangle_mesh.triangle_count = mesh_triangles.size();
 			triangle_mesh.triangle_offset = append_to_buffer(mesh_triangles.data(), sizeof(Triangle) * mesh_triangles.size());
 			triangle_mesh.position_idx_offset = append_to_buffer(mesh_position_idxs.data(), sizeof(uint32_t) * mesh_position_idxs.size());
 			triangle_mesh.position_offset = append_to_buffer(mesh_positions.data(), sizeof(float) * mesh_positions.size());
+			triangle_mesh.position_array_size = mesh_positions.size();
+
 			triangle_mesh.normal_idx_offset = append_to_buffer(mesh_normal_idxs.data(), sizeof(uint32_t) * mesh_normal_idxs.size());
 			triangle_mesh.normal_offset = append_to_buffer(mesh_normals.data(), sizeof(float) * mesh_normals.size());
+			triangle_mesh.normal_array_size = mesh_normals.size();
+
 			triangle_mesh.texcoord_idx_offset = append_to_buffer(mesh_texcoord_idxs.data(), sizeof(uint32_t) * mesh_texcoord_idxs.size());
 			triangle_mesh.texcoord_offset = append_to_buffer(mesh_texcoords.data(), sizeof(float) * mesh_texcoords.size());
+			triangle_mesh.texcoord_array_size = mesh_texcoords.size();
 
 			BottomBVHBuilder MeshBuilder((Triangle*)(geometry_data_buffer.data() + triangle_mesh.triangle_offset),
 																triangle_mesh.triangle_count,
@@ -263,6 +286,10 @@ namespace YumeRT
 			triangle_mesh.texcoord_offset = -1;
 			triangle_mesh.node_offset = -1;
 			triangle_mesh.boundingbox_offset = -1;
+
+			triangle_mesh.position_array_size = 0;
+			triangle_mesh.normal_array_size = 0;
+			triangle_mesh.texcoord_array_size = 0;
 
 			std::vector<uint8_t> geometry_data_buffer;
 			auto append_to_buffer = [&](const void *data, size_t data_size)->size_t {
@@ -347,6 +374,7 @@ namespace YumeRT
 			-0.5f,  0.5f,  0.5f
 			};
 			triangle_mesh.position_offset = append_to_buffer(cube_positions.data(), sizeof(float) * cube_positions.size());
+			triangle_mesh.position_array_size = cube_positions.size();
 
 			std::vector<uint32_t> cube_normal_idxs = {
 			0, 1, 2,
@@ -408,6 +436,7 @@ namespace YumeRT
 			0.0f,  1.0f,  0.0f
 			};
 			triangle_mesh.normal_offset = append_to_buffer(cube_normals.data(), sizeof(float) * cube_normals.size());
+			triangle_mesh.normal_array_size = cube_normals.size();
 
 			std::vector<uint32_t> cube_texcoord_idxs = {
 			0, 1, 2,
@@ -469,6 +498,7 @@ namespace YumeRT
 			0.0f,  0.0f
 			};
 			triangle_mesh.texcoord_offset = append_to_buffer(cube_texcoords.data(), sizeof(float) * cube_texcoords.size());
+			triangle_mesh.texcoord_array_size = cube_texcoords.size();
 
 			BottomBVHBuilder MeshBuilder((Triangle*)(geometry_data_buffer.data() + triangle_mesh.triangle_offset),
 																triangle_mesh.triangle_count,

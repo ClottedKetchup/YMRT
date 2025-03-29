@@ -85,6 +85,7 @@ namespace YumeRT{
 
 		// note: for all the update function, their flag should handle by the gui interface.
 		friend class GuiModule;
+		friend class SceneParser;
 
 		inline Camera& GetSceneCamera() {
 			return camera[EDITOR_CAMERA_INDEX];
@@ -265,6 +266,7 @@ namespace YumeRT{
 
 		// renderer parameters.
 		RenderSetting render_setting;
+
 
 		// note: original host data.
 		Camera camera[CAMERA_COUNT];
