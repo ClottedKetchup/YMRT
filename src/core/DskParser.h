@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <cctype>
 #include <iomanip>
+#include <filesystem>
 
 #include "core/SceneModule.h"
 
@@ -38,37 +39,37 @@ namespace YumeRT {
 
 	private:
 
-		bool save_camera(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager);
+		bool save_camera(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const std::filesystem::path& texture_folder_path);
 
-		bool save_mesh(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index);
-		bool save_cube(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index);
-		bool save_sphere(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index);
-		bool save_geometry(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index);
+		bool save_mesh(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path);
+		bool save_cube(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path);
+		bool save_sphere(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path);
+		bool save_geometry(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path);
 
-		bool save_transform(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index);
+		bool save_transform(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path);
 
-		bool save_default_material(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index);
-		bool save_light_material(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index);
-		bool save_material(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index);
+		bool save_default_material(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path);
+		bool save_light_material(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path);
+		bool save_material(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path);
 
-		bool save_primitive_instance(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t unique_index);
+		bool save_primitive_instance(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t unique_index, const std::filesystem::path& texture_folder_path);
 
-		bool save_image_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index);
-		bool save_constant_float_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index);
-		bool save_constant_rgb_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index);
-		bool save_checker_board_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index);
-		bool save_noise_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index);
-		bool save_noise_fbm_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index);
-		bool save_noise_turbulence_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index);
-		bool save_noise_marble_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index);
-		bool save_noise_wood_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index);
-		bool save_noise_polka_dot_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index);
-		bool save_noise_wave_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index);
-		bool save_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index);
+		bool save_image_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path);
+		bool save_constant_float_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path);
+		bool save_constant_rgb_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path);
+		bool save_checker_board_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path);
+		bool save_noise_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path);
+		bool save_noise_fbm_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path);
+		bool save_noise_turbulence_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path);
+		bool save_noise_marble_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path);
+		bool save_noise_wood_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path);
+		bool save_noise_polka_dot_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path);
+		bool save_noise_wave_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path);
+		bool save_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path);
 
-		bool save_distant_light(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index);
+		bool save_distant_light(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path);
 
-		bool save_volume(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index);
+		bool save_volume(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path);
 	};
 
 	

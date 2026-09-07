@@ -2431,7 +2431,7 @@ namespace YumeRT
 		os << "\t" << attribute_name << " = " << "\"" << value << "\"" << ";" << std::endl;
 	}
 
-	bool SceneParser::save_camera(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager)
+	bool SceneParser::save_camera(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const std::filesystem::path& texture_folder_path)
 	{
 		const auto& camera = scene_asset_manager.GetSceneCamera();
 		float fov = glm::degrees(camera.GetFov());
@@ -2447,7 +2447,7 @@ namespace YumeRT
 		return true;
 	}
 
-	bool SceneParser::save_mesh(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	bool SceneParser::save_mesh(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path)
 	{
 		if (!(index < scene_asset_manager.geometries.size())) {
 			return false;
@@ -2494,7 +2494,7 @@ namespace YumeRT
 
 		return true;
 	}
-	bool SceneParser::save_sphere(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	bool SceneParser::save_sphere(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path)
 	{
 		if (!(index < scene_asset_manager.geometries.size())) {
 			return false;
@@ -2516,21 +2516,21 @@ namespace YumeRT
 
 		return true;
 	}
-	bool SceneParser::save_geometry(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	bool SceneParser::save_geometry(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path)
 	{
 		const auto& geometry = scene_asset_manager.geometries.at(index);
 		if (geometry.geometry_type == GEOMETRY_TYPE::TRIANGLE_MESH) {
-			return save_mesh(os, processed_name_set, scene_asset_manager, index);
+			return save_mesh(os, processed_name_set, scene_asset_manager, index, texture_folder_path);
 		}
 		else if (geometry.geometry_type == GEOMETRY_TYPE::SPHERE) {
-			return save_sphere(os, processed_name_set, scene_asset_manager, index);
+			return save_sphere(os, processed_name_set, scene_asset_manager, index, texture_folder_path);
 		}
 		else {
 			return false;
 		}
 	}
 
-	bool SceneParser::save_transform(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	bool SceneParser::save_transform(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path)
 	{
 		if (!(index < scene_asset_manager.transform_states.size())) {
 			return false;
@@ -2543,7 +2543,7 @@ namespace YumeRT
 		}
 
 		if ((uint32_t)transform_state.parent_transform_index < (uint32_t)scene_asset_manager.transform_states.size()) {
-			save_transform(os, processed_name_set, scene_asset_manager, transform_state.parent_transform_index);
+			save_transform(os, processed_name_set, scene_asset_manager, transform_state.parent_transform_index, texture_folder_path);
 		}
 
 		os << "Begin(Transform);" << std::endl;
@@ -2561,7 +2561,7 @@ namespace YumeRT
 		return true;
 	}
 
-	bool SceneParser::save_default_material(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	bool SceneParser::save_default_material(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path)
 	{
 		if (!(index < scene_asset_manager.materials.size())) {
 			return false;
@@ -2575,51 +2575,51 @@ namespace YumeRT
 		}
 
 		if ((uint32_t)default_material.diffuse_albedo_tex < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, default_material.diffuse_albedo_tex);
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.diffuse_albedo_tex, texture_folder_path);
 		}
 		if ((uint32_t)default_material.alpha_x_tex < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, default_material.alpha_x_tex);
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.alpha_x_tex, texture_folder_path);
 		}
 		if ((uint32_t)default_material.specular_albedo_tex < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, default_material.specular_albedo_tex);
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.specular_albedo_tex, texture_folder_path);
 		}
 		if ((uint32_t)default_material.alpha_y_tex < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, default_material.alpha_y_tex);
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.alpha_y_tex, texture_folder_path);
 		}
 		if ((uint32_t)default_material.specular_weight_tex < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, default_material.specular_weight_tex);
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.specular_weight_tex, texture_folder_path);
 		}
 		if ((uint32_t)default_material.metalness_tex < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, default_material.metalness_tex);
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.metalness_tex, texture_folder_path);
 		}
 		if ((uint32_t)default_material.transmission_weight_tex < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, default_material.transmission_weight_tex);
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.transmission_weight_tex, texture_folder_path);
 		}
 		if ((uint32_t)default_material.normal_mapping_tex < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, default_material.normal_mapping_tex);
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.normal_mapping_tex, texture_folder_path);
 		}
 		if ((uint32_t)default_material.bump_mapping_tex < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, default_material.bump_mapping_tex);
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.bump_mapping_tex, texture_folder_path);
 		}
 
 		if ((uint32_t)default_material.coat_albedo_tex < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, default_material.coat_albedo_tex);
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.coat_albedo_tex, texture_folder_path);
 		}
 		if ((uint32_t)default_material.coat_weight_tex < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, default_material.coat_weight_tex);
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.coat_weight_tex, texture_folder_path);
 		}
 		if ((uint32_t)default_material.coat_thickness_tex < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, default_material.coat_thickness_tex);
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.coat_thickness_tex, texture_folder_path);
 		}
 		if ((uint32_t)default_material.coat_roughness_x_tex < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, default_material.coat_roughness_x_tex);
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.coat_roughness_x_tex, texture_folder_path);
 		}
 		if ((uint32_t)default_material.coat_roughness_y_tex < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, default_material.coat_roughness_y_tex);
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.coat_roughness_y_tex, texture_folder_path);
 		}
 
 		if ((uint32_t)default_material.coat_normal_tex < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, default_material.coat_normal_tex);
+			save_texture(os, processed_name_set, scene_asset_manager, default_material.coat_normal_tex, texture_folder_path);
 		}
 
 		os << "Begin(DefaultMaterial);" << std::endl;
@@ -2698,7 +2698,7 @@ namespace YumeRT
 
 		return true;
 	}
-	bool SceneParser::save_light_material(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	bool SceneParser::save_light_material(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path)
 	{
 		if (!(index < scene_asset_manager.materials.size())) {
 			return false;
@@ -2721,21 +2721,21 @@ namespace YumeRT
 
 		return true;
 	}
-	bool SceneParser::save_material(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	bool SceneParser::save_material(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path)
 	{
 		const auto& material = scene_asset_manager.materials.at(index);
 		if (material.material_type == MATERIAL_TYPE::DEFAULT_MTL) {
-			return save_default_material(os, processed_name_set, scene_asset_manager, index);
+			return save_default_material(os, processed_name_set, scene_asset_manager, index, texture_folder_path);
 		}
 		else if (material.material_type == MATERIAL_TYPE::LIGHT_MTL) {
-			return save_light_material(os, processed_name_set, scene_asset_manager, index);
+			return save_light_material(os, processed_name_set, scene_asset_manager, index, texture_folder_path);
 		}
 		else {
 			return false;
 		}
 	}
 
-	bool SceneParser::save_primitive_instance(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t unique_index)
+	bool SceneParser::save_primitive_instance(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t unique_index, const std::filesystem::path& texture_folder_path)
 	{
 		auto iter = scene_asset_manager.primitive_index_to_name_map.find(unique_index);
 		if (iter == scene_asset_manager.primitive_index_to_name_map.end()) {
@@ -2748,13 +2748,13 @@ namespace YumeRT
 		}
 
 		const auto& primitive_instance = scene_asset_manager.primitive_instances.at(scene_asset_manager.primitive_index_to_index_map[unique_index]);
-		save_geometry(os, processed_name_set, scene_asset_manager, primitive_instance.geometry_idx);
-		save_transform(os, processed_name_set, scene_asset_manager, primitive_instance.transform_idx);
+		save_geometry(os, processed_name_set, scene_asset_manager, primitive_instance.geometry_idx, texture_folder_path);
+		save_transform(os, processed_name_set, scene_asset_manager, primitive_instance.transform_idx, texture_folder_path);
 		if ((uint32_t)primitive_instance.material_idx < (uint32_t)scene_asset_manager.materials.size()) {
-			save_material(os, processed_name_set, scene_asset_manager, primitive_instance.material_idx);
+			save_material(os, processed_name_set, scene_asset_manager, primitive_instance.material_idx, texture_folder_path);
 		}
 		if ((uint32_t)primitive_instance.inner_volume_idx < (uint32_t)scene_asset_manager.volumes.size()) {
-			save_volume(os, processed_name_set, scene_asset_manager, primitive_instance.inner_volume_idx);
+			save_volume(os, processed_name_set, scene_asset_manager, primitive_instance.inner_volume_idx, texture_folder_path);
 		}
 
 		os << "Begin(PrimitiveInstance);" << std::endl;
@@ -2775,7 +2775,7 @@ namespace YumeRT
 		return true;
 	}
 
-	bool SceneParser::save_image_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	bool SceneParser::save_image_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path)
 	{
 		if (!(index < scene_asset_manager.textures.size())) {
 			return false;
@@ -2788,17 +2788,34 @@ namespace YumeRT
 			return false;
 		}
 
-		const std::string &file_name = scene_asset_manager.image_texture_files.at(image_texture.file_offset).file_name;
+		processed_name_set.insert(name);
+
+		if (texture_folder_path.empty()) {
+			std::cerr << "Error: Fail to save image texture file!" << std::endl;
+			return false;
+		}
+
+		const std::string &file_path_str = scene_asset_manager.image_texture_files.at(image_texture.file_offset).file_name;
+
+		std::filesystem::path file_path(file_path_str);
+		std::filesystem::path  file_name = file_path.filename();
+		std::filesystem::path dst_file_path = texture_folder_path / file_name;
+
+		try {
+			std::filesystem::copy_file(file_path, dst_file_path, std::filesystem::copy_options::none);
+		}
+		catch (const std::filesystem::filesystem_error& e) {
+			std::cerr << e.what() << std::endl;
+		}
+
 		os << "Begin(ImageTexture);" << std::endl;
 		save_attribute_name(os, "name", name);
-		save_attribute_name(os, "texture_file_name", file_name);
+		save_attribute_name(os, "texture_file_name", file_name.string());
 		os << "End(ImageTexture);" << "\n" << std::endl;
-
-		processed_name_set.insert(name);
 
 		return true;
 	}
-	bool SceneParser::save_constant_float_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	bool SceneParser::save_constant_float_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path)
 	{
 		if (!(index < scene_asset_manager.textures.size())) {
 			return false;
@@ -2820,7 +2837,7 @@ namespace YumeRT
 
 		return true;
 	}
-	bool SceneParser::save_constant_rgb_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	bool SceneParser::save_constant_rgb_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path)
 	{
 		if (!(index < scene_asset_manager.textures.size())) {
 			return false;
@@ -2842,7 +2859,7 @@ namespace YumeRT
 
 		return true;
 	}
-	bool SceneParser::save_checker_board_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	bool SceneParser::save_checker_board_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path)
 	{
 		if (!(index < scene_asset_manager.textures.size())) {
 			return false;
@@ -2856,10 +2873,10 @@ namespace YumeRT
 		}
 
 		if ((uint32_t)checker_board_texture.child_texture_indices.texture_black < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, checker_board_texture.child_texture_indices.texture_black);
+			save_texture(os, processed_name_set, scene_asset_manager, checker_board_texture.child_texture_indices.texture_black, texture_folder_path);
 		}
 		if ((uint32_t)checker_board_texture.child_texture_indices.texture_white < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, checker_board_texture.child_texture_indices.texture_white);
+			save_texture(os, processed_name_set, scene_asset_manager, checker_board_texture.child_texture_indices.texture_white, texture_folder_path);
 		}
 
 		os << "Begin(CheckerBoardTexture);" << std::endl;
@@ -2877,7 +2894,7 @@ namespace YumeRT
 
 		return true;
 	}
-	bool SceneParser::save_noise_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	bool SceneParser::save_noise_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path)
 	{
 		if (!(index < scene_asset_manager.textures.size())) {
 			return false;
@@ -2891,10 +2908,10 @@ namespace YumeRT
 		}
 
 		if ((uint32_t)noise_texture.child_texture_indices.texture_black < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, noise_texture.child_texture_indices.texture_black);
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture.child_texture_indices.texture_black, texture_folder_path);
 		}
 		if ((uint32_t)noise_texture.child_texture_indices.texture_white < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, noise_texture.child_texture_indices.texture_white);
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture.child_texture_indices.texture_white, texture_folder_path);
 		}
 
 		os << "Begin(NoiseTexture);" << std::endl;
@@ -2913,7 +2930,7 @@ namespace YumeRT
 
 		return true;
 	}
-	bool SceneParser::save_noise_fbm_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	bool SceneParser::save_noise_fbm_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path)
 	{
 		if (!(index < scene_asset_manager.textures.size())) {
 			return false;
@@ -2927,10 +2944,10 @@ namespace YumeRT
 		}
 
 		if ((uint32_t)noise_texture_fbm.child_texture_indices.texture_black < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_fbm.child_texture_indices.texture_black);
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_fbm.child_texture_indices.texture_black, texture_folder_path);
 		}
 		if ((uint32_t)noise_texture_fbm.child_texture_indices.texture_white < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_fbm.child_texture_indices.texture_white);
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_fbm.child_texture_indices.texture_white, texture_folder_path);
 		}
 
 		os << "Begin(NoiseTextureFBM);" << std::endl;
@@ -2953,7 +2970,7 @@ namespace YumeRT
 
 		return true;
 	}
-	bool SceneParser::save_noise_turbulence_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	bool SceneParser::save_noise_turbulence_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path)
 	{
 		if (!(index < scene_asset_manager.textures.size())) {
 			return false;
@@ -2967,10 +2984,10 @@ namespace YumeRT
 		}
 
 		if ((uint32_t)noise_texture_turbulence.child_texture_indices.texture_black < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_turbulence.child_texture_indices.texture_black);
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_turbulence.child_texture_indices.texture_black, texture_folder_path);
 		}
 		if ((uint32_t)noise_texture_turbulence.child_texture_indices.texture_white < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_turbulence.child_texture_indices.texture_white);
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_turbulence.child_texture_indices.texture_white, texture_folder_path);
 		}
 
 		os << "Begin(NoiseTextureTurbulence);" << std::endl;
@@ -2993,7 +3010,7 @@ namespace YumeRT
 
 		return true;
 	}
-	bool SceneParser::save_noise_marble_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	bool SceneParser::save_noise_marble_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path)
 	{
 		if (!(index < scene_asset_manager.textures.size())) {
 			return false;
@@ -3007,10 +3024,10 @@ namespace YumeRT
 		}
 
 		if ((uint32_t)noise_texture_marble.child_texture_indices.texture_black < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_marble.child_texture_indices.texture_black);
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_marble.child_texture_indices.texture_black, texture_folder_path);
 		}
 		if ((uint32_t)noise_texture_marble.child_texture_indices.texture_white < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_marble.child_texture_indices.texture_white);
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_marble.child_texture_indices.texture_white, texture_folder_path);
 		}
 
 		os << "Begin(NoiseTextureMarble);" << std::endl;
@@ -3035,7 +3052,7 @@ namespace YumeRT
 
 		return true;
 	}
-	bool SceneParser::save_noise_wood_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	bool SceneParser::save_noise_wood_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path)
 	{
 		if (!(index < scene_asset_manager.textures.size())) {
 			return false;
@@ -3049,10 +3066,10 @@ namespace YumeRT
 		}
 
 		if ((uint32_t)noise_texture_wood.child_texture_indices.texture_black < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_wood.child_texture_indices.texture_black);
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_wood.child_texture_indices.texture_black, texture_folder_path);
 		}
 		if ((uint32_t)noise_texture_wood.child_texture_indices.texture_white < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_wood.child_texture_indices.texture_white);
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_wood.child_texture_indices.texture_white, texture_folder_path);
 		}
 
 		os << "Begin(NoiseTextureWood);" << std::endl;
@@ -3071,7 +3088,7 @@ namespace YumeRT
 
 		return true;
 	}
-	bool SceneParser::save_noise_polka_dot_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	bool SceneParser::save_noise_polka_dot_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path)
 	{
 		if (!(index < scene_asset_manager.textures.size())) {
 			return false;
@@ -3085,10 +3102,10 @@ namespace YumeRT
 		}
 
 		if ((uint32_t)noise_texture_polka_dot.child_texture_indices.texture_black < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_polka_dot.child_texture_indices.texture_black);
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_polka_dot.child_texture_indices.texture_black, texture_folder_path);
 		}
 		if ((uint32_t)noise_texture_polka_dot.child_texture_indices.texture_white < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_polka_dot.child_texture_indices.texture_white);
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_polka_dot.child_texture_indices.texture_white, texture_folder_path);
 		}
 
 		os << "Begin(NoiseTexturePolkaDot);" << std::endl;
@@ -3107,7 +3124,7 @@ namespace YumeRT
 
 		return true;
 	}
-	bool SceneParser::save_noise_wave_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	bool SceneParser::save_noise_wave_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path)
 	{
 		if (!(index < scene_asset_manager.textures.size())) {
 			return false;
@@ -3121,10 +3138,10 @@ namespace YumeRT
 		}
 
 		if ((uint32_t)noise_texture_wave.child_texture_indices.texture_black < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_wave.child_texture_indices.texture_black);
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_wave.child_texture_indices.texture_black, texture_folder_path);
 		}
 		if ((uint32_t)noise_texture_wave.child_texture_indices.texture_white < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_wave.child_texture_indices.texture_white);
+			save_texture(os, processed_name_set, scene_asset_manager, noise_texture_wave.child_texture_indices.texture_white, texture_folder_path);
 		}
 
 		os << "Begin(NoiseTextureWave);" << std::endl;
@@ -3149,48 +3166,48 @@ namespace YumeRT
 
 		return true;
 	}
-	bool SceneParser::save_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	bool SceneParser::save_texture(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path)
 	{
 		const auto& texture = scene_asset_manager.textures.at(index);
 		if (texture.texture_type == TEXTURE_TYPE::IMAGE_TEXTURE) {
-			return save_image_texture(os, processed_name_set, scene_asset_manager, index);
+			return save_image_texture(os, processed_name_set, scene_asset_manager, index, texture_folder_path);
 		}
 		else if (texture.texture_type == TEXTURE_TYPE::CONSTANT_TEXTURE_FLOAT) {
-			return save_constant_float_texture(os, processed_name_set, scene_asset_manager, index);
+			return save_constant_float_texture(os, processed_name_set, scene_asset_manager, index, texture_folder_path);
 		}
 		else if (texture.texture_type == TEXTURE_TYPE::CONSTANT_TEXTURE_RGB) {
-			return save_constant_rgb_texture(os, processed_name_set, scene_asset_manager, index);
+			return save_constant_rgb_texture(os, processed_name_set, scene_asset_manager, index, texture_folder_path);
 		}
 		else if (texture.texture_type == TEXTURE_TYPE::SOLID_TEXTURE_CHECKERBOARD) {
-			return save_checker_board_texture(os, processed_name_set, scene_asset_manager, index);
+			return save_checker_board_texture(os, processed_name_set, scene_asset_manager, index, texture_folder_path);
 		}
 		else if (texture.texture_type == TEXTURE_TYPE::SOLID_TEXTURE_NOISE) {
-			return save_noise_texture(os, processed_name_set, scene_asset_manager, index);
+			return save_noise_texture(os, processed_name_set, scene_asset_manager, index, texture_folder_path);
 		}
 		else if (texture.texture_type == TEXTURE_TYPE::SOLID_TEXTURE_FBM) {
-			return save_noise_fbm_texture(os, processed_name_set, scene_asset_manager, index);
+			return save_noise_fbm_texture(os, processed_name_set, scene_asset_manager, index, texture_folder_path);
 		}
 		else if (texture.texture_type == TEXTURE_TYPE::SOLID_TEXTURE_TURBULENCE) {
-			return save_noise_turbulence_texture(os, processed_name_set, scene_asset_manager, index);
+			return save_noise_turbulence_texture(os, processed_name_set, scene_asset_manager, index, texture_folder_path);
 		}
 		else if (texture.texture_type == TEXTURE_TYPE::SOLID_TEXTURE_MARBLE) {
-			return save_noise_marble_texture(os, processed_name_set, scene_asset_manager, index);
+			return save_noise_marble_texture(os, processed_name_set, scene_asset_manager, index, texture_folder_path);
 		}
 		else if (texture.texture_type == TEXTURE_TYPE::SOLID_TEXTURE_WOOD) {
-			return save_noise_wood_texture(os, processed_name_set, scene_asset_manager, index);
+			return save_noise_wood_texture(os, processed_name_set, scene_asset_manager, index, texture_folder_path);
 		}
 		else if (texture.texture_type == TEXTURE_TYPE::SOLID_TEXTURE_POLKA_DOT) {
-			return save_noise_polka_dot_texture(os, processed_name_set, scene_asset_manager, index);
+			return save_noise_polka_dot_texture(os, processed_name_set, scene_asset_manager, index, texture_folder_path);
 		}
 		else if (texture.texture_type == TEXTURE_TYPE::SOLID_TEXTURE_WAVE) {
-			return save_noise_wave_texture(os, processed_name_set, scene_asset_manager, index);
+			return save_noise_wave_texture(os, processed_name_set, scene_asset_manager, index, texture_folder_path);
 		}
 		else {
 			return false;
 		}
 	}
 
-	bool SceneParser::save_distant_light(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	bool SceneParser::save_distant_light(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path)
 	{
 		if (!(index < scene_asset_manager.distant_lights.size())) {
 			return false;
@@ -3203,7 +3220,7 @@ namespace YumeRT
 			return false;
 		}
 
-		save_transform(os, processed_name_set, scene_asset_manager, distant_light.transform_idx);
+		save_transform(os, processed_name_set, scene_asset_manager, distant_light.transform_idx, texture_folder_path);
 
 		os << "Begin(DistantLight);" << std::endl;
 		save_attribute_name(os, "name", name);
@@ -3218,7 +3235,7 @@ namespace YumeRT
 		return true;
 	}
 
-	bool SceneParser::save_volume(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index)
+	bool SceneParser::save_volume(std::ofstream& os, std::unordered_set<std::string>& processed_name_set, SceneModule& scene_asset_manager, const uint32_t index, const std::filesystem::path& texture_folder_path)
 	{
 		if (!(index < scene_asset_manager.volumes.size())) {
 			return false;
@@ -3231,9 +3248,9 @@ namespace YumeRT
 			return false;
 		}
 
-		save_transform(os, processed_name_set, scene_asset_manager, volume.transform_idx);
+		save_transform(os, processed_name_set, scene_asset_manager, volume.transform_idx, texture_folder_path);
 		if ((uint32_t)volume.density_texture_idx < (uint32_t)scene_asset_manager.textures.size()) {
-			save_texture(os, processed_name_set, scene_asset_manager, volume.density_texture_idx);
+			save_texture(os, processed_name_set, scene_asset_manager, volume.density_texture_idx, texture_folder_path);
 		}
 
 		os << "Begin(Volume);" << std::endl;
@@ -3275,6 +3292,12 @@ namespace YumeRT
 			return false;
 		}
 
+		std::filesystem::path scene_file_dir(_own_file_name);
+		std::filesystem::path parent_dir(scene_file_dir.parent_path());
+		if (!std::filesystem::is_directory(parent_dir)) {
+			std::filesystem::create_directory(parent_dir);
+		}
+
 		std::ofstream ofs;
 		ofs << std::fixed;
 		ofs.open(_own_file_name);
@@ -3286,30 +3309,45 @@ namespace YumeRT
 		std::unordered_set<std::string> processed_name_set;
 		auto& scene_asset_manager = *scene_module;
 
-		save_camera(ofs, processed_name_set, scene_asset_manager);
+		std::filesystem::path texture_folder_path;
+		if (!scene_asset_manager.textures.empty()) 
+		{
+			std::filesystem::path file_name = scene_file_dir.filename();
+
+			std::filesystem::path file_stem = file_name.stem();
+			std::filesystem::path file_extension = file_name.extension();
+			
+			std::string folder_name = "texture_" + file_stem.string() + "_" + file_extension.string();
+
+			texture_folder_path = parent_dir / std::filesystem::path(folder_name);
+
+			std::filesystem::create_directory(texture_folder_path);
+		}
+
+		save_camera(ofs, processed_name_set, scene_asset_manager, texture_folder_path);
 
 		for (const auto& prim : scene_asset_manager.primitive_instances) {
 			auto unique_index = prim.unique_index;
-			save_primitive_instance(ofs, processed_name_set, scene_asset_manager, unique_index);
+			save_primitive_instance(ofs, processed_name_set, scene_asset_manager, unique_index, texture_folder_path);
 		}
 
 		for (size_t index = 0; index < scene_asset_manager.geometries.size(); ++index) {
-			save_geometry(ofs, processed_name_set, scene_asset_manager, index);
+			save_geometry(ofs, processed_name_set, scene_asset_manager, index, texture_folder_path);
 		}
 		for (size_t index = 0; index < scene_asset_manager.transform_states.size(); ++index) {
-			save_transform(ofs, processed_name_set, scene_asset_manager, index);
+			save_transform(ofs, processed_name_set, scene_asset_manager, index, texture_folder_path);
 		}
 		for (size_t index = 0; index < scene_asset_manager.materials.size(); ++index) {
-			save_material(ofs, processed_name_set, scene_asset_manager, index);
+			save_material(ofs, processed_name_set, scene_asset_manager, index, texture_folder_path);
 		}
 		for (size_t index = 0; index < scene_asset_manager.textures.size(); ++index) {
-			save_texture(ofs, processed_name_set, scene_asset_manager, index);
+			save_texture(ofs, processed_name_set, scene_asset_manager, index, texture_folder_path);
 		}
 		for (size_t index = 0; index < scene_asset_manager.distant_lights.size(); ++index) {
-			save_distant_light(ofs, processed_name_set, scene_asset_manager, index);
+			save_distant_light(ofs, processed_name_set, scene_asset_manager, index, texture_folder_path);
 		}
 		for (size_t index = 0; index < scene_asset_manager.volumes.size(); ++index) {
-			save_volume(ofs, processed_name_set, scene_asset_manager, index);
+			save_volume(ofs, processed_name_set, scene_asset_manager, index, texture_folder_path);
 		}
 
 		ofs.close();
