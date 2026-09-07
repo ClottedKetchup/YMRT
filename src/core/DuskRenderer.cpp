@@ -7,6 +7,10 @@ namespace YumeRT {
 
 	DuskRenderer::DuskRenderer() :window(nullptr), module_scene(nullptr), module_render(nullptr), module_gui(nullptr)
 	{
+		CUDA_CHECK(cudaSetDevice(0));
+		CUDA_CHECK(cudaFree(0));
+		CUDA_CHECK(cudaDeviceSetLimit(cudaLimitStackSize, 2048u));
+
 		// TODO: follow cuda's official sample to select device, and record properties of devices
 		cudaGLSetGLDevice(0);
 

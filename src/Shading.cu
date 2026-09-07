@@ -171,7 +171,7 @@ namespace YumeRT
 				}
 			}
 		}
-		assert(!glm::isnan(direct_lighting.x) && !glm::isnan(direct_lighting.y) && !glm::isnan(direct_lighting.z));
+		assert(!::isnan(direct_lighting.x) && !::isnan(direct_lighting.y) && !::isnan(direct_lighting.z));
 		return  direct_lighting / distant_light_select_pdf;
 	}
 
@@ -778,7 +778,7 @@ namespace YumeRT
 					float pdf = 0.0f;
 					
 					bool sample_valid = material_bsdf.SampleWi(wo, &bsdf_weight, &wi, &pdf, sampler.Random1D(), sampler.Random1D(), sampler.Random1D());
-					assert(!glm::isnan(bsdf_weight.x) && !glm::isnan(bsdf_weight.y) && !glm::isnan(bsdf_weight.z));
+					assert(!::isnan(bsdf_weight.x) && !::isnan(bsdf_weight.y) && !::isnan(bsdf_weight.z));
 					if (!sample_valid) { break; }
 
 					// indirect light
@@ -820,7 +820,7 @@ namespace YumeRT
 			col += L;
 		} // for sample_idx
 
-		assert(!glm::isnan(col.x));
+		assert(!::isnan(col.x));
 		image[pixel_idx] = glm::vec4(col / float(render_setting.ssp), 1.0f);
 	}
 
@@ -2227,7 +2227,7 @@ namespace YumeRT
 		float pdf = 0.0f;
 
 		const bool sample_valid = material_bsdf.SampleWi(wo, &bsdf_weight, &wi, &pdf, ray_sampler.Random1D(), ray_sampler.Random1D(), ray_sampler.Random1D());
-		assert(!glm::isnan(bsdf_weight.x) && !glm::isnan(bsdf_weight.y) && !glm::isnan(bsdf_weight.z));
+		assert(!::isnan(bsdf_weight.x) && !::isnan(bsdf_weight.y) && !::isnan(bsdf_weight.z));
 		if (!sample_valid) {
 			write_ray_received_light(ray_received_light);
 			return;

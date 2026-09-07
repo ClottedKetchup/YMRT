@@ -155,7 +155,7 @@ namespace YumeRT
 			offset *= gain;
 			frequency *= lacunarity;
 		}
-		assert(!glm::isnan(turbulence_result));
+		assert(!::isnan(turbulence_result));
 		return turbulence_result;
 	}
 

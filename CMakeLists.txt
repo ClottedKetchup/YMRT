@@ -1,10 +1,15 @@
 cmake_minimum_required(VERSION 3.20)
 
+include(CheckCXXCompilerFlag)
+
 # incorporate c to fix assimp bug
 project(Yume LANGUAGES C CXX CUDA)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_C_FLAGS "-std=c99")
+
+# cuda debug
+# set(CMAKE_CUDA_FLAGS_DEBUG "${CMAKE_CUDA_FLAGS_DEBUG} -G")
 
 set(EXE_NAME Yume)
 
@@ -37,8 +42,16 @@ set_target_properties(${EXE_NAME} PROPERTIES
 					CUDA_SEPARABLE_COMPILATION ON
 					CUDA_ARCHITECTURES native
 					)
+target_compile_options(${EXE_NAME} PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xptxas=-v>
+)
 
-
+check_cxx_compiler_flag("/Zc:preprocessor" COMPILER_SUPPORTS_ZC_PREPROCESSOR)
+if(COMPILER_SUPPORTS_ZC_PREPROCESSOR)
+    target_compile_options(${EXE_NAME} PRIVATE
+        $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/Zc:preprocessor>
+    )
+endif()
 
 target_include_directories(${EXE_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 target_include_directories(${EXE_NAME} PRIVATE "${PROJECT_SOURCE_DIR}/external/glm")
