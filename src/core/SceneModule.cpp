@@ -28,7 +28,7 @@ namespace YumeRT {
 		transform_states.emplace_back(transform_state);
 		transforms.emplace_back(glm::mat4(1.0f));
 		i_transforms.emplace_back(glm::mat4(1.0f));
-		transform_names.emplace_back(name);
+		transform_names.emplace_back(RegisterAssetName(name));
 
 		const uint32_t current_transform_index = (uint32_t)transform_states.size() - 1;
 		InitTransformMatrix(transform_states, transforms, i_transforms, current_transform_index);
@@ -245,7 +245,7 @@ namespace YumeRT {
 			mesh_position_idxs, mesh_positions, 
 			mesh_normal_idxs, mesh_normals,
 			mesh_texcoord_idxs, mesh_texcoords));
-		geometry_names.emplace_back(name);
+		geometry_names.emplace_back(RegisterAssetName(name));
 
 		geometry_reference_primitive_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
@@ -260,7 +260,7 @@ namespace YumeRT {
 	uint32_t SceneModule::CreateCube(const std::string& name)
 	{
 		geometries.emplace_back(GeometryData().InitCube());
-		geometry_names.emplace_back(name);
+		geometry_names.emplace_back(RegisterAssetName(name));
 
 		geometry_reference_primitive_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
@@ -275,7 +275,7 @@ namespace YumeRT {
 	uint32_t SceneModule::CreateSphere(const std::string& name, const float radius)
 	{
 		geometries.emplace_back(GeometryData().InitSphere(radius));
-		geometry_names.emplace_back(name);
+		geometry_names.emplace_back(RegisterAssetName(name));
 
 		geometry_reference_primitive_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
@@ -356,7 +356,7 @@ namespace YumeRT {
 		}
 
 		primitive_index_to_index_map[unique_index] = primitive_instance_index;
-		primitive_index_to_name_map[unique_index] = name;
+		primitive_index_to_name_map[unique_index] = RegisterAssetName(name);
 
 		uint32_t change_flag = SCENE_CHANGE_FLAG::SCENE_INSTANCE_CREATE;
 		if ((uint32_t)material_index < materials.size() && materials.at(material_index).material_type == LIGHT_MTL) {
@@ -506,7 +506,7 @@ namespace YumeRT {
 			coat_normal_tex_type);
 
 		materials.emplace_back(default_material);
-		material_names.emplace_back(name);
+		material_names.emplace_back(RegisterAssetName(name));
 
 		material_reference_primitive_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
@@ -545,7 +545,7 @@ namespace YumeRT {
 		auto light_material = Material().InitLightMtl(light_color, intensity);
 
 		materials.emplace_back(light_material);
-		material_names.emplace_back(name);
+		material_names.emplace_back(RegisterAssetName(name));
 
 		material_reference_primitive_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
@@ -671,7 +671,7 @@ namespace YumeRT {
 		AddSceneFlag(SCENE_CHANGE_FLAG::SCENE_IMAGE_TILE_CREATE);
 
 		textures.emplace_back(Texture().InitImageTexture(image_texture));
-		texture_names.emplace_back(name);
+		texture_names.emplace_back(RegisterAssetName(name));
 
 		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
@@ -687,7 +687,7 @@ namespace YumeRT {
 		auto constant_texture_float = Texture().InitConstantTextureFloat(value);
 
 		textures.emplace_back(constant_texture_float);
-		texture_names.emplace_back(name);
+		texture_names.emplace_back(RegisterAssetName(name));
 
 		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
@@ -703,7 +703,7 @@ namespace YumeRT {
 		auto constant_texture_rgb = Texture().InitConstantTextureRGB(color);
 
 		textures.emplace_back(constant_texture_rgb);
-		texture_names.emplace_back(name);
+		texture_names.emplace_back(RegisterAssetName(name));
 
 		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
@@ -721,7 +721,7 @@ namespace YumeRT {
 		auto checkerboard_texture = Texture().InitCheckerBoardTexture(texture_black_idx, texture_white_idx, freqency);
 
 		textures.emplace_back(checkerboard_texture);
-		texture_names.emplace_back(name);
+		texture_names.emplace_back(RegisterAssetName(name));
 
 		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
@@ -746,7 +746,7 @@ namespace YumeRT {
 		auto noise_texture = Texture().InitNoiseTexture(texture_black_idx, texture_white_idx, frequency, normalized);
 
 		textures.emplace_back(noise_texture);
-		texture_names.emplace_back(name);
+		texture_names.emplace_back(RegisterAssetName(name));
 
 		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
@@ -777,7 +777,7 @@ namespace YumeRT {
 			amplitude, offset);
 
 		textures.emplace_back(noise_texture_fbm);
-		texture_names.emplace_back(name);
+		texture_names.emplace_back(RegisterAssetName(name));
 
 		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
@@ -808,7 +808,7 @@ namespace YumeRT {
 			amplitude, offset);
 
 		textures.emplace_back(noise_texture_turbulence);
-		texture_names.emplace_back(name);
+		texture_names.emplace_back(RegisterAssetName(name));
 
 		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
@@ -841,7 +841,7 @@ namespace YumeRT {
 			x_turb, y_turb, z_turb);
 
 		textures.emplace_back(noise_texture_marble);
-		texture_names.emplace_back(name);
+		texture_names.emplace_back(RegisterAssetName(name));
 
 		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
@@ -868,7 +868,7 @@ namespace YumeRT {
 			variation);
 
 		textures.emplace_back(noise_texture_wood);
-		texture_names.emplace_back(name);
+		texture_names.emplace_back(RegisterAssetName(name));
 
 		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
@@ -895,7 +895,7 @@ namespace YumeRT {
 			radius);
 
 		textures.emplace_back(noise_texture_polka_dot);
-		texture_names.emplace_back(name);
+		texture_names.emplace_back(RegisterAssetName(name));
 
 		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
@@ -926,7 +926,7 @@ namespace YumeRT {
 			gain_1, layer_count_1);
 
 		textures.emplace_back(noise_texture_wave);
-		texture_names.emplace_back(name);
+		texture_names.emplace_back(RegisterAssetName(name));
 
 		texture_reference_material_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 		texture_reference_texture_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
@@ -1096,7 +1096,7 @@ namespace YumeRT {
 		DistantLight distant_light(light_color, transform_index, intensity, theta_max);
 
 		distant_lights.emplace_back(distant_light);
-		distant_light_names.emplace_back(name);
+		distant_light_names.emplace_back(RegisterAssetName(name));
 
 		const auto distant_light_index = (uint32_t)distant_lights.size() - 1;
 		if (transform_index != EMPTY_UINT32) {
@@ -1265,7 +1265,7 @@ namespace YumeRT {
 		volume.g = g;
 
 		volumes.emplace_back(volume);
-		volume_names.emplace_back(name);
+		volume_names.emplace_back(RegisterAssetName(name));
 
 		volume_reference_primitive_indices.emplace_back(std::unordered_map<uint32_t, uint32_t>());
 
@@ -1518,6 +1518,8 @@ namespace YumeRT {
 		FREE_GPU_RESOURCE(scene.render_setting);
 		scene.render_setting = nullptr;
 		render_setting = RenderSetting();
+
+		CLEAR_STD_CONTAINER(registered_asset_names);
 
 		ResetSceneFlag(SCENE_INIT);
 	}

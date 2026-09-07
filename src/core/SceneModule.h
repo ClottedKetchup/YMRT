@@ -259,6 +259,20 @@ namespace YumeRT{
 			}
 		};
 
+		std::unordered_set<std::string> registered_asset_names;
+
+		inline std::string RegisterAssetName(const std::string& name)
+		{
+			std::string unique_name = name;
+			uint32_t suffix_index = 1;
+			while (registered_asset_names.find(unique_name) != registered_asset_names.end()) {
+				unique_name = name + "_" + std::to_string(suffix_index);
+				++suffix_index;
+			}
+			registered_asset_names.insert(unique_name);
+			return unique_name;
+		}
+
 		uint32_t scene_change_flag;
 
 		// note: device data block.
