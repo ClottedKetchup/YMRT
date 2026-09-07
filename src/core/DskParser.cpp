@@ -15,6 +15,18 @@ namespace YumeRT
 		std::cerr << error << " at line " << statement.line << std::endl;
 	};
 
+	std::filesystem::path get_texture_folder_from_scene_file(const std::filesystem::path& scene_file_dir)
+	{
+		std::filesystem::path file_name = scene_file_dir.filename();
+
+		std::filesystem::path file_stem = file_name.stem();
+		std::filesystem::path file_extension = file_name.extension();
+
+		std::string folder_name = "texture_" + file_stem.string() + "_" + file_extension.string().substr(1);
+
+		return scene_file_dir.parent_path() / std::filesystem::path(folder_name);
+	}
+
 	bool is_valid_bracket(const char c) 
 	{
 		return c == '<' || c == '>' || c == '(' || c == ')';
@@ -946,7 +958,7 @@ namespace YumeRT
 	}
 	
 
-	void read_camera_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map)
+	void read_camera_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map, const std::filesystem::path& scene_file_dir)
 	{
 		glm::vec3 from = glm::vec3(0.0f, 0.0f, 10.0f);
 		glm::vec3 look = glm::vec3(0.0f, 0.0f, 4.0f);
@@ -979,7 +991,7 @@ namespace YumeRT
 		camera.SetDir(from - look);
 	}
 
-	void read_transform_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map)
+	void read_transform_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map, const std::filesystem::path& scene_file_dir)
 	{
 		std::string name;
 		glm::vec3 translate(0.0, 0.0, 0.0);
@@ -1028,7 +1040,7 @@ namespace YumeRT
 		name_to_index_map[name] = transform_index;
 	}
 
-	void read_mesh_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map)
+	void read_mesh_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map, const std::filesystem::path& scene_file_dir)
 	{
 		std::string name;
 		std::vector<Triangle> mesh_triangles;
@@ -1101,7 +1113,7 @@ namespace YumeRT
 		name_to_index_map[name] = mesh_index;
 	}
 
-	void read_cube_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map)
+	void read_cube_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map, const std::filesystem::path& scene_file_dir)
 	{
 		std::string name;
 
@@ -1130,7 +1142,7 @@ namespace YumeRT
 		name_to_index_map[name] = cube_index;
 	}
 
-	void read_sphere_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map)
+	void read_sphere_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map, const std::filesystem::path& scene_file_dir)
 	{
 		std::string name;
 		float radius = 1.0f;
@@ -1164,7 +1176,7 @@ namespace YumeRT
 		name_to_index_map[name] = sphere_index;
 	}
 
-	void read_primitive_instance_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map)
+	void read_primitive_instance_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map, const std::filesystem::path& scene_file_dir)
 	{
 		std::string name;
 		uint32_t geometry_index = EMPTY_UINT32;
@@ -1229,7 +1241,7 @@ namespace YumeRT
 		name_to_index_map[name] = prim_index;
 	}
 
-	void read_default_material_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map)
+	void read_default_material_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map, const std::filesystem::path& scene_file_dir)
 	{
 		std::string name;
 		glm::vec3 diffuse_albedo = glm::vec3(0.5f);
@@ -1446,7 +1458,7 @@ namespace YumeRT
 		name_to_index_map[name] = material_index;
 	}
 
-	void read_light_material_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map)
+	void read_light_material_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map, const std::filesystem::path& scene_file_dir)
 	{
 		std::string name;
 		glm::vec3 light_color(1.0f);
@@ -1485,7 +1497,7 @@ namespace YumeRT
 		name_to_index_map[name] = material_index;
 	}
 
-	void read_image_texture_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map)
+	void read_image_texture_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map, const std::filesystem::path& scene_file_dir)
 	{
 		std::string name; 
 		std::string texture_file_name;
@@ -1517,12 +1529,19 @@ namespace YumeRT
 			issue_an_error(statement_tokens.at(start), "Error: image texture type require an file path to specify!");
 			return;
 		}
+		if (scene_file_dir.empty()) {
+			issue_an_error(statement_tokens.at(start), "Error: scene file invalid!");
+			return;
+		}
 
-		const uint32_t image_texture_index = scene_asset_manager.CreateImageTexture(name, texture_file_name);
+		std::filesystem::path texture_folder_path = get_texture_folder_from_scene_file(scene_file_dir);
+		std::filesystem::path texture_file_path = texture_folder_path / std::filesystem::path(texture_file_name);
+
+		const uint32_t image_texture_index = scene_asset_manager.CreateImageTexture(name, texture_file_path.string());
 		name_to_index_map[name] = image_texture_index;
 	}
 
-	void read_constant_texture_float_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map)
+	void read_constant_texture_float_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map, const std::filesystem::path& scene_file_dir)
 	{
 		std::string name;
 		float value = 1.0f;
@@ -1555,7 +1574,7 @@ namespace YumeRT
 		name_to_index_map[name] = constant_texture_index;
 	}
 
-	void read_constant_texture_rgb_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map)
+	void read_constant_texture_rgb_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map, const std::filesystem::path& scene_file_dir)
 	{
 		std::string name;
 		glm::vec3 color(0.5f);
@@ -1588,7 +1607,7 @@ namespace YumeRT
 		name_to_index_map[name] = constant_texture_index;
 	}
 
-	void read_checker_texture_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map)
+	void read_checker_texture_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map, const std::filesystem::path& scene_file_dir)
 	{
 		std::string name;
 		uint32_t texture_black_idx = EMPTY_UINT32;
@@ -1638,7 +1657,7 @@ namespace YumeRT
 		name_to_index_map[name] = checker_texture_index;
 	}
 
-	void read_noise_texture_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map)
+	void read_noise_texture_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map, const std::filesystem::path& scene_file_dir)
 	{
 		std::string name;
 		uint32_t texture_black_idx = EMPTY_UINT32;
@@ -1692,7 +1711,7 @@ namespace YumeRT
 		name_to_index_map[name] = noise_texture_index;
 	}
 
-	void read_noise_texture_fbm_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map)
+	void read_noise_texture_fbm_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map, const std::filesystem::path& scene_file_dir)
 	{
 		std::string name;
 		uint32_t texture_black_idx = EMPTY_UINT32;
@@ -1759,7 +1778,7 @@ namespace YumeRT
 		name_to_index_map[name] = noise_texture_fbm_index;
 	}
 
-	void read_noise_texture_turbulence_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map)
+	void read_noise_texture_turbulence_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map, const std::filesystem::path& scene_file_dir)
 	{
 		std::string name;
 		uint32_t texture_black_idx = EMPTY_UINT32;
@@ -1826,7 +1845,7 @@ namespace YumeRT
 		name_to_index_map[name] = noise_texture_turbulence_index;
 	}
 
-	void read_noise_texture_marble_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map)
+	void read_noise_texture_marble_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map, const std::filesystem::path& scene_file_dir)
 	{
 		std::string name;
 		uint32_t texture_black_idx = EMPTY_UINT32;
@@ -1900,7 +1919,7 @@ namespace YumeRT
 		name_to_index_map[name] = noise_texture_marble_index;
 	}
 
-	void read_noise_texture_wood_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map)
+	void read_noise_texture_wood_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map, const std::filesystem::path& scene_file_dir)
 	{
 		std::string name;
 		uint32_t texture_black_idx = EMPTY_UINT32;
@@ -1954,7 +1973,7 @@ namespace YumeRT
 		name_to_index_map[name] = noise_texture_wood_index;
 	}
 
-	void read_noise_texture_polka_dot_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map)
+	void read_noise_texture_polka_dot_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map, const std::filesystem::path& scene_file_dir)
 	{
 		std::string name;
 		uint32_t texture_black_idx = EMPTY_UINT32;
@@ -2004,7 +2023,7 @@ namespace YumeRT
 		name_to_index_map[name] = noise_texture_polka_dot_index;
 	}
 
-	void read_noise_texture_wave_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map)
+	void read_noise_texture_wave_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map, const std::filesystem::path& scene_file_dir)
 	{
 		std::string name;
 		uint32_t texture_black_idx = EMPTY_UINT32;
@@ -2082,7 +2101,7 @@ namespace YumeRT
 		name_to_index_map[name] = noise_texture_wave_index;
 	}
 
-	void read_distant_light_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map)
+	void read_distant_light_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map, const std::filesystem::path& scene_file_dir)
 	{
 		std::string name;
 		glm::vec3	light_color(1.0f);
@@ -2136,7 +2155,7 @@ namespace YumeRT
 		name_to_index_map[name] = distant_light_index;
 	}
 
-	void read_volume_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map)
+	void read_volume_attributes(const std::vector<StatementToken>& statement_tokens, const size_t start, const size_t end, SceneModule& scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map, const std::filesystem::path& scene_file_dir)
 	{
 		std::string name;
 		uint32_t transform_index = EMPTY_UINT32;
@@ -2196,9 +2215,9 @@ namespace YumeRT
 		name_to_index_map[name] = volume_index;
 	}
 
-	void read_asset_attributes(const std::vector<StatementToken> &statement_tokens, const std::string &basic_type, const size_t start, const size_t end, SceneModule &scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map)
+	void read_asset_attributes(const std::vector<StatementToken> &statement_tokens, const std::string &basic_type, const size_t start, const size_t end, SceneModule &scene_asset_manager, std::unordered_map<std::string, uint32_t>& name_to_index_map, const std::filesystem::path& scene_file_dir)
 	{
-		using TYPE_LOADING_FUNC = void (*)(const std::vector<StatementToken>&, const size_t, const size_t, SceneModule&, std::unordered_map<std::string, uint32_t>&);
+		using TYPE_LOADING_FUNC = void (*)(const std::vector<StatementToken>&, const size_t, const size_t, SceneModule&, std::unordered_map<std::string, uint32_t>&, const std::filesystem::path&);
 		static const std::unordered_map<std::string, TYPE_LOADING_FUNC> type_loading_function_map =
 		{
 			{ "Camera", read_camera_attributes },
@@ -2240,10 +2259,10 @@ namespace YumeRT
 			return;
 		}
 
-		return (*iter).second(statement_tokens, start, end, scene_asset_manager, name_to_index_map);
+		return (*iter).second(statement_tokens, start, end, scene_asset_manager, name_to_index_map, scene_file_dir);
 	}
 
-	void load_scene_asset(const std::vector<StatementToken> &statement_tokens, std::shared_ptr<YumeRT::SceneModule> scene_module)
+	void load_scene_asset(const std::vector<StatementToken> &statement_tokens, std::shared_ptr<YumeRT::SceneModule> scene_module, const std::filesystem::path& scene_file_dir)
 	{
 		auto& scene_asset_manager = *scene_module;
 
@@ -2266,7 +2285,7 @@ namespace YumeRT
 				}
 			}
 
-			read_asset_attributes(statement_tokens, current_line.right_line, start, end, scene_asset_manager, name_to_index_map);
+			read_asset_attributes(statement_tokens, current_line.right_line, start, end, scene_asset_manager, name_to_index_map, scene_file_dir);
 			start = end + 1;
 		}
 	}
@@ -2300,6 +2319,8 @@ namespace YumeRT
 			std::cerr << "Error: failed to open file!" << std::endl;
 			return false;
 		}
+
+		std::filesystem::path scene_file_dir(_own_file_path);
 
 		std::string file_content;
 		std::string str_buf;
@@ -2350,7 +2371,7 @@ namespace YumeRT
 			return false;
 		}
 
-		load_scene_asset(statement_tokens, scene_module);
+		load_scene_asset(statement_tokens, scene_module, scene_file_dir);
 
 		return true;
 	}
@@ -3310,18 +3331,12 @@ namespace YumeRT
 		auto& scene_asset_manager = *scene_module;
 
 		std::filesystem::path texture_folder_path;
-		if (!scene_asset_manager.textures.empty()) 
-		{
-			std::filesystem::path file_name = scene_file_dir.filename();
+		if (!scene_asset_manager.textures.empty()) {
+			texture_folder_path = get_texture_folder_from_scene_file(scene_file_dir);
 
-			std::filesystem::path file_stem = file_name.stem();
-			std::filesystem::path file_extension = file_name.extension();
-			
-			std::string folder_name = "texture_" + file_stem.string() + "_" + file_extension.string();
-
-			texture_folder_path = parent_dir / std::filesystem::path(folder_name);
-
-			std::filesystem::create_directory(texture_folder_path);
+			if (!std::filesystem::is_directory(texture_folder_path)) {
+				std::filesystem::create_directory(texture_folder_path);
+			}
 		}
 
 		save_camera(ofs, processed_name_set, scene_asset_manager, texture_folder_path);
