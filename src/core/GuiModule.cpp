@@ -28,7 +28,13 @@ namespace YumeRT {
 		std::shared_ptr<RenderModule> &module_render) :
 		m_window(window), 
 		m_width(width), 
-		m_height(height), 
+		m_height(height),
+
+		path_tracing_window_width(1920),
+		path_tracing_window_height(1080),
+		path_tracing_window_is_rendering(false),
+		path_tracing_window_first_launch(false),
+	
 		m_module_render(module_render), 
 		m_module_scene(module_scene), 
 		trackball(module_scene->GetCamera(EDITOR_CAMERA_INDEX)), 
@@ -237,6 +243,17 @@ namespace YumeRT {
 
 		 // render path tracing view.
 		{
+			if (path_tracing_window_is_rendering) {
+				ImGuiID win_id = ImGui::GetID("Path tracing view");
+				ImGui::SetNextWindowDockID(0, ImGuiCond_Always);
+				
+				if (path_tracing_window_first_launch) {
+					ImGui::SetNextWindowPos(ImVec2(150, 150), ImGuiCond_Always);
+					ImGui::SetNextWindowSize(ImVec2(path_tracing_window_width, path_tracing_window_height), ImGuiCond_Always);
+					path_tracing_window_first_launch = false;
+				}
+			}
+
 			ImGui::Begin("Path tracing view");
 
 			// specify the render region.
@@ -250,11 +267,15 @@ namespace YumeRT {
 			const float mouse_x_pos = glm::max(0.0f, glm::min(io.MousePos.x - draw_region_p0.x, draw_region_size.x));
 			const float mouse_y_pos = glm::max(0.0f, glm::min(io.MousePos.y - draw_region_p0.y, draw_region_size.y));
 
+			ImGuiID dock_id = ImGui::GetWindowDockID();
+			const glm::vec2 render_image_size = dock_id == 0 ? 
+				glm::vec2(path_tracing_window_width, path_tracing_window_height) : 
+				glm::vec2(draw_region_size.x, draw_region_size.y);
 			auto &rendering_camera = m_module_scene->GetCamera(RENDERING_CAMERA_INDEX);
 			bool path_tracing_scene_updated = false;
-			if (rendering_camera.m_width != (int)draw_region_size.x || rendering_camera.m_height != (int)draw_region_size.y)
+			if (rendering_camera.m_width != (int)render_image_size.x || rendering_camera.m_height != (int)render_image_size.y)
 			{
-				rendering_camera.m_width = (int)draw_region_size.x, rendering_camera.m_height = (int)draw_region_size.y;
+				rendering_camera.m_width = (int)render_image_size.x, rendering_camera.m_height = (int)render_image_size.y;
 				rendering_camera.SetAspectRatio(float(rendering_camera.m_width) / float(rendering_camera.m_height));
 				UpdateCamera(RENDERING_CAMERA_INDEX);
 				
@@ -266,7 +287,7 @@ namespace YumeRT {
 			auto& scene_resource = m_module_scene->scene_resource;
 			auto& render_setting = m_module_scene->render_setting;
 			static ExtraTaskResults path_tracing_extra_task_results = {};
-			m_module_render->PathTracingFetchResult(scene_resource, path_tracing_scene_updated, render_setting, (int)draw_region_size.x, (int)draw_region_size.y, &path_tracing_extra_task_results);
+			m_module_render->PathTracingFetchResult(scene_resource, path_tracing_scene_updated, render_setting, (int)render_image_size.x, (int)render_image_size.y, &path_tracing_extra_task_results);
 
 			// image button style.
 			ImGui::PushID(1);
@@ -275,6 +296,24 @@ namespace YumeRT {
 			// draw image button.
 			auto image_texture_handle = m_module_render->PathTracingGetTexture(aov_name_post_processing);
 			ImGui::ImageButton((void*)image_texture_handle, draw_region_size, ImVec2(0.0, 1.0), ImVec2(1.0, 0.0));
+
+			if (render_setting.max_frame_count > 0 && dock_id == 0) {
+				const int accumulated_frame_count = m_module_render->path_tracing_frame_index.load() - 1;
+				if (accumulated_frame_count >= render_setting.max_frame_count) {
+					
+					if (ImGui::BeginPopupContextItem()) {
+						static char screenshot_path_buf[128];
+						ImGui::InputText("Screenshot path", screenshot_path_buf, 128);
+						if (ImGui::Button("Save image")) {
+							
+						}
+						if (ImGui::Button("Close")) {
+							ImGui::CloseCurrentPopup();
+						}
+						ImGui::EndPopup();
+					}
+				}
+			}
 
 			ImGui::PopStyleVar();
 			ImGui::PopID();
@@ -441,8 +480,12 @@ namespace YumeRT {
 
 		if (ImGui::CollapsingHeader("Render setting"))
 		{
+			ImVec2 button_size = ImGui::GetItemRectSize();
+
 			auto& render_setting = m_scene.render_setting;
-			const int accumulated_frame_count = render_setting.max_frame_count > 0 ? glm::min(m_renderer.path_tracing_frame_index, render_setting.max_frame_count) : m_renderer.path_tracing_frame_index;
+
+			const int pt_completed_frame_count = m_renderer.path_tracing_frame_index.load() - 1;
+			const int accumulated_frame_count = render_setting.max_frame_count > 0 ? glm::min(pt_completed_frame_count, render_setting.max_frame_count) : pt_completed_frame_count;
 
 			ImGui::Text("Accumulate frame count: %d", accumulated_frame_count);
 			ImGui::ProgressBar(render_setting.max_frame_count > 0 ? float(accumulated_frame_count) / float(render_setting.max_frame_count) : 1.0f);
@@ -450,6 +493,8 @@ namespace YumeRT {
 				ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(250, 4, 4, 255));
 				ImGui::Text("Render finish!");
 				ImGui::PopStyleColor();
+
+				path_tracing_window_is_rendering = false;
 			}
 
 			static int sampler_index = 0;
@@ -463,6 +508,53 @@ namespace YumeRT {
 					}
 				}
 				ImGui::EndCombo();
+			}
+
+			ImGui::Separator();
+			{
+				static bool begin_rendering_window_on = false;
+				if (ImGui::Button("Begin rendering", button_size)) {
+					begin_rendering_window_on = !begin_rendering_window_on;
+				}
+
+				if (begin_rendering_window_on)
+				{
+					ImGui::SetNextWindowSize(ImVec2(400, 300), ImGuiCond_FirstUseEver);
+					ImGui::Begin("Settings", &begin_rendering_window_on);
+					
+					static int local_max_frame_count{ 32 }; 
+					static int local_image_width{ 1920 }; 
+					static int local_image_height{ 1080 }; 
+
+					if (ImGui::InputInt("Max accumulate frame count", &local_max_frame_count)) {
+						local_max_frame_count = glm::max(1, local_max_frame_count);
+					}
+					if (ImGui::InputInt("Image width", &local_image_width)) {
+						local_image_width = glm::max(16, local_image_width);
+					}
+					if (ImGui::InputInt("Image height", &local_image_height)) {
+						local_image_height = glm::max(16, local_image_height);
+					}
+
+					ImVec2 setting_window_size = ImGui::GetItemRectSize();
+					if (ImGui::Button("Apply", ImVec2(0.49f * setting_window_size.x, setting_window_size.y))) {
+						render_setting.max_frame_count = local_max_frame_count;
+						path_tracing_window_width = local_image_width;
+						path_tracing_window_height = local_image_height;
+						
+						path_tracing_window_is_rendering = true;
+						path_tracing_window_first_launch = true;
+
+						begin_rendering_window_on = false;
+
+						m_scene.AddSceneFlag(SceneModule::SCENE_RENDER_SETTING_CHANGE);
+					}
+					ImGui::SameLine();
+					if (ImGui::Button("Cancel", ImVec2(0.49f * setting_window_size.x, setting_window_size.y))) {
+						begin_rendering_window_on = false;
+					}
+					ImGui::End();
+				}
 			}
 
 			ImGui::Separator();
@@ -484,7 +576,7 @@ namespace YumeRT {
 			}
 
 			ImGui::Separator();
-			if (ImGui::InputInt("Sample count", &render_setting.ssp)) {
+			if (ImGui::InputInt("Sample per pixel", &render_setting.ssp)) {
 				render_setting.ssp = glm::clamp(render_setting.ssp, 1, 32);
 				m_scene.AddSceneFlag(SceneModule::SCENE_RENDER_SETTING_CHANGE);
 			}

@@ -264,7 +264,7 @@ namespace YumeRT {
 		std::list<DuskDeviceMemory<uint32_t>> editor_view_result_queue_primitive_index;
 		std::list<ExtraTaskResults> editor_view_result_queue_extra;
 
-		int editor_view_frame_index;
+		std::atomic_int editor_view_frame_index;
 		RayCounterData editor_view_ray_counter_data;
 		ShadingRayData editor_view_shading_ray_data;
 		HitData editor_view_hit_data;
@@ -289,7 +289,7 @@ namespace YumeRT {
 		std::list<DuskDeviceMemory<glm::vec4>> path_tracing_result_queue_beauty;
 		std::list<ExtraTaskResults> path_tracing_result_queue_extra;
 
-		int path_tracing_frame_index;
+	    std::atomic_int	path_tracing_frame_index;
 		RayCounterData path_tracing_ray_counter_data;
 		ShadingRayData path_tracing_shading_ray_data;
 		HitData path_tracing_hit_data;

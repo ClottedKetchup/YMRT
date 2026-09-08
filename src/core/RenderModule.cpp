@@ -47,7 +47,7 @@ namespace YumeRT{
 		m_editor_view_width(16), m_editor_view_height(16), editor_view_primitive_index_image(), 
 		editor_view_image_fetch_over_time(true), path_tracing_image_fetch_over_time(true),
 		m_path_tracing_width(16), m_path_tracing_height(16), 
-		editor_view_frame_index(1), path_tracing_frame_index(1),
+		editor_view_frame_index{ 1 }, path_tracing_frame_index{ 1 },
 		should_exit{ false }
 	{
 		int min_priority = 0, max_priority = 0;
@@ -349,7 +349,7 @@ namespace YumeRT{
 		auto& scene_resource = *(task_param.scene_resource_ptr);
 
 		if (task_param.scene_updated) {
-			editor_view_frame_index = 1;
+			editor_view_frame_index.store(1);
 		}
 
 		DuskTimer editor_view_timer;
@@ -381,7 +381,7 @@ namespace YumeRT{
 		}
 		
 		const RenderSetting& render_setting = task_param.render_setting;
-		const int current_frame_index = editor_view_frame_index;
+		const int current_frame_index = editor_view_frame_index.load();
 		const uint32_t tile_count_x = (task_param.width + TILE_X_RES - 1) / TILE_X_RES;
 		const uint32_t tile_count_y = (task_param.height + TILE_Y_RES - 1) / TILE_Y_RES;
 		const uint32_t total_tile_count = tile_count_x * tile_count_y;
@@ -466,7 +466,7 @@ namespace YumeRT{
 				editor_view_result_queue_albedo.push_front(std::move(device_mem_albedo));
 				editor_view_result_queue_primitive_index.push_front(std::move(device_mem_primitive_indices));
 				editor_view_result_queue_extra.push_front({ current_frame_index, editor_view_timer.Stop(), render_setting.max_frame_count });
-				editor_view_frame_index = current_frame_index + 1;
+				editor_view_frame_index.fetch_add(1);
 			}
 			editor_view_result_queue_cv.notify_one();
 		}
@@ -477,7 +477,7 @@ namespace YumeRT{
 		auto& scene_resource = *(task_param.scene_resource_ptr);
 
 		if (task_param.scene_updated) {
-			path_tracing_frame_index = 1;
+			path_tracing_frame_index.store(1);
 		}
 
 		DuskTimer path_tracing_timer;
@@ -512,7 +512,7 @@ namespace YumeRT{
 		}
 
 		const RenderSetting& render_setting = task_param.render_setting;
-		const int current_frame_index = path_tracing_frame_index;
+		const int current_frame_index = path_tracing_frame_index.load();
 		const uint32_t sample_per_pixel = render_setting.ssp;
 		const uint32_t tile_count_x = (task_param.width + TILE_X_RES - 1) / TILE_X_RES;
 		const uint32_t tile_count_y = (task_param.height + TILE_Y_RES - 1) / TILE_Y_RES;
@@ -599,7 +599,7 @@ namespace YumeRT{
 				std::unique_lock<std::mutex> path_tracing_result_queue_lk(path_tracing_result_queue_mutex);
 				path_tracing_result_queue_beauty.push_front(std::move(device_mem_noise_image));
 				path_tracing_result_queue_extra.push_front({ current_frame_index, path_tracing_timer.Stop(), render_setting.max_frame_count });
-				path_tracing_frame_index = current_frame_index + 1;
+				path_tracing_frame_index.fetch_add(1);
 			}
 			path_tracing_result_queue_cv.notify_one();
 		}

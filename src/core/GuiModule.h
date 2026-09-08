@@ -9,6 +9,8 @@
 #include <GLFW/glfw3.h>
 
 #include "imgui.h"
+
+#include "imgui_internal.h"
 #include "imgui_impl_opengl3.h"
 #include "imgui_impl_glfw.h"
 
@@ -112,6 +114,11 @@ namespace YumeRT {
 
 		int m_width, m_height;
 
+		int path_tracing_window_width;
+		int path_tracing_window_height;
+		bool path_tracing_window_is_rendering;
+		bool path_tracing_window_first_launch;
+		
 		float primitive_scale_upper;
 		float primitive_scale_lower;
 		float primitive_move_speed;
