@@ -622,6 +622,7 @@ namespace YumeRT
 
 						throughput *= phase_weight;
 						float rr = glm::max(throughput.x, glm::max(throughput.y, throughput.z));
+						rr = glm::min(rr, 1.0f);
 						if (depth + 1 > render_setting.ray_depth)
 						{
 							if (render_setting.enable_russian_roulette && sampler.Random1D() < rr) { 
@@ -784,6 +785,7 @@ namespace YumeRT
 					// indirect light
 					throughput *= bsdf_weight;
 					float rr = glm::max(throughput.x, glm::max(throughput.y, throughput.z));
+					rr = glm::min(rr, 1.0f);
 					if (depth + 1 > render_setting.ray_depth)
 					{
 						if (render_setting.enable_russian_roulette && sampler.Random1D() < rr) { 
@@ -2072,6 +2074,7 @@ namespace YumeRT
 
 			ray_throughput *= phase_weight;
 			float rr = glm::max(ray_throughput.x, glm::max(ray_throughput.y, ray_throughput.z));
+			rr = glm::min(rr, 1.0f);
 			if (ray_depth + 1 > render_setting.ray_depth) {
 				if (render_setting.enable_russian_roulette && ray_sampler.Random1D() < rr) {
 					ray_throughput /= glm::max(rr, MIN_COLOR_EPSILON);
@@ -2235,6 +2238,7 @@ namespace YumeRT
 
 		ray_throughput *= bsdf_weight;
 		float rr = glm::max(ray_throughput.x, glm::max(ray_throughput.y, ray_throughput.z));
+		rr = glm::min(rr, 1.0f);
 		if (ray_depth + 1 > render_setting.ray_depth) {
 			if (render_setting.enable_russian_roulette && ray_sampler.Random1D() < rr) {
 				ray_throughput /= glm::max(rr, MIN_COLOR_EPSILON);

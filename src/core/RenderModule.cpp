@@ -209,18 +209,14 @@ namespace YumeRT{
 			
 			std::unique_lock<std::mutex> editor_view_result_queue_lk(editor_view_result_queue_mutex);
 
-			auto lock_strat_time = std::chrono::steady_clock::now();
-			while (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - lock_strat_time).count() < MAX_WAIT_TIME) {
-				editor_view_result_queue_cv.wait_for(editor_view_result_queue_lk, std::chrono::milliseconds(CV_WAIT_DURATION));
-				if (!editor_view_result_queue_albedo.empty()) {
-					break;
-				}
-			}
+			bool fetch_success = editor_view_result_queue_cv.wait_for(editor_view_result_queue_lk,
+				std::chrono::milliseconds(MAX_WAIT_TIME),
+				[&]() {return !editor_view_result_queue_albedo.empty(); });
+
+			editor_view_image_fetch_over_time = !fetch_success;
 			
-			editor_view_image_fetch_over_time = true;
-			if (!editor_view_result_queue_albedo.empty()) {
+			if (fetch_success) {
 				assert(!editor_view_result_queue_primitive_index.empty() && !editor_view_result_queue_extra.empty());
-				editor_view_image_fetch_over_time = false;
 				
 				auto device_mem_albedo = std::move(editor_view_result_queue_albedo.back());
 				editor_view_result_queue_albedo.pop_back();
@@ -289,19 +285,15 @@ namespace YumeRT{
 			auto& postprocessing_image = iter_postprocessing->second;
 
 			std::unique_lock<std::mutex> path_tracing_result_queue_lk(path_tracing_result_queue_mutex);
-			
-			auto lock_strat_time = std::chrono::steady_clock::now();
-			while (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - lock_strat_time).count() < MAX_WAIT_TIME) {
-				path_tracing_result_queue_cv.wait_for(path_tracing_result_queue_lk, std::chrono::milliseconds(CV_WAIT_DURATION));
-				if (!path_tracing_result_queue_beauty.empty()) {
-					break;
-				}
-			}
 
-			path_tracing_image_fetch_over_time = true;
-			if (!path_tracing_result_queue_beauty.empty()) {
-				assert(!path_tracing_result_queue_extra.empty() && !path_tracing_result_queue_extra.empty());
-				path_tracing_image_fetch_over_time = false;
+			bool fetch_success = path_tracing_result_queue_cv.wait_for(path_tracing_result_queue_lk,
+				std::chrono::milliseconds(MAX_WAIT_TIME),
+				[&]() {return !path_tracing_result_queue_beauty.empty(); });
+
+			path_tracing_image_fetch_over_time = !fetch_success;
+
+			if (fetch_success) {
+				assert(!path_tracing_result_queue_extra.empty());
 
 				// note: this memory should release after copy complete.
 				auto device_mem = std::move(path_tracing_result_queue_beauty.back());

@@ -59,10 +59,58 @@ namespace YumeRT {
 		glfwSetKeyCallback(m_window, KeyBoardCallBack);
 
 		InitGUI();
+		InitDefaultScene();
 	}
 
 	GuiModule::~GuiModule() {
 		ExitGUI();
+	}
+
+	void GuiModule::InitDefaultScene()
+	{
+		auto& scene = *m_module_scene;
+
+		// checkerboard texture for the ground.
+		const uint32_t checker_black_index = scene.CreateConstantTexture("checker_black", glm::vec3(0.03f));
+		const uint32_t checker_white_index = scene.CreateConstantTexture("checker_white", glm::vec3(0.85f));
+		const uint32_t checker_index = scene.CreateCheckerBoardTexture("ground_checker", checker_black_index, checker_white_index, 64.0f);
+
+		// ground.
+		const uint32_t ground_geometry_index = scene.CreateCube("ground_geometry");
+		const uint32_t ground_transform_index = scene.CreateTransform("ground_transform", glm::vec3(0.0f, -0.05f, 0.0f), glm::vec3(20.0f, 0.1f, 20.0f));
+		const uint32_t ground_material_index = scene.CreateDefaultMaterial("ground_material",
+			glm::vec3(1.0f), glm::vec3(1.0f),
+			0.4f, 0.4f,
+			1.3f,
+			0.0f,
+			0.5f, 0.0f,
+			0,
+			glm::vec3(1.0f),
+			0.0f, 1.0f, 1.6f, 0.2f, 0.2f,
+			checker_index);
+		scene.CreatePrimitiveInstance("ground", ground_geometry_index, ground_transform_index, ground_material_index);
+
+		// sphere.
+		const uint32_t sphere_geometry_index = scene.CreateSphere("sphere_geometry", 1.0f);
+		const uint32_t sphere_transform_index = scene.CreateTransform("sphere_transform", glm::vec3(0.0f, 1.0f, 0.0f));
+		const uint32_t sphere_material_index = scene.CreateDefaultMaterial("sphere_material", 
+			glm::vec3(0.5f), glm::vec3(1.0f),
+			0.02f, 0.02f,
+			1.55f,
+			0.0f,
+			1.0f, 1.0f,
+			0);
+		scene.CreatePrimitiveInstance("sphere", sphere_geometry_index, sphere_transform_index, sphere_material_index);
+
+		// distant light.
+		const uint32_t distant_light_transform_index = scene.CreateTransform("default_distant_light_transform", glm::vec3(0.0f), glm::vec3(1.0f), glm::vec3(180.0f, 0.0f, 30.0f));
+		scene.CreateDistantLight("default distant light", glm::vec3(1.0f), distant_light_transform_index, 1.0f);
+
+		// camera.
+		auto& camera = scene.GetSceneCamera();
+		camera.SetFov(glm::radians(45.0f));
+		camera.SetPosition(glm::vec3(0.0f, 2.5f, 7.0f));
+		camera.SetDir(glm::vec3(0.0f, 2.5f, 7.0f) - glm::vec3(0.0f, 0.5f, 0.0f));
 	}
 
 	bool GuiModule::UpdateScene()

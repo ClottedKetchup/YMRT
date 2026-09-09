@@ -371,6 +371,7 @@ namespace YumeRT {
 			if (iteration + 1 > max_trace_time) 
 			{
 				float rr_factor = glm::max(tr.x, glm::max(tr.y, tr.z));
+				rr_factor = glm::min(rr_factor, 1.0f);
 				if (random() < rr_factor) {
 					tr /= glm::max(rr_factor, MIN_COLOR_EPSILON);
 				}

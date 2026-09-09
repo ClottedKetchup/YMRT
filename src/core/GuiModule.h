@@ -162,6 +162,7 @@ namespace YumeRT {
 		void RenderMaterialList();
 		void RenderVolumeList();
 		void RenderTextureList();
+		void InitDefaultScene();
 
 		void ExitGUI();
 
