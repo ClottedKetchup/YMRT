@@ -2348,7 +2348,7 @@ namespace YumeRT {
 		ImGui::Begin("Object List");
 		const float window_x_size = ImGui::GetWindowContentRegionMax().x - ImGui::GetWindowContentRegionMin().x;
 		// Left
-		ImGui::BeginChild("left pane", ImVec2(window_x_size * 0.25f, 0), ImGuiChildFlags_Border | ImGuiChildFlags_ResizeX);
+		ImGui::BeginChild("left pane", ImVec2(window_x_size * 0.10f , 0), ImGuiChildFlags_Border | ImGuiChildFlags_ResizeX);
 		for (int distant_light_index = 0; distant_light_index < m_scene.distant_lights.size(); ++distant_light_index) {
 			if (ImGui::Selectable(m_scene.distant_light_names[distant_light_index].c_str(), distant_light_index == selected_distant_light_index)) {
 				selected_distant_light_index = distant_light_index;
@@ -3400,7 +3400,48 @@ namespace YumeRT {
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
-		ImGui::DockSpaceOverViewport();
+
+		
+		ImGuiID dockspace_id = ImGui::GetID("m_Main_window");
+		if (ImGui::DockBuilderGetNode(dockspace_id) == nullptr)
+		{
+			ImGui::DockBuilderRemoveNode(dockspace_id);
+			ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
+
+			ImGuiViewport* viewport = ImGui::GetMainViewport();
+			ImGui::DockBuilderSetNodeSize(dockspace_id, viewport->WorkSize);
+
+			ImGuiID dock_id_left, dock_id_right;
+			ImGui::DockBuilderSplitNode(dockspace_id, ImGuiDir_Left, 0.30f, &dock_id_left, &dock_id_right);
+
+			ImGuiID dock_id_right_left, dock_id_right_right;
+			ImGui::DockBuilderSplitNode(dock_id_right, ImGuiDir_Left, 0.6f, &dock_id_right_left, &dock_id_right_right);
+
+			ImGuiID dock_id_left_up, dock_id_left_down;
+			ImGui::DockBuilderSplitNode(dock_id_left, ImGuiDir_Up, 0.5f, &dock_id_left_up, &dock_id_left_down);
+
+			ImGuiID dock_id_mid_up, dock_id_mid_down;
+			ImGui::DockBuilderSplitNode(dock_id_right_left, ImGuiDir_Up, 0.5f, &dock_id_mid_up, &dock_id_mid_down);
+
+			ImGui::DockBuilderDockWindow("Main Menu", dock_id_left_up);
+
+			ImGui::DockBuilderDockWindow("Material list", dock_id_left_down);
+			ImGui::DockBuilderDockWindow("Texture list", dock_id_left_down);
+			ImGui::DockBuilderDockWindow("Volume list", dock_id_left_down);
+			ImGui::DockBuilderDockWindow("Geometry Instance list", dock_id_left_down);
+			ImGui::DockBuilderDockWindow("Geometry list", dock_id_left_down);
+			ImGui::DockBuilderDockWindow("Transform list", dock_id_left_down);
+			
+			ImGui::DockBuilderDockWindow("Object List", dock_id_right_right);
+
+			ImGui::DockBuilderDockWindow("Editor view", dock_id_mid_up);
+			ImGui::DockBuilderDockWindow("Path tracing view", dock_id_mid_down);
+
+			ImGui::DockBuilderFinish(dockspace_id);
+		}
+		
+
+		ImGui::DockSpaceOverViewport(dockspace_id, ImGui::GetMainViewport());
 
 		ImGuiIO& io = ImGui::GetIO();
 		
@@ -3492,6 +3533,9 @@ namespace YumeRT {
 
 		ImGui_ImplGlfw_InitForOpenGL(m_window, true);
 		ImGui_ImplOpenGL3_Init("#version 450");
+
+		
+
 	}
 
 	void GuiModule::ExitGUI() {
