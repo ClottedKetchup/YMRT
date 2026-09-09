@@ -2,6 +2,9 @@
 
 namespace YumeRT {
 
+	constexpr int asset_name_buffer_size = 128;
+	constexpr int file_path_buffer_size = 256;
+
 #define BUTTON_HIGHLIGHT_COL IM_COL32(250, 4, 4, 122)
 #define BUTTON_HIGHLIGHT_COL_HOVERED IM_COL32(250, 4, 4, 255)
 #define BUTTON_SELECTED_COL IM_COL32(255, 127, 255, 122)
@@ -302,8 +305,8 @@ namespace YumeRT {
 				if (accumulated_frame_count >= render_setting.max_frame_count) {
 					
 					if (ImGui::BeginPopupContextItem()) {
-						static char screenshot_path_buf[128];
-						ImGui::InputText("Screenshot path", screenshot_path_buf, 128);
+						static char screenshot_path_buf[file_path_buffer_size];
+						ImGui::InputText("Screenshot path", screenshot_path_buf, file_path_buffer_size);
 						if (ImGui::Button("Save image")) {
 							int image_width = 0, image_height = 0;
 							glm::vec4* device_image = m_module_render->PathTracingGetDevicePointer(aov_name_post_processing, image_width, image_height);
@@ -461,8 +464,8 @@ namespace YumeRT {
 
 		if (ImGui::CollapsingHeader("Load scene")) 
 		{
-			static char file_path_buf[128];
-			ImGui::InputText("File path", file_path_buf, 128);
+			static char file_path_buf[file_path_buffer_size];
+			ImGui::InputText("File path", file_path_buf, file_path_buffer_size);
 			if (ImGui::Button("Import scene")) {
 				UpdateDeviceData([&]() {
 					m_scene.ReleaseSceneData();
@@ -472,8 +475,8 @@ namespace YumeRT {
 			}
 
 			ImGui::Separator();
-			static char open_tmp_file_path_buf[128];
-			ImGui::InputText("Scene temp file path", open_tmp_file_path_buf, 128);
+			static char open_tmp_file_path_buf[file_path_buffer_size];
+			ImGui::InputText("Scene temp file path", open_tmp_file_path_buf, file_path_buffer_size);
 			if (ImGui::Button("Import temp file")) {
 				UpdateDeviceData([&]() {
 					m_scene.ReleaseSceneData();
@@ -484,8 +487,8 @@ namespace YumeRT {
 			}
 
 			ImGui::Separator();
-			static char save_tmp_file_path_buf[128];
-			ImGui::InputText("save temp file path", save_tmp_file_path_buf, 128);
+			static char save_tmp_file_path_buf[file_path_buffer_size];
+			ImGui::InputText("save temp file path", save_tmp_file_path_buf, file_path_buffer_size);
 			if (ImGui::Button("Save temp file")) {
 				SceneParser parser;
 				parser.save_scene(std::string(save_tmp_file_path_buf), m_module_scene);
@@ -2726,8 +2729,8 @@ namespace YumeRT {
 			ImGui::OpenPopup("Primitive_instance_create_popup");
 		}
 		if (ImGui::BeginPopup("Primitive_instance_create_popup")) {
-			static char primitive_instance_name_buf[64];
-			ImGui::InputText("Primitive instance name", primitive_instance_name_buf, 64);
+			static char primitive_instance_name_buf[asset_name_buffer_size];
+			ImGui::InputText("Primitive instance name", primitive_instance_name_buf, asset_name_buffer_size);
 
 			static uint32_t geometry_index = EMPTY_UINT32;
 			if (ImGui::BeginCombo("Geometry index", geometry_index < m_scene.geometries.size() ?
@@ -2759,6 +2762,7 @@ namespace YumeRT {
 					const uint32_t new_unique_index = m_scene.CreatePrimitiveInstance(instance_name, geometry_index, transform_index, material_index);
 
 					list_highlight_unique_index = clicked_instance_unique_index = clicked_pixel_primitive_index = new_unique_index;
+					memset(primitive_instance_name_buf, 0, sizeof(primitive_instance_name_buf));
 					show_warning = false;
 				}
 				else {
@@ -2781,8 +2785,8 @@ namespace YumeRT {
 		}
 
 		ImGui::Separator();
-		static char model_file_path_buf[128];
-		ImGui::InputText("File path", model_file_path_buf, 128);
+		static char model_file_path_buf[file_path_buffer_size];
+		ImGui::InputText("File path", model_file_path_buf, file_path_buffer_size);
 		if (ImGui::Button("Create from file", ImVec2(button_size.x, 0.0f))) {
 			const std::string file_path_str(model_file_path_buf);
 			const std::string model_name = file_path_str.substr(file_path_str.rfind("\\") + 1);
@@ -2870,7 +2874,7 @@ namespace YumeRT {
 			ImGui::OpenPopup("Geometry_create_popup");
 		}
 		if (ImGui::BeginPopup("Geometry_create_popup")) {
-			static char geometry_name_buf[64];
+			static char geometry_name_buf[asset_name_buffer_size];
 			static const int basic_geometry_type_count = 2;
 			static const char* geometry_type_names[basic_geometry_type_count] =
 			{
@@ -2878,7 +2882,7 @@ namespace YumeRT {
 			};
 
 			static int selected_geometry_type = 0;
-			ImGui::InputText("Geometry name", geometry_name_buf, 64);
+			ImGui::InputText("Geometry name", geometry_name_buf, asset_name_buffer_size);
 			if (ImGui::BeginCombo("Geometry type", geometry_type_names[selected_geometry_type]))
 			{
 				for (int geo_type_index = 0; geo_type_index < basic_geometry_type_count; ++geo_type_index)
@@ -2893,11 +2897,13 @@ namespace YumeRT {
 			if (selected_geometry_type == 0) {
 				if (ImGui::Button("Create cube", ImGui::GetItemRectSize())) {
 					list_highlight_geometry_index = m_scene.CreateCube(std::string(geometry_name_buf));
+					memset(geometry_name_buf, 0, sizeof(geometry_name_buf));
 				}
 			}
 			else if (selected_geometry_type == 1) {
 				if (ImGui::Button("Create sphere", ImGui::GetItemRectSize())) {
 					list_highlight_geometry_index = m_scene.CreateSphere(std::string(geometry_name_buf), 1.0f);
+					memset(geometry_name_buf, 0, sizeof(geometry_name_buf));
 				}
 			}
 			else {
@@ -2996,10 +3002,11 @@ namespace YumeRT {
 			ImGui::OpenPopup("Transform_create_popup");
 		}
 		if (ImGui::BeginPopup("Transform_create_popup")) {
-			static char transform_name_buf[64];
-			ImGui::InputText("Transform name", transform_name_buf, 64);
+			static char transform_name_buf[asset_name_buffer_size];
+			ImGui::InputText("Transform name", transform_name_buf, asset_name_buffer_size);
 			if (ImGui::Button("Create transform", ImGui::GetItemRectSize())) {
 				list_highlight_transform_index = m_scene.CreateTransform(std::string(transform_name_buf));
+				memset(transform_name_buf, 0, sizeof(transform_name_buf));
 			}
 			ImGui::EndPopup();
 		}
@@ -3094,7 +3101,7 @@ namespace YumeRT {
 			ImGui::OpenPopup("Material_create_popup");
 		}
 		if (ImGui::BeginPopup("Material_create_popup")) {
-			static char material_name_buf[64];
+			static char material_name_buf[asset_name_buffer_size];
 			static const int basic_material_type_count = 2;
 			static const char* material_type_names[basic_material_type_count] =
 			{
@@ -3102,7 +3109,7 @@ namespace YumeRT {
 			};
 
 			static int selected_material_type = 0;
-			ImGui::InputText("Material name", material_name_buf, 64);
+			ImGui::InputText("Material name", material_name_buf, asset_name_buffer_size);
 			if (ImGui::BeginCombo("Material type", material_type_names[selected_material_type]))
 			{
 				for (int material_type_index = 0; material_type_index < basic_material_type_count; ++material_type_index)
@@ -3117,11 +3124,13 @@ namespace YumeRT {
 			if (selected_material_type == MATERIAL_TYPE::DEFAULT_MTL) {
 				if (ImGui::Button("Create default material", ImGui::GetItemRectSize())) {
 					list_highlight_material_index = m_scene.CreateDefaultMaterial(std::string(material_name_buf));
+					memset(material_name_buf, 0, sizeof(material_name_buf));
 				}
 			}
 			else if (selected_material_type == MATERIAL_TYPE::LIGHT_MTL) {
 				if (ImGui::Button("Create light material", ImGui::GetItemRectSize())) {
 					list_highlight_material_index = m_scene.CreateLightMaterial(std::string(material_name_buf));
+					memset(material_name_buf, 0, sizeof(material_name_buf));
 				}
 			}
 			else {
@@ -3221,11 +3230,12 @@ namespace YumeRT {
 			ImGui::OpenPopup("Volume_create_popup");
 		}
 		if (ImGui::BeginPopup("Volume_create_popup")) {
-			static char volume_name_buf[64];
-			ImGui::InputText("Volume name", volume_name_buf, 64);
+			static char volume_name_buf[asset_name_buffer_size];
+			ImGui::InputText("Volume name", volume_name_buf, asset_name_buffer_size);
 			if (ImGui::Button("Create volume", ImGui::GetItemRectSize())) {
 				const uint32_t volume_transform_index = m_scene.CreateTransform(std::string(volume_name_buf) + std::string("_transform"));
 				list_highlight_volume_index = m_scene.CreateVolume(std::string(volume_name_buf), volume_transform_index);
+				memset(volume_name_buf, 0, sizeof(volume_name_buf));
 			}
 			ImGui::EndPopup();
 		}
@@ -3291,7 +3301,7 @@ namespace YumeRT {
 			ImGui::OpenPopup("Texture_create_popup");
 		}
 		if (ImGui::BeginPopup("Texture_create_popup")) {
-			static char texture_name_buf[64];
+			static char texture_name_buf[asset_name_buffer_size];
 			static const int basic_texture_type_count = TEXTURE_TYPE::SOLID_TEXTURE_WAVE - TEXTURE_TYPE::IMAGE_TEXTURE + 1;
 			static const char * texture_type_names[basic_texture_type_count] =
 			{
@@ -3309,7 +3319,7 @@ namespace YumeRT {
 			};
 
 			static int selected_texture_type = 0;
-			ImGui::InputText("Texture name", texture_name_buf, 64);
+			ImGui::InputText("Texture name", texture_name_buf, asset_name_buffer_size);
 			if (ImGui::BeginCombo("Texture type", texture_type_names[selected_texture_type]))
 			{
 				for (int texture_type_index = TEXTURE_TYPE::IMAGE_TEXTURE; texture_type_index <= TEXTURE_TYPE::SOLID_TEXTURE_WAVE; ++texture_type_index)
@@ -3322,60 +3332,71 @@ namespace YumeRT {
 			}
 
 			if (selected_texture_type == TEXTURE_TYPE::IMAGE_TEXTURE) {
-				static char image_texture_path_buf[128];
-				ImGui::InputText("File path", image_texture_path_buf, 128);
+				static char image_texture_path_buf[file_path_buffer_size];
+				ImGui::InputText("File path", image_texture_path_buf, file_path_buffer_size);
 				if (ImGui::Button("Create image texture", ImGui::GetItemRectSize())) {
 					list_highlight_texture_index = m_scene.CreateImageTexture(std::string(texture_name_buf), std::string(image_texture_path_buf));
+					memset(texture_name_buf, 0, sizeof(texture_name_buf));
 				}
 			}
 			else if (selected_texture_type == TEXTURE_TYPE::CONSTANT_TEXTURE_FLOAT) {
 				if (ImGui::Button("Create constant float texture", ImGui::GetItemRectSize())) {
 					list_highlight_texture_index = m_scene.CreateConstantTexture(std::string(texture_name_buf), 0.5f);
+					memset(texture_name_buf, 0, sizeof(texture_name_buf));
 				}
 			}
 			else if(selected_texture_type == TEXTURE_TYPE::CONSTANT_TEXTURE_RGB) {
 				if (ImGui::Button("Create constant rgb texture", ImGui::GetItemRectSize())) {
 					list_highlight_texture_index = m_scene.CreateConstantTexture(std::string(texture_name_buf), glm::vec3(0.5f));
+					memset(texture_name_buf, 0, sizeof(texture_name_buf));
 				}
 			}
 			else if (selected_texture_type == TEXTURE_TYPE::SOLID_TEXTURE_CHECKERBOARD) {
 				if (ImGui::Button("Create checker texture", ImGui::GetItemRectSize())) {
 					list_highlight_texture_index = m_scene.CreateCheckerBoardTexture(std::string(texture_name_buf));
+					memset(texture_name_buf, 0, sizeof(texture_name_buf));
 				}
 			}
 			else if (selected_texture_type == TEXTURE_TYPE::SOLID_TEXTURE_NOISE) {
 				if (ImGui::Button("Create perlin noise texture", ImGui::GetItemRectSize())) {
 					list_highlight_texture_index = m_scene.CreateNoiseTexture(std::string(texture_name_buf));
+					memset(texture_name_buf, 0, sizeof(texture_name_buf));
 				}
 			}
 			else if (selected_texture_type == TEXTURE_TYPE::SOLID_TEXTURE_FBM) {
 				if (ImGui::Button("Create fbm noise texture", ImGui::GetItemRectSize())) {
 					list_highlight_texture_index = m_scene.CreateNoiseTextureFBM(std::string(texture_name_buf));
+					memset(texture_name_buf, 0, sizeof(texture_name_buf));
 				}
 			}
 			else if (selected_texture_type == TEXTURE_TYPE::SOLID_TEXTURE_TURBULENCE) {
 				if (ImGui::Button("Create turbulence noise texture", ImGui::GetItemRectSize())) {
 					list_highlight_texture_index = m_scene.CreateNoiseTextureTurbulence(std::string(texture_name_buf));
+					memset(texture_name_buf, 0, sizeof(texture_name_buf));
 				}
 			}
 			else if (selected_texture_type == TEXTURE_TYPE::SOLID_TEXTURE_MARBLE) {
 				if (ImGui::Button("Create marble noise texture", ImGui::GetItemRectSize())) {
 					list_highlight_texture_index = m_scene.CreateNoiseTextureMarble(std::string(texture_name_buf));
+					memset(texture_name_buf, 0, sizeof(texture_name_buf));
 				}
 			}
 			else if (selected_texture_type == TEXTURE_TYPE::SOLID_TEXTURE_WOOD) {
 				if (ImGui::Button("Create wood noise texture", ImGui::GetItemRectSize())) {
 					list_highlight_texture_index = m_scene.CreateNoiseTextureWood(std::string(texture_name_buf));
+					memset(texture_name_buf, 0, sizeof(texture_name_buf));
 				}
 			}
 			else if (selected_texture_type == TEXTURE_TYPE::SOLID_TEXTURE_POLKA_DOT) {
 				if (ImGui::Button("Create polka dot noise texture", ImGui::GetItemRectSize())) {
 					list_highlight_texture_index = m_scene.CreateNoiseTexturePolkaDot(std::string(texture_name_buf));
+					memset(texture_name_buf, 0, sizeof(texture_name_buf));
 				}
 			}
 			else if (selected_texture_type == TEXTURE_TYPE::SOLID_TEXTURE_WAVE) {
 				if (ImGui::Button("Create wave noise texture", ImGui::GetItemRectSize())) {
 					list_highlight_texture_index = m_scene.CreateNoiseTextureWave(std::string(texture_name_buf));
+					memset(texture_name_buf, 0, sizeof(texture_name_buf));
 				}
 			}
 			else {
