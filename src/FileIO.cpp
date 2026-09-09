@@ -1,9 +1,14 @@
 #include <ppl.h>
 
+#include <filesystem>
+
 #include "FileIO.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
 
 
 
@@ -104,5 +109,34 @@ namespace YumeRT
 			}
 		});
 		return image_texture;
+	}
+
+	bool SavePngImage(const std::string &file_path, const std::vector<glm::vec4> &host_image, const int image_width, const int image_height)
+	{
+		if (file_path.empty() || image_width <= 0 || image_height <= 0) {
+			return false;
+		}
+		if (host_image.size() != (size_t)image_width * image_height) {
+			return false;
+		}
+
+		std::filesystem::path png_file_path(file_path);
+		png_file_path.replace_extension(".png");
+		if (png_file_path.has_parent_path()) {
+			std::filesystem::create_directories(png_file_path.parent_path());
+		}
+
+		stbi_flip_vertically_on_write(true);
+
+		std::vector<unsigned char> png_pixel_data(host_image.size() * 4);
+		for (size_t pixel_index = 0; pixel_index < host_image.size(); ++pixel_index) {
+			const glm::vec4 &pixel_color = host_image.at(pixel_index);
+			png_pixel_data.at(pixel_index * 4 + 0) = (unsigned char)(glm::clamp(pixel_color.x, 0.0f, 1.0f) * 255.0f + 0.5f);
+			png_pixel_data.at(pixel_index * 4 + 1) = (unsigned char)(glm::clamp(pixel_color.y, 0.0f, 1.0f) * 255.0f + 0.5f);
+			png_pixel_data.at(pixel_index * 4 + 2) = (unsigned char)(glm::clamp(pixel_color.z, 0.0f, 1.0f) * 255.0f + 0.5f);
+			png_pixel_data.at(pixel_index * 4 + 3) = (unsigned char)(glm::clamp(pixel_color.w, 0.0f, 1.0f) * 255.0f + 0.5f);
+		}
+
+		return stbi_write_png(png_file_path.string().c_str(), image_width, image_height, 4, png_pixel_data.data(), image_width * 4) != 0;
 	}
 };

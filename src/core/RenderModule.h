@@ -236,6 +236,8 @@ namespace YumeRT {
 
 		GLuint PathTracingGetTexture(const std::string &name);
 
+		glm::vec4* PathTracingGetDevicePointer(const std::string &name, int &image_width, int &image_height);
+
 		void PathTracingLaunchTask(const TaskParams& task_params);
 	
 	private:

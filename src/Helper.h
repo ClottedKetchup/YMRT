@@ -40,6 +40,16 @@ namespace YumeRT {
 	} \
 } \
 
+// not allocate space
+#define DOWNLOAD_FROM_GPU(device_ptr, host_ptr, byte_size) \
+{ \
+	if(byte_size > 0) \
+	{ \
+		assert(host_ptr != nullptr && device_ptr != nullptr); \
+		CUDA_CHECK(cudaMemcpy(host_ptr, device_ptr, byte_size, cudaMemcpyDeviceToHost)); \
+	} \
+} \
+
 #define FREE_GPU_RESOURCE(device_ptr) \
 { \
 	if(device_ptr != nullptr) \

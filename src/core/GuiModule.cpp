@@ -305,7 +305,21 @@ namespace YumeRT {
 						static char screenshot_path_buf[128];
 						ImGui::InputText("Screenshot path", screenshot_path_buf, 128);
 						if (ImGui::Button("Save image")) {
-							
+							int image_width = 0, image_height = 0;
+							glm::vec4* device_image = m_module_render->PathTracingGetDevicePointer(aov_name_post_processing, image_width, image_height);
+							if (device_image == nullptr || image_width <= 0 || image_height <= 0) {
+								std::cerr << "Error: Fail to save image, no rendered image available!" << std::endl;
+							}
+							else {
+								std::vector<glm::vec4> host_image((size_t)image_width * image_height);
+								DOWNLOAD_FROM_GPU(device_image, host_image.data(), sizeof(glm::vec4) * image_width * image_height);
+								if (SavePngImage(std::string(screenshot_path_buf), host_image, image_width, image_height)) {
+									ImGui::CloseCurrentPopup();
+								}
+								else {
+									std::cerr << "Error: Fail to save image to " << screenshot_path_buf << "!" << std::endl;
+								}
+							}
 						}
 						if (ImGui::Button("Close")) {
 							ImGui::CloseCurrentPopup();

@@ -335,6 +335,17 @@ namespace YumeRT{
 		return iter != path_tracing_image_resources.end() ? iter->second.GetGLTexture() : 0u;
 	}
 
+	glm::vec4* RenderModule::PathTracingGetDevicePointer(const std::string& name, int &image_width, int &image_height)
+	{
+		auto iter = path_tracing_image_resources.find(name);
+		if (iter == path_tracing_image_resources.end()) {
+			image_width = 0, image_height = 0;
+			return nullptr;
+		}
+		image_width = iter->second.image_width, image_height = iter->second.image_height;
+		return iter->second.GetDevicePtr();
+	}
+
 	void RenderModule::PathTracingLaunchTask(const TaskParams& task_params)
 	{
 		{
