@@ -1,6 +1,8 @@
 #include "DskParser.h"
 
-namespace YumeRT 
+#include <chrono>
+
+namespace YumeRT
 {
 	static const std::string dsk_file_postfix = ".dsktmp";
 
@@ -2268,6 +2270,14 @@ namespace YumeRT
 
 		std::unordered_map<std::string, uint32_t> name_to_index_map;
 
+		size_t total_asset_count = 0;
+		for (const auto& statement_token : statement_tokens) {
+			if (statement_token.type == STATEMENT_TYPE::TYPE_BRACKET && is_begin_bracket(statement_token.left_line)) {
+				++total_asset_count;
+			}
+		}
+
+		size_t asset_index = 0;
 		size_t start = 0;
 		while (start < statement_tokens.size()) {
 			const StatementToken& current_line = statement_tokens.at(start);
@@ -2285,7 +2295,21 @@ namespace YumeRT
 				}
 			}
 
+			std::string asset_name;
+			for (size_t name_line_index = start + 1; name_line_index < end; ++name_line_index) {
+				if (statement_tokens.at(name_line_index).left_line == "name") {
+					asset_name = statement_tokens.at(name_line_index).right_line;
+					break;
+				}
+			}
+			if (asset_name.size() >= 2 && asset_name.front() == '\"' && asset_name.back() == '\"') {
+				asset_name = asset_name.substr(1, asset_name.size() - 2);
+			}
+			printf("Loading scene asset (%zu/%zu): %s \"%s\"\n", asset_index + 1, total_asset_count, current_line.right_line.c_str(), asset_name.c_str());
+			fflush(stdout);
+
 			read_asset_attributes(statement_tokens, current_line.right_line, start, end, scene_asset_manager, name_to_index_map, scene_file_dir);
+			++asset_index;
 			start = end + 1;
 		}
 	}
@@ -2319,6 +2343,10 @@ namespace YumeRT
 			std::cerr << "Error: failed to open file!" << std::endl;
 			return false;
 		}
+
+		printf("Scene file load begin: %s\n", _own_file_path.c_str());
+		fflush(stdout);
+		const auto load_begin_time = std::chrono::steady_clock::now();
 
 		std::filesystem::path scene_file_dir(_own_file_path);
 
@@ -2371,7 +2399,21 @@ namespace YumeRT
 			return false;
 		}
 
+		{
+			const double parse_cost_seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - load_begin_time).count();
+			printf("Scene file parse complete: %zu statements, cost %.2f s.\n", statement_tokens.size(), parse_cost_seconds);
+			fflush(stdout);
+		}
+
 		load_scene_asset(statement_tokens, scene_module, scene_file_dir);
+
+		{
+			auto& scene_asset_manager = *scene_module;
+			const double load_cost_seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - load_begin_time).count();
+			printf("Scene file load complete: %zu geometries, %zu transforms, %zu materials, %zu textures, %zu primitive instances, %zu distant lights, %zu volumes, cost %.2f s.\n",
+				scene_asset_manager.geometries.size(), scene_asset_manager.transform_states.size(), scene_asset_manager.materials.size(), scene_asset_manager.textures.size(), scene_asset_manager.primitive_instances.size(), scene_asset_manager.distant_lights.size(), scene_asset_manager.volumes.size(), load_cost_seconds);
+			fflush(stdout);
+		}
 
 		return true;
 	}
@@ -3327,6 +3369,10 @@ namespace YumeRT
 			return false;
 		}
 
+		printf("Scene file save begin: %s\n", _own_file_name.c_str());
+		fflush(stdout);
+		const auto save_begin_time = std::chrono::steady_clock::now();
+
 		std::unordered_set<std::string> processed_name_set;
 		auto& scene_asset_manager = *scene_module;
 
@@ -3341,8 +3387,12 @@ namespace YumeRT
 
 		save_camera(ofs, processed_name_set, scene_asset_manager, texture_folder_path);
 
-		for (const auto& prim : scene_asset_manager.primitive_instances) {
-			auto unique_index = prim.unique_index;
+		const size_t primitive_instance_count = scene_asset_manager.primitive_instances.size();
+		for (size_t primitive_index = 0; primitive_index < primitive_instance_count; ++primitive_index) {
+			auto unique_index = scene_asset_manager.primitive_instances.at(primitive_index).unique_index;
+			const std::string &instance_name = scene_asset_manager.primitive_index_to_name_map.at(unique_index);
+			printf("Saving primitive instance (%zu/%zu): \"%s\"\n", primitive_index + 1, primitive_instance_count, instance_name.c_str());
+			fflush(stdout);
 			save_primitive_instance(ofs, processed_name_set, scene_asset_manager, unique_index, texture_folder_path);
 		}
 
@@ -3366,6 +3416,14 @@ namespace YumeRT
 		}
 
 		ofs.close();
+
+		{
+			const double save_cost_seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - save_begin_time).count();
+			printf("Scene file save complete: %zu geometries, %zu transforms, %zu materials, %zu textures, %zu primitive instances, %zu distant lights, %zu volumes, cost %.2f s.\n",
+				scene_asset_manager.geometries.size(), scene_asset_manager.transform_states.size(), scene_asset_manager.materials.size(), scene_asset_manager.textures.size(), scene_asset_manager.primitive_instances.size(), scene_asset_manager.distant_lights.size(), scene_asset_manager.volumes.size(), save_cost_seconds);
+			fflush(stdout);
+		}
+
 		return true;
 	}
 };

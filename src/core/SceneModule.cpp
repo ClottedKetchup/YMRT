@@ -1,5 +1,7 @@
 #include "src/core/SceneModule.h"
 
+#include <chrono>
+
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
@@ -1761,6 +1763,9 @@ namespace YumeRT {
 
 		for (int node_mesh_index = 0; node_mesh_index < node->mNumMeshes; ++node_mesh_index) {
 			const aiMesh *mesh = scene->mMeshes[node->mMeshes[node_mesh_index]];
+			printf("Loading mesh: %s\n", mesh->mName.C_Str());
+			fflush(stdout);
+
 			const auto geometry_index = ReadMeshGeometry(mesh, &scene_manager);
 			if (geometry_index == EMPTY_UINT32) {
 				continue;
@@ -1789,6 +1794,10 @@ namespace YumeRT {
 			}
 		}
 
+		printf("Model file load begin: %s\n", _own_file_name.c_str());
+		fflush(stdout);
+		const auto load_begin_time = std::chrono::steady_clock::now();
+
 		const aiScene* scene = importer.ReadFile(_own_file_name, aiProcess_GenSmoothNormals | aiProcess_Triangulate);
 		if (scene == nullptr || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) || scene->mRootNode == nullptr) {
 			printf("Fail to load model from path:\t %s.\n", _own_file_name.c_str());
@@ -1796,8 +1805,21 @@ namespace YumeRT {
 			return;
 		}
 
+		{
+			const double read_cost_seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - load_begin_time).count();
+			printf("Model file read complete: %u meshes, %u materials, cost %.2f s.\n", scene->mNumMeshes, scene->mNumMaterials, read_cost_seconds);
+			fflush(stdout);
+		}
+
 		std::unordered_map<uint32_t, uint32_t> material_map;
 		ReadNodeData(_own_file_name.substr(0, _own_file_name.rfind("/") + 1), scene->mRootNode, scene, this, material_map, transform_index, inner_volume_index, treat_as_boundary);
 		importer.FreeScene();
+
+		{
+			const double load_cost_seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - load_begin_time).count();
+			printf("Model file load complete: %zu geometries, %zu transforms, %zu materials, %zu textures, %zu primitive instances, cost %.2f s.\n",
+				geometries.size(), transform_states.size(), materials.size(), textures.size(), primitive_instances.size(), load_cost_seconds);
+			fflush(stdout);
+		}
 	}
 };
