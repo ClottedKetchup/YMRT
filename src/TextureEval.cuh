@@ -199,8 +199,8 @@ namespace YumeRT
 				p_y = glm::clamp(p_y, 0, (int)image_texture.height - 1);
 			}
 			else if (image_texture.warp_mode == WARP_MODE_REPEAT) {
-				p_x = p_x % image_texture.width;
-				p_y = p_y % image_texture.height;
+				p_x = ((p_x % image_texture.width) + image_texture.width) % image_texture.width;
+				p_y = ((p_y % image_texture.height) + image_texture.height) % image_texture.height;
 			}
 
 			const int tile_x = p_x / TEX_TILE_RES_X;

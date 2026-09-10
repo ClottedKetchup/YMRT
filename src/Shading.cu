@@ -1396,6 +1396,7 @@ namespace YumeRT
 
 		// TODO: compute hit's morton code for sorting, we should classify volume hit and surface hit.
 		const uint32_t hit_index = AtomicAddInt((int*)(&(ray_counter.hit_counter)), 1);
+		assert(hit_index < MAX_RAY_COUNT);
 			
 		hit_data_hit_record[hit_index] = hit_record;
 		hit_data_nearby_hit_count[hit_index] = nearby_hit_count;
@@ -1547,6 +1548,7 @@ namespace YumeRT
 			camera_ray = false;
 
 			const uint32_t indirect_ray_index = AtomicAddInt((int*)(&(ray_counter.shading_ray_counter)), 1);
+			assert(indirect_ray_index < MAX_RAY_COUNT);
 			shading_ray_data_ray[indirect_ray_index] = indirect_ray;
 			shading_ray_data_pixel_position_x[indirect_ray_index] = pixel_position_x;
 			shading_ray_data_pixel_position_y[indirect_ray_index] = pixel_position_y;
@@ -1841,6 +1843,7 @@ namespace YumeRT
 
 		// TODO: compute hit's morton code for sorting, we should classify volume hit and surface hit.
 		const uint32_t hit_index = AtomicAddInt((int*)(&(ray_counter.hit_counter)), 1);
+		assert(hit_index < MAX_RAY_COUNT);
 
 		hit_data_hit_record[hit_index] = hit_record;
 		hit_data_nearby_hit_count[hit_index] = nearby_hit_count;
@@ -2022,6 +2025,7 @@ namespace YumeRT
 			const RayTransfer &indirect_ray_transfer)
 		{
 			const uint32_t indirect_ray_index = AtomicAddInt((int*)(&(ray_counter.shading_ray_counter)), 1);
+			assert(indirect_ray_index < MAX_RAY_COUNT);
 			shading_ray_data_ray[indirect_ray_index] = indirect_ray;
 			shading_ray_data_received_light[indirect_ray_index] = indirect_ray_received_light;
 			shading_ray_data_throughput[indirect_ray_index] = indirect_ray_throughput;

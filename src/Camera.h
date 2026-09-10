@@ -18,9 +18,11 @@ namespace YumeRT
 		int m_width;
 		int m_height;
 
-		__device__ __host__ inline Camera(): m_width(1), m_height(1), aspect_ratio(1)
+		__device__ __host__ inline Camera(): m_width(1), m_height(1),
+			position(0.0f), u(1.0f, 0.0f, 0.0f), v(0.0f, 1.0f, 0.0f), w(0.0f, 0.0f, 1.0f),
+			aspect_ratio(1.0f), field_of_view(glm::radians(45.0f)), len_radius(1.0f), tan_half_fov(glm::tan(glm::radians(22.5f)))
 		{
-			
+
 		}
 
 		__device__ __host__ inline void SetDir(const glm::vec3 &dir)
@@ -42,7 +44,7 @@ namespace YumeRT
 			{
 				cp.x = -cp.x, cp.y = -cp.y, cp.z = -cp.z;
 			}
-			cp = Matrix_S(glm::vec3(inv_y_extent * aspect_ratio, inv_y_extent, 1.0f)) * GetPerspective() * cp;
+			cp = Matrix_S(glm::vec3(inv_y_extent * (1.0f / aspect_ratio), inv_y_extent, 1.0f)) * GetPerspective() * cp;
 
 			float inv_w = 1.0f / cp.w;
 			cp.x *= inv_w, cp.y *= inv_w, cp.z *= inv_w;

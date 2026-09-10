@@ -575,7 +575,7 @@ namespace YumeRT
 		}
 
 		for (int i = 1; i < (int)value.size() - 1; ++i) {
-			if (!(std::isalpha(value[i]) || std::isdigit(value[i]) || value[i] == '_' || value[i] == '.')) {
+			if (!(std::isalpha(value[i]) || std::isdigit(value[i]) || value[i] == '_' || value[i] == '.' || value[i] == '-' || value[i] == '+')) {
 				return false;
 			}
 		}
@@ -594,7 +594,7 @@ namespace YumeRT
 		}
 
 		for (int i = 1; i < (int)value.size() - 1; ++i) {
-			if (!(std::isalpha(value[i]) || std::isdigit(value[i]) || value[i] == '_' || value[i] == '.' || value[i] == '\\' || value[i] == '/' || value[i] == ':')) {
+			if (!(std::isalpha(value[i]) || std::isdigit(value[i]) || value[i] == '_' || value[i] == '.' || value[i] == '\\' || value[i] == '/' || value[i] == ':' || value[i] == '-' || value[i] == '+')) {
 				return false;
 			}
 		}
@@ -804,7 +804,12 @@ namespace YumeRT
 				return false;
 			}
 		}
-		
+
+		if (!state_stack.empty()) {
+			issue_an_error(state_stack.back(), "Error: type statement is not closed!");
+			return false;
+		}
+
 		return true;
 	}
 
@@ -949,6 +954,9 @@ namespace YumeRT
 		}
 		
 		for (size_t index = 0; index < temp_arr.size(); index += 3) {
+			if (!(index + 2 < temp_arr.size())) {
+				break;
+			}
 			Triangle triangle;
 			triangle.id0 = temp_arr.at(index);
 			triangle.id1 = temp_arr.at(index + 1);
@@ -956,7 +964,7 @@ namespace YumeRT
 			arr.push_back(triangle);
 		}
 
-		return false;
+		return true;
 	}
 	
 
@@ -2323,14 +2331,7 @@ namespace YumeRT
 			}
 		}
 
-		const size_t dot_pos = _own_file_path.find('.');
-		if (dot_pos == std::string::npos) {
-			std::cerr << "Error: invalid file type!" << std::endl;
-			return false;
-		}
-
-		const std::string postfix(_own_file_path.begin() + dot_pos, _own_file_path.end());
-		if (postfix != dsk_file_postfix) {
+		if (std::filesystem::path(_own_file_path).extension() != dsk_file_postfix) {
 			std::cerr << "Error: invalid file type!" << std::endl;
 			return false;
 		}
@@ -3343,14 +3344,7 @@ namespace YumeRT
 			}
 		}
 
-		const size_t dot_pos = _own_file_name.find('.');
-		if (dot_pos == std::string::npos) {
-			std::cerr << "Error: invalid file type!" << std::endl;
-			return false;
-		}
-
-		const std::string postfix(_own_file_name.begin() + dot_pos, _own_file_name.end());
-		if (postfix != dsk_file_postfix) {
+		if (std::filesystem::path(_own_file_name).extension() != dsk_file_postfix) {
 			std::cerr << "Error: invalid file type!" << std::endl;
 			return false;
 		}

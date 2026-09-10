@@ -86,8 +86,8 @@ namespace YumeRT
 		__device__ __host__ bool inline IsValid() const
 		{
 			auto get_bits = [](const float *fp)->uint32_t {return (*(uint32_t*)(fp)); };
-			return get_bits(&scale_x) == EMPTY_UINT32 &&
-				get_bits(&scale_y) == EMPTY_UINT32;
+			return get_bits(&scale_x) != EMPTY_UINT32 &&
+				get_bits(&scale_y) != EMPTY_UINT32;
 		}
 	};
 

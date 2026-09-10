@@ -22,42 +22,66 @@ namespace YumeRT {
 // note: this function will execute on the cuda default stream.
 // would allocate space.
 #define UPLOAD_TO_GPU(device_ptr, host_ptr, byte_size) \
+do \
 { \
-	if(byte_size > 0) \
+	const size_t upload_byte_size = (byte_size); \
+	if(upload_byte_size > 0) \
 	{ \
-		CUDA_CHECK(cudaMalloc(&device_ptr, byte_size)); \
-		CUDA_CHECK(cudaMemcpy(device_ptr, host_ptr, byte_size, cudaMemcpyHostToDevice)); \
+		CUDA_CHECK(cudaMalloc(&(device_ptr), upload_byte_size)); \
+		CUDA_CHECK(cudaMemcpy((device_ptr), (host_ptr), upload_byte_size, cudaMemcpyHostToDevice)); \
 	} \
-} \
+} while(0)
 
 // not allocate space
 #define TRANSFER_TO_GPU(device_ptr, host_ptr, byte_size) \
+do \
 { \
-	if(byte_size > 0) \
+	const auto transfer_device_pointer = (device_ptr); \
+	const auto transfer_host_pointer = (host_ptr); \
+	const size_t transfer_byte_size = (byte_size); \
+	if(transfer_byte_size > 0) \
 	{ \
-		assert(host_ptr != nullptr && device_ptr != nullptr); \
-		CUDA_CHECK(cudaMemcpy(device_ptr, host_ptr, byte_size, cudaMemcpyHostToDevice)); \
+		assert(transfer_host_pointer != nullptr && transfer_device_pointer != nullptr); \
+		CUDA_CHECK(cudaMemcpy(transfer_device_pointer, transfer_host_pointer, transfer_byte_size, cudaMemcpyHostToDevice)); \
 	} \
-} \
+} while(0)
 
 // not allocate space
 #define DOWNLOAD_FROM_GPU(device_ptr, host_ptr, byte_size) \
+do \
 { \
-	if(byte_size > 0) \
+	const auto download_device_pointer = (device_ptr); \
+	const auto download_host_pointer = (host_ptr); \
+	const size_t download_byte_size = (byte_size); \
+	if(download_byte_size > 0) \
 	{ \
-		assert(host_ptr != nullptr && device_ptr != nullptr); \
-		CUDA_CHECK(cudaMemcpy(host_ptr, device_ptr, byte_size, cudaMemcpyDeviceToHost)); \
+		assert(download_host_pointer != nullptr && download_device_pointer != nullptr); \
+		CUDA_CHECK(cudaMemcpy(download_host_pointer, download_device_pointer, download_byte_size, cudaMemcpyDeviceToHost)); \
 	} \
-} \
+} while(0)
+
+#ifndef NDEBUG
+	#define PRINT_GPU_FREE_MEMORY(memory_status) \
+	do \
+	{ \
+		size_t free_memory = 0, total_memory = 0; \
+		cudaMemGetInfo(&free_memory, &total_memory); \
+		printf("GPU free memory %s: %zu MB (%s:%d)\n", memory_status, free_memory / (1024 * 1024), __FILE__, __LINE__); \
+		fflush(stdout); \
+	} while(0)
+#else
+	#define PRINT_GPU_FREE_MEMORY(memory_status)
+#endif
 
 #define FREE_GPU_RESOURCE(device_ptr) \
+do \
 { \
-	if(device_ptr != nullptr) \
+	if((device_ptr) != nullptr) \
 	{ \
-		CUDA_CHECK(cudaFree(device_ptr)); \
-		device_ptr = nullptr; \
+		CUDA_CHECK(cudaFree((device_ptr))); \
+		(device_ptr) = nullptr; \
 	} \
-} \
+} while(0)
 
 #define FREE_STL(STL) \
 { \

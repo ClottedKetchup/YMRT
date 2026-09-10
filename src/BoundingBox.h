@@ -150,7 +150,7 @@ namespace YumeRT
 		if (tz1 < to) { to = tz1; }
 
 		bool hit = (to > ti) && (to > 0.0f) && (ti <= ray.t);
-		if (t != nullptr) { *t = hit ? ti : TMAX; }
+		if (t != nullptr) { *t = hit ? (ti < 0.0f ? to : ti) : TMAX; }
 		return hit;
 	}
 };

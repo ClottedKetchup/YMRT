@@ -42,6 +42,7 @@ namespace YumeRT {
 
 		const auto transform_index = (uint32_t)transform_states.size() - 1;
 		if (parent_transform_index != EMPTY_UINT32) {
+			assert((uint32_t)parent_transform_index < transform_states.size());
 			transform_reference_transform_indices[parent_transform_index][transform_index]++;
 		}
 
@@ -305,7 +306,7 @@ namespace YumeRT {
 			{
 				if (old_prim.geometry_idx == geometry_index) {
 					primitives_to_delete.push_back(old_prim.unique_index);
-					if (old_prim.material_idx < materials.size() || materials.at(old_prim.material_idx).material_type == LIGHT_MTL) {
+					if (old_prim.material_idx < materials.size() && materials.at(old_prim.material_idx).material_type == LIGHT_MTL) {
 						change_flag |= SCENE_CHANGE_FLAG::SCENE_SHAPE_LIGHT_CHANGE;
 					}
 					continue;
@@ -317,6 +318,7 @@ namespace YumeRT {
 
 			DeletePrimitiveInstance(primitives_to_delete);
 
+			geometries[geometry_index].Destory();
 			geometry_reference_primitive_indices.erase(geometry_reference_primitive_indices.begin() + geometry_index);
 			geometry_names.erase(geometry_names.begin() + geometry_index);
 			geometries.erase(geometries.begin() + geometry_index);
@@ -345,15 +347,19 @@ namespace YumeRT {
 		
 		// note: for primitive, use unique index to specify it.
 		if (geometry_index != EMPTY_UINT32) {
+			assert(geometry_index < geometries.size());
 			geometry_reference_primitive_indices[geometry_index][unique_index]++;
 		}
 		if (transform_index != EMPTY_UINT32) {
+			assert(transform_index < transform_states.size());
 			transform_reference_primitive_indices[transform_index][unique_index]++;
 		}
 		if (material_index != EMPTY_UINT32) {
+			assert(material_index < materials.size());
 			material_reference_primitive_indices[material_index][unique_index]++;
 		}
 		if (inner_volume_index != EMPTY_UINT32) {
+			assert(inner_volume_index < volumes.size());
 			volume_reference_primitive_indices[inner_volume_index][unique_index]++;
 		}
 
@@ -959,6 +965,25 @@ namespace YumeRT {
 			}
 			
 			auto& texture = textures.at(texture_index);
+			if (texture.texture_type == TEXTURE_TYPE::IMAGE_TEXTURE) {
+				const auto& image_texture = texture.image_texture;
+				const int tile_x_count = (image_texture.width + TEX_TILE_RES_X - 1) / TEX_TILE_RES_X;
+				const int tile_y_count = (image_texture.height + TEX_TILE_RES_Y - 1) / TEX_TILE_RES_Y;
+				const int tile_count = tile_x_count * tile_y_count;
+				const int tile_offset = image_texture.tile_offset;
+				if (tile_offset >= 0 && tile_offset + tile_count <= (int)image_texture_tiles.size()) {
+					PRINT_GPU_FREE_MEMORY("before delete texture tiles");
+					for (int tile_index = 0; tile_index < tile_count; ++tile_index) {
+						ImageTile &tile = image_texture_tiles.at(tile_offset + tile_index);
+						FREE_GPU_RESOURCE(tile.device_data);
+						if (tile.host_data != nullptr) {
+							free(tile.host_data);
+							tile.host_data = nullptr;
+						}
+					}
+					PRINT_GPU_FREE_MEMORY("after delete texture tiles");
+				}
+			}
 			const uint32_t child_texture_count = texture.GetChildCount();
 			for (uint32_t child_index = 0; child_index < child_texture_count; ++child_index) {
 				const uint32_t child_texture_index = texture.GetChildTextureIndex(child_index);
@@ -1160,6 +1185,7 @@ namespace YumeRT {
 		std::mutex shape_light_array_mutex;
 		auto shape_light_handle_function = [&](uint32_t primitive_index) {
 			const PrimitiveInstance &primitive = primitive_instances[primitive_index];
+			assert(primitive.material_idx < materials.size());
 			const Material &material = materials[primitive.material_idx];
 			if (material.material_type != LIGHT_MTL) {
 				return;

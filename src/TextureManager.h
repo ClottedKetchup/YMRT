@@ -75,10 +75,13 @@ namespace YumeRT
 		{
 			image_tile_cache.image_tiles_host = nullptr;
 			FREE_GPU_RESOURCE(image_tile_cache.image_tiles_device);
-			for (ImageTile& tile : image_texture_tiles) 
+			for (ImageTile& tile : image_texture_tiles)
 			{
 				FREE_GPU_RESOURCE(tile.device_data);
-				free(tile.host_data);
+				if (tile.host_data != nullptr) {
+					free(tile.host_data);
+					tile.host_data = nullptr;
+				}
 			}
 		}
 	};

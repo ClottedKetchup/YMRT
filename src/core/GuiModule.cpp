@@ -2680,7 +2680,7 @@ namespace YumeRT {
 	void GuiModule::UpdateInstanceInnerMedia(const uint32_t primitive_unique_index, const int dst_inner_volume_index)
 	{
 		auto& m_scene = *m_module_scene;
-		if (m_scene.volumes.empty() || !((uint32_t)dst_inner_volume_index < m_scene.transform_states.size())) {
+		if (m_scene.volumes.empty() || !((uint32_t)dst_inner_volume_index < m_scene.volumes.size())) {
 			return;
 		}
 		if (m_scene.primitive_index_to_index_map.find(primitive_unique_index) == m_scene.primitive_index_to_index_map.end()) {
@@ -2962,7 +2962,9 @@ namespace YumeRT {
 		ImGui::SameLine();
 		if(ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f)))
 		{
-			m_scene.DeleteGeometry({ list_highlight_geometry_index });
+			UpdateDeviceData([&]() {
+				m_scene.DeleteGeometry({ list_highlight_geometry_index });
+			});
 			if (clicked_instance_geometry_index == list_highlight_geometry_index) {
 				clicked_pixel_primitive_index = m_scene.primitive_index_to_index_map.empty() ? EMPTY_UINT32 : (*m_scene.primitive_index_to_index_map.begin()).first;
 				clicked_instance_geometry_index = m_scene.primitive_index_to_index_map.find(clicked_pixel_primitive_index) == m_scene.primitive_index_to_index_map.end() ?
@@ -3453,9 +3455,11 @@ namespace YumeRT {
 			ImGui::EndPopup();
 		}
 		ImGui::SameLine();
-		if (ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f))) 
+		if (ImGui::Button("Delete", ImVec2(button_size.x * 0.495f, 0.0f)))
 		{
-			m_scene.DeleteTexture({ list_highlight_texture_index });
+			UpdateDeviceData([&]() {
+				m_scene.DeleteTexture({ list_highlight_texture_index });
+			});
 			list_highlight_texture_index = m_scene.textures.empty() ? EMPTY_UINT32 : 0u;
 		}
 

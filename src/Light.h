@@ -409,7 +409,8 @@ namespace YumeRT
 			return left;
 		};
 		int idx = search(scene.shape_light_sample_table, scene.shape_light_count, u0);
+		idx = glm::min(idx, (int)scene.shape_light_count - 1);
 		*pdf = idx == 0 ? scene.shape_light_sample_table[idx] : (scene.shape_light_sample_table[idx] - scene.shape_light_sample_table[idx - 1]);
-		return glm::min(idx, (int)scene.shape_light_count - 1);
+		return idx;
 	}
 };

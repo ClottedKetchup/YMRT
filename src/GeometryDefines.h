@@ -161,10 +161,12 @@ namespace YumeRT
 			return  host_data_ptr != nullptr && boundingbox_offset != -1 ? (BBox3*)(host_data_ptr + boundingbox_offset) : nullptr;
 		}
 		
-		__host__ inline void Destory() 
+		__host__ inline void Destory()
 		{
+			PRINT_GPU_FREE_MEMORY("before destroy geometry");
 			if (device_data_ptr != nullptr) { FREE_GPU_RESOURCE(device_data_ptr); }
-			if (host_data_ptr != nullptr) { _aligned_free(host_data_ptr); }
+			if (host_data_ptr != nullptr) { _aligned_free(host_data_ptr); host_data_ptr = nullptr; }
+			PRINT_GPU_FREE_MEMORY("after destroy geometry");
 		}
 		__host__ inline void Upload() 
 		{

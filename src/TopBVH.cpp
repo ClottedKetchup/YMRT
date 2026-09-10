@@ -55,7 +55,7 @@ namespace YumeRT
 				prim_instance_infos[i].bbox = BBox3Transform(GetGeometryBound(geometry), transform);
 			});
 
-		std::vector<bool> use_mid_split(2 * prim_instance_count - 1, false);
+		std::vector<int> use_mid_split(2 * prim_instance_count - 1, false);
 		std::vector<RawTopNode> raw_nodes(2 * prim_instance_count - 1);
 		raw_nodes[0].offset = 0;
 		raw_nodes[0].count = prim_instance_count;
