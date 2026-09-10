@@ -1,11 +1,11 @@
-#include "src/core/DuskRenderer.h"
+#include "src/core/YMRayTracer.h"
 
-namespace YumeRT {
+namespace YMRT {
 
 	static constexpr int default_width = 1600;
 	static constexpr int default_height = 900;
 
-	DuskRenderer::DuskRenderer() :window(nullptr), module_scene(nullptr), module_render(nullptr), module_gui(nullptr)
+	YMRayTracer::YMRayTracer() :window(nullptr), module_scene(nullptr), module_render(nullptr), module_gui(nullptr)
 	{
 		CUDA_CHECK(cudaSetDevice(0));
 		CUDA_CHECK(cudaFree(0));
@@ -20,7 +20,7 @@ namespace YumeRT {
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
 		glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-		window = glfwCreateWindow(default_width, default_height, "Dusk Renderer", nullptr, nullptr);
+		window = glfwCreateWindow(default_width, default_height, "YMRT", nullptr, nullptr);
 		if (window == nullptr) {
 			glfwTerminate();
 			throw std::runtime_error("Fatal error: Fail to create glfw window.\n");
@@ -39,7 +39,7 @@ namespace YumeRT {
 		module_gui = std::shared_ptr<GuiModule>(new GuiModule(window, default_width, default_height, module_scene, module_render));
 	}
 
-	DuskRenderer::~DuskRenderer() 
+	YMRayTracer::~YMRayTracer()
 	{
 		// Release all resources before destory context.
 		// Note: this destroy sequence must be obeyed!
@@ -51,7 +51,7 @@ namespace YumeRT {
 		glfwTerminate();
 	}
 
-	void DuskRenderer::Run() 
+	void YMRayTracer::Run()
 	{
 		while (!glfwWindowShouldClose(window)) 
 		{

@@ -5,14 +5,14 @@
 #include "MathCommon.h"
 #include "Ray.h"
 
-namespace YumeRT
+namespace YMRT
 {
 	struct BBox3
 	{
 		glm::vec3 p_max;
 		glm::vec3 p_min;
 
-		__device__ __host__ inline BBox3() : p_max(YumeRT_FLOAT_MIN), p_min(YumeRT_FLOAT_MAX) {}
+		__device__ __host__ inline BBox3() : p_max(YMRT_FLOAT_MIN), p_min(YMRT_FLOAT_MAX) {}
 		__device__ __host__ inline BBox3(const glm::vec3 &p) : p_max(p), p_min(p) {}
 		__device__ __host__ inline BBox3(const glm::vec3 &p1, const glm::vec3 &p2) :
 			p_max({ glm::max(p1.x, p2.x), glm::max(p1.y, p2.y), glm::max(p1.z, p2.z) }),

@@ -8,7 +8,7 @@
 #include "MathCommon.h"
 #include "BottomBVH.h"
 
-namespace YumeRT 
+namespace YMRT 
 {
 	__host__ inline  BBox3 GetMeshObjectBound(const TriangleMesh &triangle_mesh)
 	{

@@ -5,7 +5,7 @@
 #include "Material.h"
 #include "ShadingUtilities.cuh"
 
-namespace YumeRT {
+namespace YMRT {
 	__device__ __host__  inline bool TraceRay(const Scene &scene,
 		const Ray &ray,
 		HitRecord *hit_record,

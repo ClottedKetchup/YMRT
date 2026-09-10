@@ -1,10 +1,10 @@
-#include "DskParser.h"
+#include "YMParser.h"
 
 #include <chrono>
 
-namespace YumeRT
+namespace YMRT
 {
-	static const std::string dsk_file_postfix = ".dsktmp";
+	static const std::string ym_file_postfix = ".ymtmp";
 
 	enum Statement_Type {
 		Illegal = 0,
@@ -2272,7 +2272,7 @@ namespace YumeRT
 		return (*iter).second(statement_tokens, start, end, scene_asset_manager, name_to_index_map, scene_file_dir);
 	}
 
-	void load_scene_asset(const std::vector<StatementToken> &statement_tokens, std::shared_ptr<YumeRT::SceneModule> scene_module, const std::filesystem::path& scene_file_dir)
+	void load_scene_asset(const std::vector<StatementToken> &statement_tokens, std::shared_ptr<YMRT::SceneModule> scene_module, const std::filesystem::path& scene_file_dir)
 	{
 		auto& scene_asset_manager = *scene_module;
 
@@ -2322,7 +2322,7 @@ namespace YumeRT
 		}
 	}
 
-	bool SceneParser::parsing_scene(const std::string& file_path, std::shared_ptr<YumeRT::SceneModule> scene_module)
+	bool SceneParser::parsing_scene(const std::string& file_path, std::shared_ptr<YMRT::SceneModule> scene_module)
 	{
 		std::string _own_file_path = file_path;
 		for (auto& c : _own_file_path) {
@@ -2331,7 +2331,7 @@ namespace YumeRT
 			}
 		}
 
-		if (std::filesystem::path(_own_file_path).extension() != dsk_file_postfix) {
+		if (std::filesystem::path(_own_file_path).extension() != ym_file_postfix) {
 			std::cerr << "Error: invalid file type!" << std::endl;
 			return false;
 		}
@@ -3335,7 +3335,7 @@ namespace YumeRT
 
 	
 
-	bool SceneParser::save_scene(const std::string& file_path, std::shared_ptr<YumeRT::SceneModule> scene_module) 
+	bool SceneParser::save_scene(const std::string& file_path, std::shared_ptr<YMRT::SceneModule> scene_module) 
 	{
 		std::string _own_file_name = file_path;
 		for (auto& c : _own_file_name) {
@@ -3344,7 +3344,7 @@ namespace YumeRT
 			}
 		}
 
-		if (std::filesystem::path(_own_file_name).extension() != dsk_file_postfix) {
+		if (std::filesystem::path(_own_file_name).extension() != ym_file_postfix) {
 			std::cerr << "Error: invalid file type!" << std::endl;
 			return false;
 		}

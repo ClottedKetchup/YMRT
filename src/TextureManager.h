@@ -7,7 +7,7 @@
 #include "Helper.h"
 #include "MathCommon.h"
 
-namespace YumeRT
+namespace YMRT
 {
 	struct ImageFile 
 	{

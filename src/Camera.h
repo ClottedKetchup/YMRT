@@ -6,7 +6,7 @@
 #include "Ray.h"
 #include "MathCommon.h"
 
-namespace YumeRT
+namespace YMRT
 {
 #define CAMERA_COUNT 2
 #define RENDERING_CAMERA_INDEX 0

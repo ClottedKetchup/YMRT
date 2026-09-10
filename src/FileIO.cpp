@@ -12,7 +12,7 @@
 
 
 
-namespace YumeRT 
+namespace YMRT 
 {
 	ImageTexture LoadImageTexture(const std::string &file_name, 
 		std::vector<ImageFile> &image_texture_files, 

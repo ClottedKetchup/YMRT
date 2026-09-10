@@ -9,7 +9,7 @@
 #include "MathCommon.h"
 #include "Texture.h"
 
-namespace YumeRT
+namespace YMRT
 {
 
 #define PERLIN_NOISE_RANDOM_VECTOR_COUNT 16

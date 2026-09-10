@@ -11,7 +11,7 @@
 #include "GeometryDefines.h"
 #include "PrimtiveInstance.h"
 
-namespace YumeRT 
+namespace YMRT 
 {
 	struct RawTopNode
 	{

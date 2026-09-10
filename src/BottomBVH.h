@@ -10,7 +10,7 @@
 #include "BoundingBox.h"
 #include "PrimtiveInstance.h"
 
-namespace YumeRT 
+namespace YMRT 
 {
 	struct Triangle;
 	struct RawBottomNode

@@ -8,7 +8,7 @@
 #include "GeometryUtilities.h"
 #include "SampleUtilities.h"
 
-namespace YumeRT
+namespace YMRT
 {
 
 	__device__ __host__ inline bool RayIntersectTriangle(const glm::vec3 &ray_origin,

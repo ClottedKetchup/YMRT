@@ -4,7 +4,7 @@
 
 #include "MathCommon.h"
 
-namespace YumeRT 
+namespace YMRT 
 {
 	struct Triangle
 	{

@@ -12,7 +12,7 @@
 
 #include "core/SceneModule.h"
 
-namespace YumeRT {
+namespace YMRT {
 	enum STATEMENT_TYPE
 	{
 		NONE = 0,
@@ -34,8 +34,8 @@ namespace YumeRT {
 	{
 	public:
 		SceneParser() = default;
-		bool parsing_scene(const std::string& file_path, std::shared_ptr<YumeRT::SceneModule> scene_module);
-		bool save_scene(const std::string& file_path, std::shared_ptr<YumeRT::SceneModule> scene_module);
+		bool parsing_scene(const std::string& file_path, std::shared_ptr<YMRT::SceneModule> scene_module);
+		bool save_scene(const std::string& file_path, std::shared_ptr<YMRT::SceneModule> scene_module);
 
 	private:
 

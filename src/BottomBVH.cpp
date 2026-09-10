@@ -1,7 +1,7 @@
 #include "BottomBVH.h"
 #include "TriangleDefines.h"
 
-namespace YumeRT
+namespace YMRT
 {
 	__host__ uint32_t FlattenRecursive(const std::vector<RawBottomNode>& raw_nodes, uint32_t raw_node_idx, BottomNode *bottom_nodes, uint32_t &node_count)
 	{

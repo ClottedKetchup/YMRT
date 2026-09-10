@@ -22,7 +22,7 @@
 #include <cuda_runtime.h>
 #include <cuda_gl_interop.h>
 
-namespace YumeRT {
+namespace YMRT {
 
 	static const std::string aov_name_primitive_index = "primitive index";
 	static const std::string aov_name_beauty = "beauty";

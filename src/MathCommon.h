@@ -6,7 +6,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-namespace YumeRT 
+namespace YMRT 
 {
 #define ONE_PI 3.14159265358f
 #define TWO_PI 6.28318530716f
@@ -20,8 +20,8 @@ namespace YumeRT
 
 #define WORLD_UP glm::vec3(0.0f, 1.0f, 0.0f)
 
-#define YumeRT_FLOAT_MAX  1E36f
-#define YumeRT_FLOAT_MIN  -1E36f
+#define YMRT_FLOAT_MAX  1E36f
+#define YMRT_FLOAT_MIN  -1E36f
 
 #define EMPTY_UINT32 0xFFFFFFFF
 #define EMPTY_UINT16 0xFFFF

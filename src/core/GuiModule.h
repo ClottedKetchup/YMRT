@@ -14,10 +14,10 @@
 #include "imgui_impl_opengl3.h"
 #include "imgui_impl_glfw.h"
 
-#include "core/DskParser.h"
+#include "core/YMParser.h"
 
 
-namespace YumeRT {
+namespace YMRT {
 	struct DuskTrackball {
 		int mouse_button = -1;
 

@@ -6,7 +6,7 @@
 #include "SceneDefines.h"
 #include "TextureManager.h"
 
-namespace YumeRT
+namespace YMRT
 {
 #define TEX_TILE_RES_X 32
 #define TEX_TILE_RES_Y 32

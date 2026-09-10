@@ -7,7 +7,7 @@
 #include "MathCommon.h"
 #include "HaltonEnumerator.h"
 
-namespace YumeRT
+namespace YMRT
 {
 #define PRIME_TABLE_SIZE 1000
 

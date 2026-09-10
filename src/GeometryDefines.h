@@ -5,7 +5,7 @@
 #include "BottomBVH.h"
 #include "TriangleDefines.h"
 
-namespace YumeRT
+namespace YMRT
 {
 	enum GEOMETRY_TYPE
 	{

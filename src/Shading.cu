@@ -30,7 +30,7 @@
 
 #include "VolumeEval.cuh"
 
-namespace YumeRT
+namespace YMRT
 {
 	__device__ __host__ inline glm::vec3 Background(const glm::vec3 &direction)
 	{

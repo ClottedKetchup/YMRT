@@ -11,7 +11,7 @@
 #include "ShadingUtilities.cuh"
 #include "TextureEval.cuh"
 
-namespace YumeRT {
+namespace YMRT {
 
 #define MAX_FREE_PATH_LENGTH 2048
 
@@ -27,7 +27,7 @@ namespace YumeRT {
 		RandomSampler &sampler)
 	{
 		*tr_weight = glm::vec3(1.0f);
-		*sampled_distance = YumeRT_FLOAT_MAX;
+		*sampled_distance = YMRT_FLOAT_MAX;
 		auto random = [&]()->float {return sampler.Random1D(); };
 
 		glm::vec3 mixed_sigma_t(0.0f);
@@ -55,7 +55,7 @@ namespace YumeRT {
 			u0 = (u0 - channel_weight[0] - channel_weight[1]) * SafeRcp(channel_weight[2]);
 		}
 
-		const float free_path_length = mixed_sigma_t[channel] > 0.0f ? (-glm::log(1.0f - u0) / mixed_sigma_t[channel]) : YumeRT_FLOAT_MAX;
+		const float free_path_length = mixed_sigma_t[channel] > 0.0f ? (-glm::log(1.0f - u0) / mixed_sigma_t[channel]) : YMRT_FLOAT_MAX;
 		const bool volume_scatter = free_path_length < t_max;
 		glm::vec3 tr = glm::exp(-mixed_sigma_t * glm::min(t_max, free_path_length));
 		float pdf = volume_scatter ?
@@ -89,7 +89,7 @@ namespace YumeRT {
 		RandomSampler &sampler)
 	{
 		*tr_weight = glm::vec3(1.0f);
-		*sampled_distance = YumeRT_FLOAT_MAX;
+		*sampled_distance = YMRT_FLOAT_MAX;
 		auto random = [&]()->float {
 			return sampler.Random1D(); 
 		};

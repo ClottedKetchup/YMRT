@@ -4,7 +4,7 @@
 
 #include "MathCommon.h"
 
-namespace YumeRT
+namespace YMRT
 {
 #define MAX_RAY_DEPTH 32
 

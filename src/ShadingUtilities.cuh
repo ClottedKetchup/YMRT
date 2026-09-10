@@ -15,7 +15,7 @@
 #include "PrimtiveInstance.h"
 #include "Volume.h"
 
-namespace YumeRT
+namespace YMRT
 {
 #pragma pack(push, 16)
 	struct HitRecord

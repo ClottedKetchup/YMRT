@@ -4,7 +4,7 @@
 
 #include "MathCommon.h"
 
-namespace YumeRT
+namespace YMRT
 {
 #define	TMAX 1E36f
 #define	TMIN  1E-7f

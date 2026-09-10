@@ -6,7 +6,7 @@
 
 #include "MathCommon.h"
 
-namespace YumeRT 
+namespace YMRT 
 {
 	__device__ __host__ inline glm::vec2 SampleUnitDisk(float u0, float u1)
 	{

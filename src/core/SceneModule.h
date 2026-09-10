@@ -27,7 +27,7 @@
 #include "src/TextureManager.h"
 #include "src/FileIO.h"
 
-namespace YumeRT{
+namespace YMRT{
 	class SceneModule {
 	public:
 		enum SCENE_CHANGE_FLAG {

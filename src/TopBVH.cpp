@@ -1,7 +1,7 @@
 #include "TopBVH.h"
 #include "GeometryUtilities.h"
 
-namespace YumeRT
+namespace YMRT
 {
 	__host__ uint32_t FlattenRecursive(const std::vector<RawTopNode>& raw_nodes, uint32_t raw_node_idx, TopNode *top_nodes, uint32_t &node_count)
 	{
@@ -339,7 +339,7 @@ namespace YumeRT
 			const BBox3 &bbox_b = raw_nodes[clusters[b].node_idx].bbox;
 			return BBox3Area(BBox3Union(bbox_a, bbox_b));
 		};
-		float min_cost = YumeRT_FLOAT_MAX;
+		float min_cost = YMRT_FLOAT_MAX;
 		uint32_t candidate = EMPTY_UINT32;
 		for (uint32_t i = 0; i < cluster_count; ++i)
 		{

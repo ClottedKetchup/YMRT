@@ -1,6 +1,6 @@
 #include "src/core/RenderModule.h"
 
-namespace YumeRT{
+namespace YMRT{
 
 #define MAX_WAIT_TIME 10
 #define CV_WAIT_DURATION 1

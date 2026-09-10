@@ -9,7 +9,7 @@
 
 #include <iostream>
 
-namespace YumeRT
+namespace YMRT
 {
 	class GLVertexArray
 	{

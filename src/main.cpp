@@ -1,12 +1,12 @@
 #include <iostream>
 
-#include "src/core/DuskRenderer.h"
+#include "src/core/YMRayTracer.h"
 
 int main(int argc, char *argv[])
 {
 	try {
-		auto dusk_renderer = YumeRT::DuskRenderer::GetDuskRenderer();
-		dusk_renderer->Run();
+		auto ym_ray_tracer = YMRT::YMRayTracer::GetYMRayTracer();
+		ym_ray_tracer->Run();
 	}
 	catch (const std::exception& err) {
 		std::cout << err.what() << std::endl;

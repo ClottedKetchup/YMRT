@@ -2,7 +2,7 @@
 
 #include <chrono>
 
-namespace YumeRT {
+namespace YMRT {
 	struct DuskTimer {
 	public:
 		DuskTimer() = default;

@@ -1,6 +1,6 @@
 #include "src/core/GuiModule.h"
 
-namespace YumeRT {
+namespace YMRT {
 
 	constexpr int asset_name_buffer_size = 128;
 	constexpr int file_path_buffer_size = 256;

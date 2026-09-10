@@ -6,7 +6,7 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
-namespace YumeRT {
+namespace YMRT {
 
 #define ERASE_STD_VECTOR(std_vector, index) {std_vector.erase(std_vector.begin() + index);}
 #define CLEAR_STD_CONTAINER(container) {container = {};}

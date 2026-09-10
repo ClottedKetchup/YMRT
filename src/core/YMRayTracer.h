@@ -15,15 +15,15 @@
 #include <cuda_gl_interop.h>
 
 
-namespace YumeRT {
-	class DuskRenderer {
+namespace YMRT {
+	class YMRayTracer {
 	public:
-		static inline std::shared_ptr<DuskRenderer> GetDuskRenderer() {
-			static std::shared_ptr<DuskRenderer> ptr(new DuskRenderer());
+		static inline std::shared_ptr<YMRayTracer> GetYMRayTracer() {
+			static std::shared_ptr<YMRayTracer> ptr(new YMRayTracer());
 			return ptr;
 		}
 
-		~DuskRenderer();
+		~YMRayTracer();
 
 		void Run();
 
@@ -38,6 +38,6 @@ namespace YumeRT {
 		std::shared_ptr<RenderModule> module_render;
 		std::shared_ptr<GuiModule> module_gui;
 
-		DuskRenderer();
+		YMRayTracer();
 	};
 }

@@ -5,7 +5,7 @@
 
 #include "MathCommon.h"
 
-namespace YumeRT
+namespace YMRT
 {
 	void GenerateDirectionNumber64(uint64_t s, uint64_t a, std::vector<uint64_t>& m);
 	void GeneratorSobolMatrices64(const std::string &direction_number_file, const std::string &output_file);

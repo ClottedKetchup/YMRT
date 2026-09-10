@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 include(CheckCXXCompilerFlag)
 
 # incorporate c to fix assimp bug
-project(Yume LANGUAGES C CXX CUDA)
+project(YMRT LANGUAGES C CXX CUDA)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_C_FLAGS "-std=c99")
@@ -11,7 +11,7 @@ set(CMAKE_C_FLAGS "-std=c99")
 # cuda debug
 # set(CMAKE_CUDA_FLAGS_DEBUG "${CMAKE_CUDA_FLAGS_DEBUG} -G")
 
-set(EXE_NAME Yume)
+set(EXE_NAME YMRT)
 
 file(GLOB CPP_SRC 
 	"src/*.h"

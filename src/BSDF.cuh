@@ -13,7 +13,7 @@
 #include "TextureEval.cuh"
 #include "Ray.h"
 
-namespace YumeRT
+namespace YMRT
 {
 #define MAX_BSDF_COUNT 6
 

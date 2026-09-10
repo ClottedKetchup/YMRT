@@ -11,12 +11,12 @@
 #include <stdexcept>
 #include <string>
 
-namespace YumeRT {
+namespace YMRT {
 
-#define CUDA_CHECK(call) YumeRT::CudaCheck(call, #call, __FILE__, __LINE__)
+#define CUDA_CHECK(call) YMRT::CudaCheck(call, #call, __FILE__, __LINE__)
 #define GL_CHECK(call) { \
 	call; \
-	YumeRT::GlCheck(#call, __FILE__, __LINE__); \
+	YMRT::GlCheck(#call, __FILE__, __LINE__); \
 } \
 
 // note: this function will execute on the cuda default stream.
