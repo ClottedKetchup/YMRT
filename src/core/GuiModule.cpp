@@ -337,7 +337,6 @@ namespace YumeRT {
 			// render path tracing view based on current size.
 			auto& scene_resource = m_module_scene->scene_resource;
 			auto& render_setting = m_module_scene->render_setting;
-			static ExtraTaskResults path_tracing_extra_task_results = {};
 			m_module_render->PathTracingFetchResult(scene_resource, path_tracing_scene_updated, render_setting, (int)render_image_size.x, (int)render_image_size.y, &path_tracing_extra_task_results);
 
 			// image button style.
@@ -418,7 +417,6 @@ namespace YumeRT {
 			// render editor view based on current size.
 			auto& scene_resource = m_scene.scene_resource;
 			auto& render_setting = m_scene.render_setting;
-			static ExtraTaskResults editor_view_extra_task_results = {};
 			m_module_render->EditorViewFetchResult(scene_resource, editor_view_scene_updated, render_setting, (int)draw_region_size.x, (int)draw_region_size.y, clicked_pixel_primitive_index, draw_selected_effect, &editor_view_extra_task_results);
 
 			// image button style.
@@ -554,6 +552,7 @@ namespace YumeRT {
 
 			ImGui::Text("Accumulate frame count: %d", accumulated_frame_count);
 			ImGui::ProgressBar(render_setting.max_frame_count > 0 ? float(accumulated_frame_count) / float(render_setting.max_frame_count) : 1.0f);
+			ImGui::Text("Render time: %.2f ms", path_tracing_extra_task_results.task_render_time);
 			if (render_setting.max_frame_count > 0 && accumulated_frame_count == render_setting.max_frame_count) {
 				ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(250, 4, 4, 255));
 				ImGui::Text("Render finish!");
@@ -584,6 +583,7 @@ namespace YumeRT {
 
 				if (begin_rendering_window_on)
 				{
+					ImGui::SetNextWindowDockID(0, ImGuiCond_Always);
 					ImGui::SetNextWindowSize(ImVec2(400, 300), ImGuiCond_FirstUseEver);
 					ImGui::Begin("Settings", &begin_rendering_window_on);
 					

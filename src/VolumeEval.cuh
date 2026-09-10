@@ -370,7 +370,8 @@ namespace YumeRT {
 			pdf *= path_tr * mixed_sigma_m * normalize_factor;
 			if (iteration + 1 > max_trace_time) 
 			{
-				float rr_factor = glm::max(tr.x, glm::max(tr.y, tr.z));
+				glm::vec3 path_throughput = tr * SafeRcp(glm::dot(channel_weight, pdf));
+				float rr_factor = glm::max(path_throughput.x, glm::max(path_throughput.y, path_throughput.z));
 				rr_factor = glm::min(rr_factor, 1.0f);
 				if (random() < rr_factor) {
 					tr /= glm::max(rr_factor, MIN_COLOR_EPSILON);

@@ -2353,8 +2353,9 @@ namespace YumeRT
 	extern "C" void AccumulateImagePathTracing(const glm::vec4 * noise_image, glm::vec4 * accumulated_image, uint32_t width, uint32_t height, int frame_index, const int max_accumulate_frame, cudaStream_t & stream)
 	{
 		assert(noise_image != nullptr && accumulated_image != nullptr);
-		if (max_accumulate_frame > 0 && frame_index > max_accumulate_frame) {
-			return; 
+		const int accumulated_frame_count = frame_index - 1;
+		if (max_accumulate_frame > 0 && accumulated_frame_count >= max_accumulate_frame) {
+			return;
 		}
 
 		dim3 block_dim(32, 32, 1);

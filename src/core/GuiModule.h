@@ -118,7 +118,10 @@ namespace YumeRT {
 		int path_tracing_window_height;
 		bool path_tracing_window_is_rendering;
 		bool path_tracing_window_first_launch;
-		
+
+		ExtraTaskResults path_tracing_extra_task_results;
+		ExtraTaskResults editor_view_extra_task_results;
+
 		float primitive_scale_upper;
 		float primitive_scale_lower;
 		float primitive_move_speed;

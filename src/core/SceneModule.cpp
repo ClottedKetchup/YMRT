@@ -982,6 +982,29 @@ namespace YumeRT {
 						}
 					}
 					PRINT_GPU_FREE_MEMORY("after delete texture tiles");
+
+					image_texture_tiles.erase(image_texture_tiles.begin() + tile_offset, image_texture_tiles.begin() + tile_offset + tile_count);
+					if (image_texture.file_offset >= 0 && (size_t)image_texture.file_offset < image_texture_files.size()) {
+						image_texture_files.erase(image_texture_files.begin() + image_texture.file_offset);
+					}
+
+					for (uint32_t other_texture_index = 0; other_texture_index < (uint32_t)textures.size(); ++other_texture_index) {
+						if (other_texture_index == texture_index) {
+							continue;
+						}
+						auto& other_texture = textures.at(other_texture_index);
+						if (other_texture.texture_type != TEXTURE_TYPE::IMAGE_TEXTURE) {
+							continue;
+						}
+						if (other_texture.image_texture.tile_offset > tile_offset) {
+							other_texture.image_texture.tile_offset -= tile_count;
+						}
+						if (other_texture.image_texture.file_offset > image_texture.file_offset) {
+							other_texture.image_texture.file_offset -= 1;
+						}
+					}
+
+					change_flag |= SCENE_CHANGE_FLAG::SCENE_IMAGE_TILE_DELETE;
 				}
 			}
 			const uint32_t child_texture_count = texture.GetChildCount();

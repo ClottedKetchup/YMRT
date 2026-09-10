@@ -494,6 +494,29 @@ namespace YumeRT{
 		CUDA_CHECK(cudaStreamSynchronize(stream_path_tracing));
 		DuskDeviceMemory<glm::vec4> device_mem_noise_image(task_param.width, task_param.height, noise_image);
 
+		const RenderSetting& render_setting = task_param.render_setting;
+		const int current_frame_index = path_tracing_frame_index.load();
+		const int accumulated_frame_count = current_frame_index - 1;
+
+		// note: frame count reached the limit, skip the ray tracing work and push a black frame to keep the pipeline flowing.
+		if (render_setting.max_frame_count > 0 && accumulated_frame_count >= render_setting.max_frame_count) {
+			{
+				std::shared_lock<std::shared_mutex> scene_read_lk(scene_resource.scene_mutex);
+				if (scene_resource.scene_change_time != task_param.scene_change_time) {
+					return;
+				}
+
+				{
+					std::unique_lock<std::mutex> path_tracing_result_queue_lk(path_tracing_result_queue_mutex);
+					path_tracing_result_queue_beauty.push_front(std::move(device_mem_noise_image));
+					path_tracing_result_queue_extra.push_front({ current_frame_index, path_tracing_timer.Stop(), render_setting.max_frame_count });
+					path_tracing_frame_index.fetch_add(1);
+				}
+				path_tracing_result_queue_cv.notify_one();
+			}
+			return;
+		}
+
 		// note: allocate device scene ptrs.
 		Scene *scene_device = nullptr;
 		HaltonEnumerator *halton_enumerator_device = nullptr;
@@ -514,8 +537,6 @@ namespace YumeRT{
 			CUDA_CHECK(cudaStreamSynchronize(stream_path_tracing)); // note: have to make sure the gpu done the memory copy before unlock.
 		}
 
-		const RenderSetting& render_setting = task_param.render_setting;
-		const int current_frame_index = path_tracing_frame_index.load();
 		const uint32_t sample_per_pixel = render_setting.ssp;
 		const uint32_t tile_count_x = (task_param.width + TILE_X_RES - 1) / TILE_X_RES;
 		const uint32_t tile_count_y = (task_param.height + TILE_Y_RES - 1) / TILE_Y_RES;
