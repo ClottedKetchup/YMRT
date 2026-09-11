@@ -6,7 +6,7 @@
 
 namespace YMRT
 {
-#define MAX_RAY_DEPTH 32
+#define MAX_RAY_DEPTH 64
 
 #define TILE_X_RES 16u
 #define TILE_Y_RES 16u
@@ -28,8 +28,13 @@ namespace YMRT
 		bool enable_env_light;
 		bool enable_russian_roulette;
 
-		__device__ __host__ inline RenderSetting() : ssp(1), ray_depth(3), gamma(2.2f), exposure(1.0f), sampler_type(0), 
-			max_frame_count(-1), enable_distant_light(false), enable_env_light(true), enable_russian_roulette(false), enable_volume_scattering(false), enable_shape_light(false) {}
+		bool enable_indirect_clamp;
+		float indirect_limit;
+
+		__device__ __host__ inline RenderSetting() : ssp(1), ray_depth(4), gamma(2.2f), exposure(1.0f), sampler_type(0), 
+			max_frame_count(-1), enable_distant_light(false), enable_env_light(true), enable_russian_roulette(false), enable_volume_scattering(false), enable_shape_light(false),
+			enable_indirect_clamp(false), indirect_limit(10.0f)
+		{}
 		__device__ __host__ inline RenderSetting(const RenderSetting&) = default;
 		__device__ __host__ inline RenderSetting& operator=(const RenderSetting&) = default;
 	};

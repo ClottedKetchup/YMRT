@@ -490,6 +490,14 @@ namespace YMRT {
 					trackball.CameraMoveRight();
 					m_scene.AddSceneFlag(SceneModule::SCENE_CAMERA_CHANGE);
 				}
+				else if (ImGui::IsKeyDown(ImGuiKey_Q)) {
+					trackball.CameraMoveUp();
+					m_scene.AddSceneFlag(SceneModule::SCENE_CAMERA_CHANGE);
+				}
+				else if (ImGui::IsKeyDown(ImGuiKey_E)) {
+					trackball.CameraMoveDown();
+					m_scene.AddSceneFlag(SceneModule::SCENE_CAMERA_CHANGE);
+				}
 				else {
 
 				}
@@ -638,6 +646,16 @@ namespace YMRT {
 			}
 			if (ImGui::Checkbox("Russian roulette", &render_setting.enable_russian_roulette)) {
 				m_scene.AddSceneFlag(SceneModule::SCENE_RENDER_SETTING_CHANGE);
+			}
+			if (ImGui::Checkbox("Indirect clamp", &render_setting.enable_indirect_clamp)) {
+				m_scene.AddSceneFlag(SceneModule::SCENE_RENDER_SETTING_CHANGE);
+			}
+
+			if (render_setting.enable_indirect_clamp) {
+				if (ImGui::InputFloat("Indirect limit", &render_setting.indirect_limit)) {
+					render_setting.indirect_limit = glm::max(0.0f, render_setting.indirect_limit);
+					m_scene.AddSceneFlag(SceneModule::SCENE_RENDER_SETTING_CHANGE);
+				}
 			}
 
 			ImGui::Separator();

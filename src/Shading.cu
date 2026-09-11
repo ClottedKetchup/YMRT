@@ -58,6 +58,28 @@ namespace YMRT
 		return atomicExch(address, val);
 	}
 
+	__device__ inline glm::vec3 indirect_light_clamp(const RenderSetting& render_setting, const glm::vec3& contrib, const int depth)
+	{
+		if (!(render_setting.enable_indirect_clamp && depth > 1)) {
+			return contrib;
+		}
+
+		if (!(render_setting.indirect_limit > 0.0f)) {
+			return glm::vec3(0.0f);
+		}
+
+		const float luminance = RGBToLuminance(contrib);
+		if (luminance <= 1E-10f) {
+			return contrib;
+		}
+
+		float limit = render_setting.indirect_limit;
+		float pw = glm::min(0.05f + 0.25f * (::pow(luminance / limit, 1.5f)), 1.0f);
+		float scale_factor = (::pow(limit / (limit + luminance), pw));
+
+		return contrib * scale_factor;
+	}
+
 	__device__ glm::vec3 EvalDistantLight(const RenderSetting &render_setting,
 															const Scene &scene, 
 															const ImageTileCache& image_tile_cache,
@@ -490,7 +512,7 @@ namespace YMRT
 		return light_select_pdf > 0.0f ? (direct_lighting / light_select_pdf) : glm::vec3(0.0f);
 	}
 
-	
+	// note: deprecated.
 	__global__ void RenderImage(Scene *scene_ptr,
 													ImageTileCache *image_tile_cache_ptr,
 													const RenderSetting *render_setting_ptr,
@@ -603,12 +625,12 @@ namespace YMRT
 
 						glm::vec3 volume_hit_position = ray.PositionAtT(sampled_distance);
 						if (render_setting.enable_distant_light) {
-							L += throughput * EvalVolumeDistantLight(render_setting, scene, image_tile_cache, overlapped_volume_count, gs, volume_weights, 
-								ray, hit_record, ray_transfer, volume_hit_position, sampler);
+							L += indirect_light_clamp(render_setting, throughput * EvalVolumeDistantLight(render_setting, scene, image_tile_cache, overlapped_volume_count, gs, volume_weights, 
+								ray, hit_record, ray_transfer, volume_hit_position, sampler), depth);
 						}
 
-						L += throughput * EvalVolumeShapeLight(render_setting, scene, image_tile_cache, overlapped_volume_count, gs, volume_weights, 
-							ray, hit_record, ray_transfer, volume_hit_position, sampler);
+						L += indirect_light_clamp(render_setting, throughput * EvalVolumeShapeLight(render_setting, scene, image_tile_cache, overlapped_volume_count, gs, volume_weights,
+							ray, hit_record, ray_transfer, volume_hit_position, sampler), depth);
 
 						// sample phase function
 						// multiply phase weight
@@ -701,7 +723,7 @@ namespace YMRT
 							0.25f, 0.25f);
 
 					if (mtl.material_type == LIGHT_MTL) {
-						if (never_scatter) { L += throughput * mtl.light_mtl.light_color * mtl.light_mtl.intensity; }
+						if (never_scatter) { L += indirect_light_clamp(render_setting, throughput * mtl.light_mtl.light_color * mtl.light_mtl.intensity, depth); }
 						break;
 					}
 
@@ -740,7 +762,7 @@ namespace YMRT
 						// TODO: direct lighting
 						// TODO: switch to turn off direct light (done)
 						if (render_setting.enable_distant_light) {
-							L += throughput * EvalDistantLight(render_setting,
+							L += indirect_light_clamp(render_setting, throughput * EvalDistantLight(render_setting,
 								scene,
 								image_tile_cache,
 								material_bsdf,
@@ -753,11 +775,11 @@ namespace YMRT
 								hit_position_error,
 								material_bsdf.GetShadingNormal(),
 								hit_geometry_normal,
-								sampler);
+								sampler), depth);
 						}
 
 						// TODO: sample table, light BVH...
-						L += throughput * EvalShapeLight(render_setting,
+						L += indirect_light_clamp(render_setting, throughput * EvalShapeLight(render_setting,
 							scene,
 							image_tile_cache, 
 							material_bsdf,
@@ -770,7 +792,7 @@ namespace YMRT
 							hit_position_error,
 							material_bsdf.GetShadingNormal(),
 							hit_geometry_normal,
-							sampler);
+							sampler), depth);
 					}
 
 					// current a bunch noise are from indirect light!
@@ -815,7 +837,7 @@ namespace YMRT
 				else
 				{
 					// TODO: switch to turn off env light
-					L += render_setting.enable_env_light? throughput * Background(ray.direction) : glm::vec3(0.0f);
+					L += render_setting.enable_env_light? indirect_light_clamp(render_setting, throughput * Background(ray.direction), depth) : glm::vec3(0.0f);
 					break;
 				}
 			} // for depth
@@ -825,7 +847,7 @@ namespace YMRT
 		assert(!::isnan(col.x));
 		image[pixel_idx] = glm::vec4(col / float(render_setting.ssp), 1.0f);
 	}
-
+	// note: deprecated.
 	extern "C" void RenderScene(const Scene &scene,
 		const ImageTextureManager &image_texture_manager,
 		const RenderSetting &render_setting,
@@ -1832,7 +1854,7 @@ namespace YMRT
 		}
 
 		if (!hit_something) {
-			ray_received_light += render_setting.enable_env_light ? ray_throughput * Background(ray.direction) : glm::vec3(0.0f);
+			ray_received_light += render_setting.enable_env_light ? indirect_light_clamp(render_setting, ray_throughput * Background(ray.direction), shading_ray_data_ray_depth[ray_index]) : glm::vec3(0.0f);
 			const float inv_ssp = 1.0f / glm::max(render_setting.ssp, 1);
 			AtomicAddFloat(&(noise_image[pixel_index][0]), ray_received_light[0] * inv_ssp);
 			AtomicAddFloat(&(noise_image[pixel_index][1]), ray_received_light[1] * inv_ssp);
@@ -2059,12 +2081,12 @@ namespace YMRT
 
 			const glm::vec3 volume_hit_position = hit_record.hit_barycentric;
 			if (render_setting.enable_distant_light) {
-				ray_received_light += ray_throughput * EvalVolumeDistantLight(render_setting, scene, image_tile_cache, overlapped_volume_count, gs, volume_weights,
-					ray, hit_record, ray_transfer, volume_hit_position, ray_sampler);
+				ray_received_light += indirect_light_clamp(render_setting, ray_throughput * EvalVolumeDistantLight(render_setting, scene, image_tile_cache, overlapped_volume_count, gs, volume_weights,
+					ray, hit_record, ray_transfer, volume_hit_position, ray_sampler), ray_depth);
 			}
 			if (render_setting.enable_shape_light) {
-				ray_received_light += ray_throughput * EvalVolumeShapeLight(render_setting, scene, image_tile_cache, overlapped_volume_count, gs, volume_weights,
-					ray, hit_record, ray_transfer, volume_hit_position, ray_sampler);
+				ray_received_light += indirect_light_clamp(render_setting, ray_throughput * EvalVolumeShapeLight(render_setting, scene, image_tile_cache, overlapped_volume_count, gs, volume_weights,
+					ray, hit_record, ray_transfer, volume_hit_position, ray_sampler), ray_depth);
 			}
 
 			glm::vec3 wi;
@@ -2158,7 +2180,7 @@ namespace YMRT
 
 		if (material.material_type == LIGHT_MTL) {
 			if (never_scatter) {
-				ray_received_light += ray_throughput * material.light_mtl.light_color * material.light_mtl.intensity;
+				ray_received_light += indirect_light_clamp(render_setting, ray_throughput * material.light_mtl.light_color * material.light_mtl.intensity, ray_depth);
 			}
 			write_ray_received_light(ray_received_light);
 			return;
@@ -2193,7 +2215,7 @@ namespace YMRT
 		
 
 		if (render_setting.enable_distant_light) {
-			ray_received_light += ray_throughput *
+			ray_received_light += indirect_light_clamp(render_setting, ray_throughput *
 				EvalDistantLight(render_setting,
 					scene,
 					image_tile_cache,
@@ -2207,12 +2229,12 @@ namespace YMRT
 					hit_position_error,
 					material_bsdf.GetShadingNormal(),
 					hit_geometry_normal,
-					ray_sampler);
+					ray_sampler), ray_depth);
 		}
 
 		// TODO: sample table, light BVH...
 		if (render_setting.enable_shape_light) {
-			ray_received_light += ray_throughput *
+			ray_received_light += indirect_light_clamp(render_setting, ray_throughput *
 				EvalShapeLight(render_setting,
 					scene,
 					image_tile_cache,
@@ -2226,7 +2248,7 @@ namespace YMRT
 					hit_position_error,
 					material_bsdf.GetShadingNormal(),
 					hit_geometry_normal,
-					ray_sampler);
+					ray_sampler), ray_depth);
 		}
 
 		// note: indirect.

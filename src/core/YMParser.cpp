@@ -3371,7 +3371,14 @@ namespace YMRT
 		auto& scene_asset_manager = *scene_module;
 
 		std::filesystem::path texture_folder_path;
-		if (!scene_asset_manager.textures.empty()) {
+		uint32_t image_texture_count = 0;
+		for (const auto& tex : scene_asset_manager.textures) {
+			if (tex.texture_type == IMAGE_TEXTURE) {
+				++image_texture_count;
+			}
+		}
+
+		if (image_texture_count > 0) {
 			texture_folder_path = get_texture_folder_from_scene_file(scene_file_dir);
 
 			if (!std::filesystem::is_directory(texture_folder_path)) {

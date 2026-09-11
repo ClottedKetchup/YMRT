@@ -23,7 +23,7 @@ namespace YMRT {
 
 		float prev_pos_x = -1.0f;
 		float prev_pos_y = -1.0f;
-		float move_speed = 0.5f;
+		float move_speed = 0.25f;
 		float rotate_speed = 0.5f;
 
 		bool start_tracking = false;
@@ -62,6 +62,16 @@ namespace YMRT {
 		inline void CameraMoveRight()
 		{
 			cam->MoveRight(move_speed);
+		}
+		inline void CameraMoveUp() 
+		{
+			glm::vec3 old_pos = cam->GetPosition();
+			cam->SetPosition(glm::vec3(old_pos.x, old_pos.y + move_speed, old_pos.z));
+		}
+		inline void CameraMoveDown() 
+		{
+			glm::vec3 old_pos = cam->GetPosition();
+			cam->SetPosition(glm::vec3(old_pos.x, old_pos.y - move_speed, old_pos.z));
 		}
 		inline void Rotate(float angle /* radians */, const glm::vec3& axis /* normalized */)
 		{
