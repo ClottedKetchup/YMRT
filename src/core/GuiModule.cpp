@@ -664,7 +664,7 @@ namespace YMRT {
 				m_scene.AddSceneFlag(SceneModule::SCENE_RENDER_SETTING_CHANGE);
 			}
 			if (ImGui::InputInt("Max accumulate frame count", &render_setting.max_frame_count)) {
-				render_setting.max_frame_count = glm::max(render_setting.max_frame_count, 0);
+				render_setting.max_frame_count = glm::max(render_setting.max_frame_count, path_tracing_window_is_rendering ? 1 : 0);
 				m_scene.AddSceneFlag(SceneModule::SCENE_RENDER_SETTING_CHANGE);
 			}
 			if (ImGui::InputInt("Ray depth", &render_setting.ray_depth)) {

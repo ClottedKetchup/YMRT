@@ -5,6 +5,8 @@ namespace YMRT{
 #define MAX_WAIT_TIME 10
 #define CV_WAIT_DURATION 1
 
+#define MAX_TASK_QUEUE_COUNT 32
+
 	extern "C" void ImguiTestingAov(const Scene & scene, glm::vec4 * beauty, uint32_t * primitive_index, int width, int height, cudaStream_t & stream);
 
 	extern "C" void ImguiTestingRendering(const Scene & scene, glm::vec4 * beauty, int width, int height, cudaStream_t & stream);
@@ -231,6 +233,8 @@ namespace YMRT{
 					*extra_task_results = extra_frame_results;
 				}
 
+				assert(device_mem_albedo.GetMemPtr() != nullptr && device_mem_primitive_index.GetMemPtr() != nullptr);
+
 				assert(device_mem_albedo.width == beauty_image.image_width && device_mem_albedo.height == beauty_image.image_height);
 				CUDA_CHECK(cudaMemcpyAsync(beauty_image.GetDevicePtr(), device_mem_albedo.GetMemPtr(), sizeof(glm::vec4) * frame_width * frame_height, cudaMemcpyDeviceToDevice, stream_main));
 				assert(device_mem_primitive_index.width == primitive_image.width && device_mem_primitive_index.height == primitive_image.height);
@@ -258,6 +262,10 @@ namespace YMRT{
 	{
 		{
 			std::unique_lock<std::mutex> editor_view_task_queue_lk(editor_view_task_queue_mutex);
+			if (editor_view_task_queue.size() >= MAX_TASK_QUEUE_COUNT) {
+				editor_view_task_queue.pop_back();
+			}
+
 			editor_view_task_queue.push_front(task_params);
 		}
 		editor_view_task_queue_cv.notify_one();
@@ -307,9 +315,13 @@ namespace YMRT{
 					*extra_task_results = extra_frame_results;
 				}
 
-				assert(device_mem.width == frame_width && device_mem.height == frame_height);
-				CUDA_CHECK(cudaMemcpyAsync(noise_image.GetDevicePtr(), device_mem.GetMemPtr(), sizeof(glm::vec4) * frame_width * frame_height, cudaMemcpyDeviceToDevice, stream_main));
-				AccumulateImagePathTracing(noise_image.GetDevicePtr(), accumulate_image.GetDevicePtr(), frame_width, frame_height, extra_frame_results.task_frame_index, extra_frame_results.max_accumulate_frame, stream_main);
+				// note: execute function may pass empty frame when reach max accumulate count.
+				if (device_mem.GetMemPtr() != nullptr) {
+					assert(device_mem.width == frame_width && device_mem.height == frame_height);
+					CUDA_CHECK(cudaMemcpyAsync(noise_image.GetDevicePtr(), device_mem.GetMemPtr(), sizeof(glm::vec4) * frame_width * frame_height, cudaMemcpyDeviceToDevice, stream_main));
+					AccumulateImagePathTracing(noise_image.GetDevicePtr(), accumulate_image.GetDevicePtr(), frame_width, frame_height, extra_frame_results.task_frame_index, extra_frame_results.max_accumulate_frame, stream_main);
+				}
+
 				CUDA_CHECK(cudaMemcpyAsync(postprocessing_image.GetDevicePtr(), accumulate_image.GetDevicePtr(), sizeof(glm::vec4) * frame_width * frame_height, cudaMemcpyDeviceToDevice, stream_main));
 				PostProcessingPathTracing(postprocessing_image.GetDevicePtr(), frame_width, frame_height, render_setting.gamma, render_setting.exposure, stream_main);
 				CUDA_CHECK(cudaStreamSynchronize(stream_main));
@@ -342,7 +354,11 @@ namespace YMRT{
 	{
 		{
 			std::unique_lock<std::mutex> path_tracing_task_queue_lk(path_tracing_task_queue_mutex);
-			path_tracing_task_queue.push_front(task_params); 
+			if (path_tracing_task_queue.size() >= MAX_TASK_QUEUE_COUNT) {
+				path_tracing_task_queue.pop_back(); // note: drop the oldest task, tasks are identical when the scene and render size keep unchanged.
+			}
+
+			path_tracing_task_queue.push_front(task_params);
 		}
 		path_tracing_task_queue_cv.notify_one();
 	}
@@ -487,28 +503,26 @@ namespace YMRT{
 
 		path_tracing_timer.Start();
 
-		// note: allocate image buffers.
-		glm::vec4* noise_image = nullptr;
-		CUDA_CHECK(cudaMallocAsync(&noise_image, sizeof(glm::vec4) * task_param.width * task_param.height, stream_path_tracing));
-		CUDA_CHECK(cudaMemsetAsync(noise_image, 0, sizeof(glm::vec4) * task_param.width * task_param.height, stream_path_tracing));
-		CUDA_CHECK(cudaStreamSynchronize(stream_path_tracing));
-		DuskDeviceMemory<glm::vec4> device_mem_noise_image(task_param.width, task_param.height, noise_image);
-
 		const RenderSetting& render_setting = task_param.render_setting;
 		const int current_frame_index = path_tracing_frame_index.load();
 		const int accumulated_frame_count = current_frame_index - 1;
 
 		// note: frame count reached the limit, skip the ray tracing work and push a black frame to keep the pipeline flowing.
-		if (render_setting.max_frame_count > 0 && accumulated_frame_count >= render_setting.max_frame_count) {
+		if (render_setting.max_frame_count > 0 && accumulated_frame_count >= render_setting.max_frame_count) 
+		{
 			{
+				DuskDeviceMemory<glm::vec4> dummy_device_mem;
+				assert(dummy_device_mem.GetMemPtr() == nullptr);
+
 				std::shared_lock<std::shared_mutex> scene_read_lk(scene_resource.scene_mutex);
-				if (scene_resource.scene_change_time != task_param.scene_change_time) {
+				if (scene_resource.scene_change_time != task_param.scene_change_time) 
+				{
 					return;
 				}
 
 				{
 					std::unique_lock<std::mutex> path_tracing_result_queue_lk(path_tracing_result_queue_mutex);
-					path_tracing_result_queue_beauty.push_front(std::move(device_mem_noise_image));
+					path_tracing_result_queue_beauty.push_front(std::move(dummy_device_mem));
 					path_tracing_result_queue_extra.push_front({ current_frame_index, path_tracing_timer.Stop(), render_setting.max_frame_count });
 					path_tracing_frame_index.fetch_add(1);
 				}
@@ -516,6 +530,15 @@ namespace YMRT{
 			}
 			return;
 		}
+
+		// note: allocate image buffers.
+		glm::vec4* noise_image = nullptr;
+		CUDA_CHECK(cudaMallocAsync(&noise_image, sizeof(glm::vec4) * task_param.width * task_param.height, stream_path_tracing));
+		CUDA_CHECK(cudaMemsetAsync(noise_image, 0, sizeof(glm::vec4) * task_param.width * task_param.height, stream_path_tracing));
+		CUDA_CHECK(cudaStreamSynchronize(stream_path_tracing));
+		DuskDeviceMemory<glm::vec4> device_mem_noise_image(task_param.width, task_param.height, noise_image);
+
+		
 
 		// note: allocate device scene ptrs.
 		Scene *scene_device = nullptr;
