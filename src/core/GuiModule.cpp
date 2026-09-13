@@ -3402,8 +3402,21 @@ namespace YMRT {
 			if (selected_texture_type == TEXTURE_TYPE::IMAGE_TEXTURE) {
 				static char image_texture_path_buf[file_path_buffer_size];
 				ImGui::InputText("File path", image_texture_path_buf, file_path_buffer_size);
+
+				static int current_image_texture_color_space = IMAGE_SRGB;
+				if (ImGui::BeginCombo("Texture color space", texture_color_space_names[current_image_texture_color_space]))
+				{
+					for (int color_space_type_index = IMAGE_SRGB; color_space_type_index <= IMAGE_LINEAR; ++color_space_type_index)
+					{
+						if (ImGui::Selectable(texture_color_space_names[color_space_type_index])) {
+							current_image_texture_color_space = color_space_type_index;
+						}
+					}
+					ImGui::EndCombo();
+				}
+
 				if (ImGui::Button("Create image texture", ImGui::GetItemRectSize())) {
-					list_highlight_texture_index = m_scene.CreateImageTexture(std::string(texture_name_buf), std::string(image_texture_path_buf));
+					list_highlight_texture_index = m_scene.CreateImageTexture(std::string(texture_name_buf), std::string(image_texture_path_buf), current_image_texture_color_space);
 					memset(texture_name_buf, 0, sizeof(texture_name_buf));
 				}
 			}

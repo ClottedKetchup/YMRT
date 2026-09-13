@@ -33,8 +33,15 @@ namespace YMRT
 		WARP_MODE_CLAMP = 1
 	};
 
-	constexpr int texture_type_count = 11;
-	const char* const texture_type_names[texture_type_count] = 
+	static constexpr int texture_color_space_count = 2;
+	static const char* const texture_color_space_names[texture_color_space_count] = { "SRGB", "Linear" };
+	enum {
+		IMAGE_SRGB = 0,
+		IMAGE_LINEAR = 1
+	};
+
+	static constexpr int texture_type_count = 11;
+	static const char* const texture_type_names[texture_type_count] =
 	{
 		"image texture",
 		"constant float", 
@@ -87,6 +94,7 @@ namespace YMRT
 		float offset_v;
 
 		int warp_mode;
+		int color_space;
 
 		int16_t mipmap_tile_offsets[16];
 		int16_t mipmap_count;
@@ -97,15 +105,16 @@ namespace YMRT
 		// specify current texture's child_index of its parent.
 		int16_t ith_child;
 
-		__device__ __host__ inline ImageTexture() :parent_index(-1), ith_child(-1), mipmap_tile_offsets{0}, mipmap_count(1), tile_offset(-1), file_offset(-1), warp_mode(WARP_MODE_REPEAT),
-			scale_u(1.0f), scale_v(1.0f), offset_u(0.0f), offset_v(0.0f){}
+		__device__ __host__ inline ImageTexture() :parent_index(-1), ith_child(-1), mipmap_tile_offsets{ 0 }, mipmap_count(1), tile_offset(-1), file_offset(-1), warp_mode(WARP_MODE_REPEAT),
+			scale_u(1.0f), scale_v(1.0f), offset_u(0.0f), offset_v(0.0f), color_space(IMAGE_SRGB) {}
 		__device__ __host__ inline ImageTexture(int width, int height, int tile_offset, int file_offset, int16_t channel_count,
-			const int16_t *mipmap_tile_offset_list, int16_t mipmap_count, int warp_mode,
-			float u_scale, float v_scale, float u_offset, float v_offset)
+			const int16_t *mipmap_tile_offset_list, int16_t mipmap_count, int warp_mode, 
+			float u_scale, float v_scale, float u_offset, float v_offset, int color_space)
 			: width(width), height(height), tile_offset(tile_offset), file_offset(file_offset), channel_count(channel_count), 
 			mipmap_count(mipmap_count), warp_mode(warp_mode),
 			parent_index(-1), ith_child(-1),
-			scale_u(u_scale), scale_v(v_scale), offset_u(u_offset), offset_v(v_offset)
+			scale_u(u_scale), scale_v(v_scale), offset_u(u_offset), offset_v(v_offset),
+			color_space(color_space)
 		{
 			mipmap_tile_offsets[0] = 0;
 			if (mipmap_tile_offset_list != nullptr) { 
@@ -122,6 +131,7 @@ namespace YMRT
 			file_offset = other.file_offset;
 
 			warp_mode = other.warp_mode;
+			color_space = other.color_space;
 
 			scale_u = other.scale_u;
 			scale_v = other.scale_v;
@@ -1241,11 +1251,11 @@ namespace YMRT
 		}
 
 		__device__ __host__ inline Texture& InitImageTexture(int width, int height, int tile_offset, int file_offset, int16_t channel_count,
-			const int16_t *mipmap_tile_offset_list = nullptr, int16_t mipmap_count = 1, int warp_mode = WARP_MODE_REPEAT, float u_scale = 1.0f, float v_scale = 1.0f, float u_offset = 0.f, float v_offset = 0.f)
+			const int16_t *mipmap_tile_offset_list = nullptr, int16_t mipmap_count = 1, int warp_mode = WARP_MODE_REPEAT, float u_scale = 1.0f, float v_scale = 1.0f, float u_offset = 0.f, float v_offset = 0.f, int color_space = IMAGE_SRGB)
 		{
 			texture_type = IMAGE_TEXTURE;
 			image_texture = ImageTexture(width, height, tile_offset, file_offset, channel_count, mipmap_tile_offset_list, mipmap_count, warp_mode,
-				u_scale, v_scale, u_offset, v_offset);
+				u_scale, v_scale, u_offset, v_offset, color_space);
 			return *this;
 		}
 		__device__ __host__ inline Texture& InitImageTexture(const ImageTexture& img_tex)

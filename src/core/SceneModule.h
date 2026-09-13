@@ -171,7 +171,7 @@ namespace YMRT{
 		void DeleteMaterial(const std::vector<uint32_t>& indices);
 		void UpdateMaterial(const uint32_t index);
 
-		uint32_t CreateImageTexture(const std::string& name, const std::string& texture_file_name);
+		uint32_t CreateImageTexture(const std::string& name, const std::string& texture_file_name, const int image_texture_color_space = IMAGE_SRGB);
 		uint32_t CreateConstantTexture(const std::string& name, const float value);
 		uint32_t CreateConstantTexture(const std::string& name, const glm::vec3& color);
 		uint32_t CreateCheckerBoardTexture(const std::string& name, 
