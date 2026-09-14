@@ -1,6 +1,7 @@
 #include "src/core/SceneModule.h"
 
 #include <chrono>
+#include <filesystem>
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
@@ -1748,8 +1749,14 @@ namespace YMRT {
 			if (ai_material->GetTextureCount(texture_type) > 0) {
 				aiString file_name;
 				if (AI_SUCCESS == ai_material->GetTexture(texture_type, 0, &file_name)) {
-					const std::string texture_file_path = file_root_path + std::string(file_name.C_Str());
-					 return scene_manager.CreateImageTexture(texture_name, texture_file_path, image_texture_color_space);
+					std::filesystem::path texture_file_path(std::string(file_name.C_Str()));
+					if (texture_file_path.is_absolute()) {
+						return scene_manager.CreateImageTexture(texture_name, texture_file_path.string(), image_texture_color_space);
+					}
+					else {
+						std::filesystem::path texture_file_path = std::filesystem::path(file_root_path) / std::filesystem::path(std::string(file_name.C_Str()));
+						return scene_manager.CreateImageTexture(texture_name, texture_file_path.string(), image_texture_color_space);
+					}
 				}
 			}
 			return EMPTY_UINT32;
@@ -1860,8 +1867,11 @@ namespace YMRT {
 			fflush(stdout);
 		}
 
+		std::filesystem::path model_file_path(_own_file_name);
+		std::filesystem::path file_root_path = model_file_path.parent_path();
+
 		std::unordered_map<uint32_t, uint32_t> material_map;
-		ReadNodeData(_own_file_name.substr(0, _own_file_name.rfind("/") + 1), scene->mRootNode, scene, this, material_map, transform_index, inner_volume_index, treat_as_boundary);
+		ReadNodeData(file_root_path.string(), scene->mRootNode, scene, this, material_map, transform_index, inner_volume_index, treat_as_boundary);
 		importer.FreeScene();
 
 		{
