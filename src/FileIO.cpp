@@ -14,9 +14,70 @@
 
 namespace YMRT 
 {
+	static bool LoadPng8(const std::string& _own_file_name, const int image_texture_color_space, int& image_width, int& image_height, int& image_channel, std::vector<float>& image_buffer)
+	{
+		// TODO: put the filp switch to texture attribute.
+		unsigned char* image_handle = nullptr;
+
+		stbi_set_flip_vertically_on_load(true);
+		image_handle = stbi_load(_own_file_name.c_str(), &image_width, &image_height, &image_channel, 0);
+		assert(sizeof(stbi_uc) == sizeof(unsigned char));
+
+		if (image_width == 0 || image_height == 0 || image_channel == 0 || image_handle == nullptr) {
+			printf("Image file %s load fail.\n", _own_file_name.c_str());
+			if (image_handle != nullptr) {
+				stbi_image_free(image_handle);
+			}
+			return false;
+		}
+
+		image_buffer.resize((size_t)image_width * (size_t)image_height * (size_t)image_channel, 0.0f);
+
+		constexpr float inv_255 = 1.0f / 255.0f;
+		for (size_t i = 0; i < image_buffer.size(); ++i) {
+			float value = float((int)(image_handle[i])) * inv_255;
+			image_buffer[i] = (image_texture_color_space == IMAGE_SRGB) ? SRGBToLinear(value) : value;
+		}
+		printf("Image file %s load success.\n", _own_file_name.c_str());
+		stbi_image_free(image_handle);
+
+		return true;
+	}
+
+	static bool LoadPng16(const std::string& _own_file_name, const int image_texture_color_space, int& image_width, int& image_height, int& image_channel, std::vector<float>& image_buffer)
+	{
+		// TODO: put the filp switch to texture attribute.
+		unsigned short* image_handle = nullptr;
+
+		stbi_set_flip_vertically_on_load(true);
+		image_handle = stbi_load_16(_own_file_name.c_str(), &image_width, &image_height, &image_channel, 0);
+		assert(sizeof(stbi_us) == sizeof(unsigned short));
+
+		if (image_width == 0 || image_height == 0 || image_channel == 0 || image_handle == nullptr) {
+			printf("Image file %s load fail.\n", _own_file_name.c_str());
+			if (image_handle != nullptr) {
+				stbi_image_free(image_handle);
+			}
+			return false;
+		}
+
+		image_buffer.resize((size_t)image_width * (size_t)image_height * (size_t)image_channel, 0.0f);
+
+		constexpr float inv_65535 = 1.0f / 65535.0f;
+		for (size_t i = 0; i < image_buffer.size(); ++i) {
+			float value = float((int)(image_handle[i])) * inv_65535;
+			image_buffer[i] = (image_texture_color_space == IMAGE_SRGB) ? SRGBToLinear(value) : value;
+		}
+		printf("Image file %s load success.\n", _own_file_name.c_str());
+		stbi_image_free(image_handle);
+
+		return true;
+	}
+
 	ImageTexture LoadImageTexture(const std::string &file_name, 
 		std::vector<ImageFile> &image_texture_files, 
-		std::vector<ImageTile> &image_texture_tiles)
+		std::vector<ImageTile> &image_texture_tiles,
+		const int image_texture_color_space)
 	{
 		std::string _own_file_name = file_name;
 		for (auto& c : _own_file_name) {
@@ -31,6 +92,7 @@ namespace YMRT
 		image_texture.file_offset = -1;
 
 		image_texture.warp_mode = WARP_MODE_REPEAT;
+		image_texture.color_space = image_texture_color_space;
 
 		image_texture.scale_u = 1.0f;
 		image_texture.scale_v = 1.0f;
@@ -41,26 +103,17 @@ namespace YMRT
 		
 		// read file
 		{
-			unsigned char *image_handle = nullptr;
 			int image_width = 0, image_height = 0, image_channel = 0;
-			// TODO: put the filp switch to texture attribute.
-			stbi_set_flip_vertically_on_load(true);
-			image_handle = stbi_load(_own_file_name.c_str(), &image_width, &image_height, &image_channel, 0);
-			if (image_width == 0 || image_height == 0 || image_channel == 0 || image_handle == nullptr) {
-				printf("Image file %s load fail.\n", _own_file_name.c_str());
-				if (image_handle != nullptr) { 
-					stbi_image_free(image_handle); 
+			if (stbi_is_16_bit(_own_file_name.c_str())) {
+				if (!LoadPng16(_own_file_name, image_texture.color_space, image_width, image_height, image_channel, image_buffer)) {
+					return image_texture;
 				}
-				return image_texture;
 			}
-
-			image_buffer.resize((size_t)image_width * (size_t)image_height * (size_t)image_channel, 0.0f);
-			constexpr float inv_255 = 1.0f / 255.0f;
-			for (size_t i = 0; i < image_buffer.size(); ++i) {
-				image_buffer[i] = SRGBToLinear(float((int)(image_handle[i])) * inv_255);
+			else {
+				if (!LoadPng8(_own_file_name, image_texture.color_space, image_width, image_height, image_channel, image_buffer)) {
+					return image_texture;
+				}
 			}
-			printf("Image file %s load success.\n", _own_file_name.c_str());
-			stbi_image_free(image_handle);
 
 			image_texture.width = image_width;
 			image_texture.height = image_height;

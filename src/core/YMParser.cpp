@@ -205,7 +205,7 @@ namespace YMRT
 
 	bool is_image_texture_attribute(const std::string& s)
 	{
-		return !s.empty() && (s == "name" || s == "texture_file_name");
+		return !s.empty() && (s == "name" || s == "texture_file_name"|| s == "color_space");
 	}
 
 	bool is_constant_texture_float_attribute(const std::string& s)
@@ -1511,6 +1511,7 @@ namespace YMRT
 	{
 		std::string name; 
 		std::string texture_file_name;
+		std::string texture_color_space;
 
 		for (size_t line_index = start + 1; line_index < statement_tokens.size() && line_index < end; ++line_index)
 		{
@@ -1525,6 +1526,9 @@ namespace YMRT
 			}
 			else if (attribute == "texture_file_name") {
 				attribute_get_string(right_value, texture_file_name);
+			}
+			else if (attribute == "color_space") {
+				attribute_get_string(right_value, texture_color_space);
 			}
 			else {
 				assert(0);
@@ -1547,7 +1551,8 @@ namespace YMRT
 		std::filesystem::path texture_folder_path = get_texture_folder_from_scene_file(scene_file_dir);
 		std::filesystem::path texture_file_path = texture_folder_path / std::filesystem::path(texture_file_name);
 
-		const uint32_t image_texture_index = scene_asset_manager.CreateImageTexture(name, texture_file_path.string());
+		const int image_texture_color_space = texture_color_space.empty() || (texture_color_space == std::string(texture_color_space_names[IMAGE_SRGB])) ? IMAGE_SRGB : IMAGE_LINEAR;
+		const uint32_t image_texture_index = scene_asset_manager.CreateImageTexture(name, texture_file_path.string(), image_texture_color_space);
 		name_to_index_map[name] = image_texture_index;
 	}
 
@@ -2875,6 +2880,7 @@ namespace YMRT
 		os << "Begin(ImageTexture);" << std::endl;
 		save_attribute_name(os, "name", name);
 		save_attribute_name(os, "texture_file_name", file_name.string());
+		save_attribute_name(os, "color_space", std::string(texture_color_space_names[image_texture.color_space]));
 		os << "End(ImageTexture);" << "\n" << std::endl;
 
 		return true;
